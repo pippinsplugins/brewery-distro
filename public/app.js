@@ -234,7 +234,11 @@ async function loadInventory() {
   showLoading();
   const items = await api.get('/api/inventory');
   state.inventory = items;
+  renderInventory();
+}
 
+function renderInventory() {
+  const items = state.inventory || [];
   const search = (document.getElementById('inv-search') || {}).value || '';
   const filtered = items.filter(i =>
     !search || i.Name.toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
@@ -251,7 +255,7 @@ async function loadInventory() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="inv-search" placeholder="Search products..." value="${esc(search)}" oninput="loadInventory()" />
+      <input type="search" id="inv-search" placeholder="Search products..." value="${esc(search)}" oninput="renderInventory()" />
     </div>
     <div class="table-wrap">
       <table>
@@ -410,8 +414,12 @@ async function loadAccounts() {
   const [accounts, staff] = await Promise.all([api.get('/api/accounts'), api.get('/api/staff')]);
   state.accounts = accounts;
   state.staff = staff;
+  renderAccounts();
+}
 
-  const typeFilter   = (document.getElementById('acct-type') || {}).value || '';
+function renderAccounts() {
+  const accounts = state.accounts || [];
+  const typeFilter   = (document.getElementById('acct-type')   || {}).value || '';
   const statusFilter = (document.getElementById('acct-status') || {}).value || '';
   const search       = (document.getElementById('acct-search') || {}).value || '';
 
@@ -438,12 +446,12 @@ async function loadAccounts() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="loadAccounts()" />
-      <select id="acct-type" onchange="loadAccounts()">
+      <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="renderAccounts()" />
+      <select id="acct-type" onchange="renderAccounts()">
         <option value="">All Types</option>
         ${ACCOUNT_TYPES.map(t => `<option value="${t}" ${typeFilter === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select>
-      <select id="acct-status" onchange="loadAccounts()">
+      <select id="acct-status" onchange="renderAccounts()">
         <option value="">All Statuses</option>
         ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
@@ -588,8 +596,13 @@ function outreachForm(entry = {}, presetAccountId = '') {
 async function loadOutreach() {
   showLoading();
   const [outreach, accounts] = await Promise.all([api.get('/api/outreach'), api.get('/api/accounts')]);
+  state.outreach = outreach;
   state.accounts = accounts;
+  renderOutreach();
+}
 
+function renderOutreach() {
+  const outreach = state.outreach || [];
   const accountFilter = (document.getElementById('out-account') || {}).value || '';
   const methodFilter  = (document.getElementById('out-method') || {}).value || '';
   const search        = (document.getElementById('out-search') || {}).value || '';
@@ -623,9 +636,9 @@ async function loadOutreach() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="out-search" placeholder="Search..." value="${esc(search)}" oninput="loadOutreach()" />
-      <select id="out-account" onchange="loadOutreach()">${acctOpts}</select>
-      <select id="out-method" onchange="loadOutreach()">
+      <input type="search" id="out-search" placeholder="Search..." value="${esc(search)}" oninput="renderOutreach()" />
+      <select id="out-account" onchange="renderOutreach()">${acctOpts}</select>
+      <select id="out-method" onchange="renderOutreach()">
         <option value="">All Methods</option>
         ${OUTREACH_METHODS.map(m => `<option value="${m}" ${methodFilter === m ? 'selected' : ''}>${m}</option>`).join('')}
       </select>
@@ -798,9 +811,8 @@ function reminderForm(reminder = {}) {
 let _remindersCache = [];
 
 async function loadReminders() {
-  showLoading();
   const statusFilter = (document.getElementById('rem-status') || {}).value || 'active';
-  const search = (document.getElementById('rem-search') || {}).value || '';
+  showLoading();
 
   const [reminders, accounts, staff] = await Promise.all([
     api.get(`/api/reminders?status=${statusFilter}`),
@@ -810,6 +822,14 @@ async function loadReminders() {
   state.accounts = accounts;
   state.staff = staff;
   _remindersCache = reminders;
+
+  renderReminders();
+}
+
+function renderReminders() {
+  const reminders = _remindersCache;
+  const statusFilter = (document.getElementById('rem-status') || {}).value || 'active';
+  const search = (document.getElementById('rem-search') || {}).value || '';
 
   let filtered = reminders;
   if (search) {
@@ -831,7 +851,7 @@ async function loadReminders() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="rem-search" placeholder="Search reminders..." value="${esc(search)}" oninput="loadReminders()" />
+      <input type="search" id="rem-search" placeholder="Search reminders..." value="${esc(search)}" oninput="renderReminders()" />
       <select id="rem-status" onchange="loadReminders()">
         <option value="active" ${statusFilter === 'active' ? 'selected' : ''}>Active</option>
         <option value="completed" ${statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
@@ -1110,6 +1130,12 @@ async function loadStaff() {
   state.staff = staff;
   state.accounts = accounts;
   _staffCache = staff;
+  renderStaff();
+}
+
+function renderStaff() {
+  const staff = _staffCache;
+  const accounts = state.accounts || [];
 
   // Compute account count per staff member
   const acctCounts = {};
@@ -1131,7 +1157,7 @@ async function loadStaff() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="staff-search" placeholder="Search staff..." value="${esc(search)}" oninput="loadStaff()" />
+      <input type="search" id="staff-search" placeholder="Search staff..." value="${esc(search)}" oninput="renderStaff()" />
     </div>
     <div class="table-wrap">
       <table>
@@ -1288,7 +1314,11 @@ async function loadSales() {
   state.accounts = accounts;
   state.staff = staff;
   _salesCache = sales;
+  renderSales();
+}
 
+function renderSales() {
+  const sales = _salesCache;
   const accountFilter = (document.getElementById('sales-account') || {}).value || '';
   const staffFilter   = (document.getElementById('sales-staff') || {}).value || '';
   const statusFilter  = (document.getElementById('sales-status') || {}).value || '';
@@ -1333,10 +1363,10 @@ async function loadSales() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="sales-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="loadSales()" />
-      <select id="sales-account" onchange="loadSales()">${acctOpts}</select>
-      <select id="sales-staff" onchange="loadSales()">${staffOpts}</select>
-      <select id="sales-status" onchange="loadSales()">
+      <input type="search" id="sales-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="renderSales()" />
+      <select id="sales-account" onchange="renderSales()">${acctOpts}</select>
+      <select id="sales-staff" onchange="renderSales()">${staffOpts}</select>
+      <select id="sales-status" onchange="renderSales()">
         <option value="">All Statuses</option>
         ${SALE_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
