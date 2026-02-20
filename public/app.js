@@ -731,6 +731,15 @@ async function deleteOutreach(id) {
 
 const REMINDER_TYPES = ['Follow-up', 'Delivery', 'Payment', 'Order', 'Tasting', 'Event', 'Other'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
+const RECURRENCE_OPTIONS = [
+  { value: 'none',      label: 'None' },
+  { value: 'daily',     label: 'Daily' },
+  { value: 'weekly',    label: 'Weekly' },
+  { value: 'biweekly',  label: 'Every Other Week' },
+  { value: 'monthly',   label: 'Monthly' },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'yearly',    label: 'Yearly' },
+];
 
 function reminderForm(reminder = {}) {
   return `
@@ -765,12 +774,20 @@ function reminderForm(reminder = {}) {
         </select>
       </div>
     </div>
-    <div class="form-group">
-      <label>Assign To</label>
-      <select class="form-control" id="f-staff">
-        <option value="">-- Unassigned --</option>
-        ${staffOptions(reminder.StaffID)}
-      </select>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Assign To</label>
+        <select class="form-control" id="f-staff">
+          <option value="">-- Unassigned --</option>
+          ${staffOptions(reminder.StaffID)}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Recurrence</label>
+        <select class="form-control" id="f-recurrence">
+          ${RECURRENCE_OPTIONS.map(o => `<option value="${o.value}" ${(reminder.Recurrence || 'none') === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -834,7 +851,7 @@ async function loadReminders() {
             filtered.map(r => `<tr>
               <td>${formatDate(r.DueDate)}</td>
               <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
-              <td class="fw-600">${esc(r.Title)}</td>
+              <td class="fw-600">${esc(r.Title)}${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
               <td class="text-sm">${esc(r.AccountName) || '—'}</td>
               <td class="text-sm">${esc(r.Type)}</td>
               <td class="text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
@@ -869,6 +886,7 @@ function openAddReminder(presetAccountId = '') {
       Title: title, DueDate: dueDate, Priority: val('f-priority'),
       Type: val('f-type'), AccountID: accountId, AccountName: accountName,
       StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
+      Recurrence: val('f-recurrence'),
     });
     modal.close();
     toast('Reminder added');
@@ -891,6 +909,7 @@ function openEditReminder(id) {
       Title: title, DueDate: dueDate, Priority: val('f-priority'),
       Type: val('f-type'), AccountID: accountId, AccountName: accountName,
       StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
+      Recurrence: val('f-recurrence'),
     });
     modal.close();
     toast('Reminder updated');
@@ -899,8 +918,13 @@ function openEditReminder(id) {
 }
 
 async function completeReminder(id) {
-  await api.put(`/api/reminders/${id}`, { Completed: 'true' });
-  toast('Marked as done');
+  const result = await api.put(`/api/reminders/${id}`, { Completed: 'true' });
+  if (result._nextReminder) {
+    const label = RECURRENCE_OPTIONS.find(o => o.value === result._nextReminder.Recurrence)?.label || result._nextReminder.Recurrence;
+    toast(`Done — next ${label.toLowerCase()} occurrence on ${formatDate(result._nextReminder.DueDate)}`);
+  } else {
+    toast('Marked as done');
+  }
   loadReminders();
 }
 

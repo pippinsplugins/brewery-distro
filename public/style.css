@@ -488,7 +488,8 @@ tbody td {
 .badge-today     { background: var(--warning-bg); color: var(--warning-text); }
 .badge-upcoming  { background: var(--success-bg); color: var(--success-text); }
 .badge-future    { background: var(--neutral-bg); color: var(--neutral-text); }
-.badge-completed { background: var(--neutral-bg); color: var(--neutral-text); }
+.badge-completed  { background: var(--neutral-bg); color: var(--neutral-text); }
+.badge-recurrence { background: var(--neutral-bg); color: var(--neutral-text); font-size: 0.7rem; padding: 1px 4px; vertical-align: middle; cursor: default; }
 
 .badge-low-stock { background: var(--danger-bg); color: var(--danger-text); }
 .badge-ok-stock  { background: var(--success-bg); color: var(--success-text); }
