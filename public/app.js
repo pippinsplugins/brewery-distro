@@ -766,6 +766,13 @@ function reminderForm(reminder = {}) {
       </div>
     </div>
     <div class="form-group">
+      <label>Assign To</label>
+      <select class="form-control" id="f-staff">
+        <option value="">-- Unassigned --</option>
+        ${staffOptions(reminder.StaffID)}
+      </select>
+    </div>
+    <div class="form-group">
       <label>Notes</label>
       <textarea class="form-control" id="f-notes" rows="2">${esc(reminder.Notes)}</textarea>
     </div>`;
@@ -778,11 +785,13 @@ async function loadReminders() {
   const statusFilter = (document.getElementById('rem-status') || {}).value || 'active';
   const search = (document.getElementById('rem-search') || {}).value || '';
 
-  const [reminders, accounts] = await Promise.all([
+  const [reminders, accounts, staff] = await Promise.all([
     api.get(`/api/reminders?status=${statusFilter}`),
     api.get('/api/accounts'),
+    api.get('/api/staff'),
   ]);
   state.accounts = accounts;
+  state.staff = staff;
   _remindersCache = reminders;
 
   let filtered = reminders;
@@ -817,17 +826,18 @@ async function loadReminders() {
         <thead>
           <tr>
             <th>Due</th><th>Status</th><th>Title</th><th>Account</th>
-            <th>Type</th><th>Priority</th><th>Actions</th>
+            <th>Type</th><th>Assigned To</th><th>Priority</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="7" class="empty-state">No reminders found.</td></tr>` :
+          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No reminders found.</td></tr>` :
             filtered.map(r => `<tr>
               <td>${formatDate(r.DueDate)}</td>
               <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600">${esc(r.Title)}</td>
               <td class="text-sm">${esc(r.AccountName) || '—'}</td>
               <td class="text-sm">${esc(r.Type)}</td>
+              <td class="text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
                 ${r.Completed !== 'true'
@@ -844,17 +854,21 @@ async function loadReminders() {
 }
 
 function openAddReminder(presetAccountId = '') {
-  modal.open('Add Reminder', reminderForm({ AccountID: presetAccountId }), async () => {
+  // Pre-populate the assigned staff from the account's assigned rep if available
+  const presetAcct = presetAccountId ? (state.accounts.find(a => a.ID === presetAccountId) || {}) : {};
+  modal.open('Add Reminder', reminderForm({ AccountID: presetAccountId, StaffID: presetAcct.StaffID, StaffName: presetAcct.StaffName }), async () => {
     const title = val('f-title');
     const dueDate = val('f-due');
     if (!title) { toast('Title is required', 'error'); return; }
     if (!dueDate) { toast('Due date is required', 'error'); return; }
     const accountId = val('f-account');
     const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.post('/api/reminders', {
       Title: title, DueDate: dueDate, Priority: val('f-priority'),
       Type: val('f-type'), AccountID: accountId, AccountName: accountName,
-      Notes: val('f-notes'),
+      StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
     });
     modal.close();
     toast('Reminder added');
@@ -871,10 +885,12 @@ function openEditReminder(id) {
     if (!title) { toast('Title is required', 'error'); return; }
     const accountId = val('f-account');
     const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.put(`/api/reminders/${id}`, {
       Title: title, DueDate: dueDate, Priority: val('f-priority'),
       Type: val('f-type'), AccountID: accountId, AccountName: accountName,
-      Notes: val('f-notes'),
+      StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
     });
     modal.close();
     toast('Reminder updated');

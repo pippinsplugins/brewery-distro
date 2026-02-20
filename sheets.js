@@ -20,7 +20,7 @@ const HEADERS = {
   INVENTORY: ['ID', 'Name', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated'],
   ACCOUNTS:  ['ID', 'Name', 'Type', 'ContactName', 'Email', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
-  REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'CreatedAt'],
+  REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'CreatedAt'],
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
   SALES:     ['ID', 'AccountID', 'AccountName', 'StaffID', 'StaffName', 'SaleDate', 'DeliveryDate', 'InvoiceNumber', 'SaleAmount', 'TaxAmount', 'Notes', 'Status', 'CreatedAt'],
 };
