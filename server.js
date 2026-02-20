@@ -6,9 +6,11 @@ require('dotenv').config();
 
 const { initializeSheets } = require('./sheets');
 const inventoryRoutes = require('./routes/inventory');
-const accountsRoutes = require('./routes/accounts');
-const outreachRoutes = require('./routes/outreach');
+const accountsRoutes  = require('./routes/accounts');
+const outreachRoutes  = require('./routes/outreach');
 const remindersRoutes = require('./routes/reminders');
+const staffRoutes     = require('./routes/staff');
+const salesRoutes     = require('./routes/sales');
 const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
@@ -18,9 +20,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/inventory', inventoryRoutes);
-app.use('/api/accounts', accountsRoutes);
-app.use('/api/outreach', outreachRoutes);
+app.use('/api/accounts',  accountsRoutes);
+app.use('/api/outreach',  outreachRoutes);
 app.use('/api/reminders', remindersRoutes);
+app.use('/api/staff',     staffRoutes);
+app.use('/api/sales',     salesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 app.get('/api/status', (req, res) => {

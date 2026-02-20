@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Type, ContactName, Email, Phone, PreferredMethod, Address, City, State, Status, Notes } = req.body;
+    const { Name, Type, ContactName, Email, Phone, PreferredMethod, Address, City, State, Status, Notes, StaffID, StaffName } = req.body;
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
     const account = {
@@ -34,6 +34,8 @@ router.post('/', async (req, res) => {
       Status: Status || 'Prospect',
       Notes: Notes || '',
       LastContacted: '',
+      StaffID: StaffID || '',
+      StaffName: StaffName || '',
       CreatedAt: new Date().toISOString().split('T')[0],
     };
 
@@ -73,6 +75,14 @@ router.delete('/:id', async (req, res) => {
     for (const reminder of reminders) {
       if (reminder.AccountID === id) {
         await deleteRow('REMINDERS', reminder.ID);
+      }
+    }
+
+    // Cascade delete: remove associated sales
+    const sales = await getAllRows('SALES');
+    for (const sale of sales) {
+      if (sale.AccountID === id) {
+        await deleteRow('SALES', sale.ID);
       }
     }
 

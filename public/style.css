@@ -493,6 +493,23 @@ tbody td {
 .badge-low-stock { background: var(--danger-bg); color: var(--danger-text); }
 .badge-ok-stock  { background: var(--success-bg); color: var(--success-text); }
 
+/* Sales status badges */
+.badge-pending   { background: #e3f2fd; color: #1565c0; }
+.badge-delivered { background: var(--warning-bg); color: var(--warning-text); }
+.badge-paid      { background: var(--success-bg); color: var(--success-text); }
+.badge-cancelled { background: var(--neutral-bg); color: var(--neutral-text); }
+
+/* Staff active badges */
+.badge-staff-active   { background: var(--success-bg); color: var(--success-text); }
+.badge-staff-inactive { background: var(--neutral-bg); color: var(--neutral-text); }
+
+/* Sales totals footer row */
+.table-totals td {
+  font-weight: 700;
+  background: #f7faf7;
+  border-top: 2px solid var(--border);
+}
+
 /* ── Modal ────────────────────────────────────────────── */
 
 .modal-overlay {

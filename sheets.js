@@ -7,20 +7,53 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 
 const SHEETS = {
   INVENTORY: 'Inventory',
-  ACCOUNTS: 'Accounts',
-  OUTREACH: 'Outreach',
+  ACCOUNTS:  'Accounts',
+  OUTREACH:  'Outreach',
   REMINDERS: 'Reminders',
+  STAFF:     'Staff',
+  SALES:     'Sales',
 };
 
+// HEADERS defines every column each sheet should have.
+// On startup, any missing columns are automatically appended (migration-safe).
 const HEADERS = {
   INVENTORY: ['ID', 'Name', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated'],
-  ACCOUNTS: ['ID', 'Name', 'Type', 'ContactName', 'Email', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Status', 'Notes', 'LastContacted', 'CreatedAt'],
-  OUTREACH: ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
+  ACCOUNTS:  ['ID', 'Name', 'Type', 'ContactName', 'Email', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
+  OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'CreatedAt'],
+  STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
+  SALES:     ['ID', 'AccountID', 'AccountName', 'StaffID', 'StaffName', 'SaleDate', 'DeliveryDate', 'InvoiceNumber', 'SaleAmount', 'TaxAmount', 'Notes', 'Status', 'CreatedAt'],
 };
 
-// Cache sheet numeric IDs after first fetch to minimize API calls for deletions
+// Cached sheet header rows — avoids an extra API call on every write
+const headerCache = {};
+
+// Cached numeric sheet IDs needed for row deletion batchUpdate
 const sheetIdCache = {};
+
+// Convert 0-based column index to spreadsheet letter (0→A, 25→Z, 26→AA…)
+function indexToCol(i) {
+  let col = '';
+  let n = i + 1;
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    col = String.fromCharCode(65 + r) + col;
+    n = Math.floor((n - 1) / 26);
+  }
+  return col;
+}
+
+async function getSheetHeaders(sheetName, forceRefresh = false) {
+  if (!forceRefresh && headerCache[sheetName]) return headerCache[sheetName];
+  const client = await getClient();
+  const res = await client.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${sheetName}!A1:1`,
+  });
+  const headers = (res.data.values || [[]])[0] || [];
+  headerCache[sheetName] = headers;
+  return headers;
+}
 
 async function getAuth() {
   if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
@@ -70,20 +103,34 @@ async function initializeSheets() {
     await getSpreadsheetSheets();
   }
 
-  // Write headers if the sheet is empty
+  // Write or migrate headers for every sheet
   for (const [key, sheetName] of Object.entries(SHEETS)) {
-    const res = await client.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${sheetName}!A1:1`,
-    });
-    const firstRow = (res.data.values || [[]])[0] || [];
-    if (firstRow.length === 0) {
+    const existing = await getSheetHeaders(sheetName, true);
+    const expected = HEADERS[key];
+
+    if (existing.length === 0) {
+      // Brand-new or empty sheet — write full header row
       await client.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: `${sheetName}!A1`,
         valueInputOption: 'RAW',
-        requestBody: { values: [HEADERS[key]] },
+        requestBody: { values: [expected] },
       });
+      headerCache[sheetName] = expected;
+    } else {
+      // Existing sheet — append any new columns that aren't present yet
+      const missing = expected.filter(h => !existing.includes(h));
+      if (missing.length > 0) {
+        const startCol = indexToCol(existing.length);
+        await client.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${sheetName}!${startCol}1`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [missing] },
+        });
+        headerCache[sheetName] = [...existing, ...missing];
+        console.log(`  Migrated ${sheetName}: added columns [${missing.join(', ')}]`);
+      }
     }
   }
 }
@@ -123,8 +170,9 @@ async function getAllRows(sheetKey) {
 async function addRow(sheetKey, data) {
   const client = await getClient();
   const sheetName = SHEETS[sheetKey];
-  const headers = HEADERS[sheetKey];
-  const row = objectToRow(data, headers);
+  // Always use the actual sheet header order so columns align correctly
+  const headers = await getSheetHeaders(sheetName);
+  const row = headers.map(h => (data[h] != null) ? String(data[h]) : '');
 
   await client.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
@@ -140,19 +188,19 @@ async function addRow(sheetKey, data) {
 async function updateRow(sheetKey, id, updates) {
   const client = await getClient();
   const sheetName = SHEETS[sheetKey];
-  const headers = HEADERS[sheetKey];
   const rows = await getRawRows(sheetName);
 
   if (rows.length < 2) throw new Error('Record not found');
 
-  // rows[0] is headers; data starts at rows[1] (sheet row 2)
+  // Use the sheet's own first row as the authoritative column order
+  const sheetHeaders = rows[0];
   const dataIndex = rows.findIndex((row, i) => i > 0 && row[0] === id);
   if (dataIndex === -1) throw new Error(`Record with ID ${id} not found`);
 
   const existing = {};
-  rows[0].forEach((h, i) => { existing[h] = rows[dataIndex][i] || ''; });
+  sheetHeaders.forEach((h, i) => { existing[h] = rows[dataIndex][i] || ''; });
   const updated = { ...existing, ...updates };
-  const newRow = objectToRow(updated, headers);
+  const newRow = sheetHeaders.map(h => (updated[h] != null) ? String(updated[h]) : '');
 
   const sheetRow = dataIndex + 1; // 1-indexed sheet row
   await client.spreadsheets.values.update({

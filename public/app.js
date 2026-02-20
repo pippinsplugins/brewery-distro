@@ -5,6 +5,7 @@ const state = {
   view: 'dashboard',
   accounts: [],      // cached for select dropdowns
   inventory: [],
+  staff: [],         // cached for staff dropdowns
 };
 
 // ── Utilities ────────────────────────────────────────────────────
@@ -165,6 +166,14 @@ function accountOptions(selectedId = '') {
     .filter(a => a.Status !== 'Inactive')
     .sort((a, b) => a.Name.localeCompare(b.Name))
     .map(a => `<option value="${esc(a.ID)}" ${a.ID === selectedId ? 'selected' : ''}>${esc(a.Name)}</option>`)
+    .join('');
+}
+
+function staffOptions(selectedId = '') {
+  return state.staff
+    .filter(s => s.Active !== 'false')
+    .sort((a, b) => a.Name.localeCompare(b.Name))
+    .map(s => `<option value="${esc(s.ID)}" ${s.ID === selectedId ? 'selected' : ''}>${esc(s.Name)}${s.Role ? ' (' + esc(s.Role) + ')' : ''}</option>`)
     .join('');
 }
 
@@ -344,6 +353,13 @@ function accountForm(acct = {}) {
         </select>
       </div>
     </div>
+    <div class="form-group">
+      <label>Assigned Sales Rep</label>
+      <select class="form-control" id="f-staff">
+        <option value="">-- Unassigned --</option>
+        ${staffOptions(acct.StaffID)}
+      </select>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label>Contact Name</label>
@@ -391,8 +407,9 @@ function accountForm(acct = {}) {
 
 async function loadAccounts() {
   showLoading();
-  const accounts = await api.get('/api/accounts');
+  const [accounts, staff] = await Promise.all([api.get('/api/accounts'), api.get('/api/staff')]);
   state.accounts = accounts;
+  state.staff = staff;
 
   const typeFilter   = (document.getElementById('acct-type') || {}).value || '';
   const statusFilter = (document.getElementById('acct-status') || {}).value || '';
@@ -436,17 +453,18 @@ async function loadAccounts() {
         <thead>
           <tr>
             <th>Name</th><th>Type</th><th>Contact</th><th>Email / Phone</th>
-            <th>Preferred</th><th>Status</th><th>Last Contact</th><th>Actions</th>
+            <th>Preferred</th><th>Sales Rep</th><th>Status</th><th>Last Contact</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No accounts found.</td></tr>` :
+          ${filtered.length === 0 ? `<tr><td colspan="9" class="empty-state">No accounts found.</td></tr>` :
             filtered.map(a => `<tr>
               <td class="fw-600">${esc(a.Name)}<br><span class="text-muted text-sm">${esc(a.City)}${a.City && a.State ? ', ' : ''}${esc(a.State)}</span></td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
               <td class="text-sm">${a.Email ? esc(a.Email) + '<br>' : ''}${esc(a.Phone)}</td>
               <td>${methodBadge(a.PreferredMethod)}</td>
+              <td class="text-sm">${esc(a.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${statusBadge(a.Status)}</td>
               <td class="text-sm text-muted">${formatDate(a.LastContacted)}</td>
               <td class="td-actions">
@@ -464,12 +482,14 @@ function openAddAccount() {
   modal.open('Add Account', accountForm(), async () => {
     const name = val('f-name');
     if (!name) { toast('Account name is required', 'error'); return; }
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.post('/api/accounts', {
       Name: name, Type: val('f-type'), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'),
-      Notes: val('f-notes'),
+      Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
     toast('Account added');
@@ -483,12 +503,14 @@ function openEditAccount(id) {
   modal.open('Edit Account', accountForm(acct), async () => {
     const name = val('f-name');
     if (!name) { toast('Account name is required', 'error'); return; }
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.put(`/api/accounts/${id}`, {
       Name: name, Type: val('f-type'), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'),
-      Notes: val('f-notes'),
+      Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
     toast('Account updated');
@@ -499,7 +521,7 @@ function openEditAccount(id) {
 async function deleteAccount(id, name) {
   modal.confirm(
     'Delete Account',
-    `Delete "${name}"? All associated outreach logs and reminders will also be deleted.`,
+    `Delete "${name}"? All associated outreach logs, reminders, and sales will also be deleted.`,
     async () => {
       await api.del(`/api/accounts/${id}`);
       modal.close();
@@ -959,6 +981,10 @@ async function loadDashboard() {
         <div class="stat-value">${dash.prospectAccounts}</div>
         <div class="stat-label">Prospects</div>
       </div>
+      <div class="stat-card accent">
+        <div class="stat-value">$${parseFloat(dash.monthlySalesTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+        <div class="stat-label">Sales This Month (${dash.monthlySalesCount || 0})</div>
+      </div>
       <div class="stat-card ${dash.overdueCount > 0 ? 'danger' : 'warning'}">
         <div class="stat-value">${dash.overdueCount > 0 ? dash.overdueCount : dash.totalActiveReminders}</div>
         <div class="stat-label">${dash.overdueCount > 0 ? 'Overdue' : 'Active Reminders'}</div>
@@ -994,6 +1020,383 @@ async function loadDashboard() {
     </div>`);
 }
 
+// ── Staff View ────────────────────────────────────────────────────
+
+const STAFF_ROLES = ['Sales Rep', 'Delivery Driver', 'Sales Manager', 'Account Manager', 'Other'];
+
+function staffForm(member = {}) {
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name <span class="required">*</span></label>
+        <input class="form-control" id="f-name" value="${esc(member.Name)}" placeholder="e.g. Alex Johnson" />
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select class="form-control" id="f-role">
+          <option value="">-- Select --</option>
+          ${STAFF_ROLES.map(r => `<option value="${r}" ${member.Role === r ? 'selected' : ''}>${r}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-control" id="f-email" type="email" value="${esc(member.Email)}" placeholder="alex@brewery.com" />
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input class="form-control" id="f-phone" type="tel" value="${esc(member.Phone)}" placeholder="(555) 000-0000" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Active</label>
+      <select class="form-control" id="f-active">
+        <option value="true" ${member.Active !== 'false' ? 'selected' : ''}>Active</option>
+        <option value="false" ${member.Active === 'false' ? 'selected' : ''}>Inactive</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-control" id="f-notes" rows="2">${esc(member.Notes)}</textarea>
+    </div>`;
+}
+
+let _staffCache = [];
+
+async function loadStaff() {
+  showLoading();
+  const [staff, accounts] = await Promise.all([api.get('/api/staff'), api.get('/api/accounts')]);
+  state.staff = staff;
+  state.accounts = accounts;
+  _staffCache = staff;
+
+  // Compute account count per staff member
+  const acctCounts = {};
+  accounts.forEach(a => { if (a.StaffID) acctCounts[a.StaffID] = (acctCounts[a.StaffID] || 0) + 1; });
+
+  const search = (document.getElementById('staff-search') || {}).value || '';
+  const filtered = search
+    ? staff.filter(s => s.Name.toLowerCase().includes(search.toLowerCase()) || (s.Role || '').toLowerCase().includes(search.toLowerCase()))
+    : staff;
+
+  setContent(`
+    <div class="view-header">
+      <div>
+        <h2>Staff Directory</h2>
+        <p class="subtitle">${staff.filter(s => s.Active !== 'false').length} active member${staff.length !== 1 ? 's' : ''}</p>
+      </div>
+      <div class="view-header-actions">
+        <button class="btn btn-primary" onclick="openAddStaff()">+ Add Staff Member</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="search" id="staff-search" placeholder="Search staff..." value="${esc(search)}" oninput="loadStaff()" />
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th><th>Role</th><th>Email</th><th>Phone</th>
+            <th>Accounts</th><th>Status</th><th>Notes</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No staff found. Add your first team member!</td></tr>` :
+            filtered.map(s => `<tr>
+              <td class="fw-600">${esc(s.Name)}</td>
+              <td>${esc(s.Role) || '—'}</td>
+              <td class="text-sm">${esc(s.Email) || '—'}</td>
+              <td class="text-sm">${esc(s.Phone) || '—'}</td>
+              <td><span class="badge badge-prospect">${acctCounts[s.ID] || 0} account${(acctCounts[s.ID] || 0) !== 1 ? 's' : ''}</span></td>
+              <td><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
+              <td class="text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
+              <td class="td-actions">
+                <button class="btn btn-ghost btn-sm" onclick="openEditStaff('${esc(s.ID)}')">Edit</button>
+                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteStaff('${esc(s.ID)}', '${esc(s.Name)}')">Delete</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`);
+}
+
+function openAddStaff() {
+  modal.open('Add Staff Member', staffForm(), async () => {
+    const name = val('f-name');
+    if (!name) { toast('Name is required', 'error'); return; }
+    await api.post('/api/staff', {
+      Name: name, Role: val('f-role'), Email: val('f-email'),
+      Phone: val('f-phone'), Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Staff member added');
+    loadStaff();
+  });
+}
+
+function openEditStaff(id) {
+  const member = _staffCache.find(s => s.ID === id);
+  if (!member) return;
+  modal.open('Edit Staff Member', staffForm(member), async () => {
+    const name = val('f-name');
+    if (!name) { toast('Name is required', 'error'); return; }
+    await api.put(`/api/staff/${id}`, {
+      Name: name, Role: val('f-role'), Email: val('f-email'),
+      Phone: val('f-phone'), Active: val('f-active'), Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Staff member updated');
+    loadStaff();
+  });
+}
+
+async function deleteStaff(id, name) {
+  modal.confirm(
+    'Delete Staff Member',
+    `Delete "${name}"? They will be unassigned from all accounts.`,
+    async () => {
+      await api.del(`/api/staff/${id}`);
+      modal.close();
+      toast('Staff member deleted');
+      loadStaff();
+    }
+  );
+}
+
+// ── Sales View ────────────────────────────────────────────────────
+
+const SALE_STATUSES = ['Pending', 'Delivered', 'Paid', 'Cancelled'];
+
+function salesForm(sale = {}, presetAccountId = '') {
+  const selAcctId = sale.AccountID || presetAccountId;
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Account <span class="required">*</span></label>
+        <select class="form-control" id="f-account" ${presetAccountId ? 'disabled' : ''}>
+          <option value="">-- Select Account --</option>
+          ${accountOptions(selAcctId)}
+        </select>
+        ${presetAccountId ? `<input type="hidden" id="f-account-hidden" value="${esc(presetAccountId)}" />` : ''}
+      </div>
+      <div class="form-group">
+        <label>Sales Rep</label>
+        <select class="form-control" id="f-staff">
+          <option value="">-- Unassigned --</option>
+          ${staffOptions(sale.StaffID)}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sale Date <span class="required">*</span></label>
+        <input class="form-control" id="f-sale-date" type="date" value="${esc(sale.SaleDate || today())}" />
+      </div>
+      <div class="form-group">
+        <label>Delivery Date</label>
+        <input class="form-control" id="f-delivery-date" type="date" value="${esc(sale.DeliveryDate)}" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Invoice Number</label>
+        <input class="form-control" id="f-invoice" value="${esc(sale.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select class="form-control" id="f-status">
+          ${SALE_STATUSES.map(s => `<option value="${s}" ${sale.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sale Amount ($) <span class="required">*</span></label>
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(sale.SaleAmount || '')}" placeholder="0.00" />
+      </div>
+      <div class="form-group">
+        <label>Tax Amount ($)</label>
+        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(sale.TaxAmount || '')}" placeholder="0.00" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes / Reference</label>
+      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(sale.Notes)}</textarea>
+    </div>`;
+}
+
+let _salesCache = [];
+
+function salesStatusBadge(status) {
+  const map = { Pending: 'badge-pending', Delivered: 'badge-delivered', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
+  return `<span class="badge ${map[status] || 'badge-pending'}">${esc(status || 'Pending')}</span>`;
+}
+
+function fmtMoney(val) {
+  const n = parseFloat(val || 0);
+  return isNaN(n) ? '—' : '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadSales() {
+  showLoading();
+  const [sales, accounts, staff] = await Promise.all([
+    api.get('/api/sales'),
+    api.get('/api/accounts'),
+    api.get('/api/staff'),
+  ]);
+  state.accounts = accounts;
+  state.staff = staff;
+  _salesCache = sales;
+
+  const accountFilter = (document.getElementById('sales-account') || {}).value || '';
+  const staffFilter   = (document.getElementById('sales-staff') || {}).value || '';
+  const statusFilter  = (document.getElementById('sales-status') || {}).value || '';
+  const search        = (document.getElementById('sales-search') || {}).value || '';
+
+  let filtered = sales;
+  if (accountFilter) filtered = filtered.filter(s => s.AccountID === accountFilter);
+  if (staffFilter)   filtered = filtered.filter(s => s.StaffID === staffFilter);
+  if (statusFilter)  filtered = filtered.filter(s => s.Status === statusFilter);
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(s =>
+      (s.AccountName || '').toLowerCase().includes(q) ||
+      (s.InvoiceNumber || '').toLowerCase().includes(q) ||
+      (s.Notes || '').toLowerCase().includes(q)
+    );
+  }
+
+  const totalSale = filtered.reduce((sum, s) => sum + parseFloat(s.SaleAmount || 0), 0);
+  const totalTax  = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount  || 0), 0);
+
+  const acctOpts = `<option value="">All Accounts</option>` +
+    [...new Map(sales.map(s => [s.AccountID, s.AccountName])).entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => `<option value="${esc(id)}" ${accountFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
+      .join('');
+
+  const staffOpts = `<option value="">All Reps</option>` +
+    [...new Map(sales.filter(s => s.StaffID).map(s => [s.StaffID, s.StaffName])).entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => `<option value="${esc(id)}" ${staffFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
+      .join('');
+
+  setContent(`
+    <div class="view-header">
+      <div>
+        <h2>Sales Log</h2>
+        <p class="subtitle">${sales.length} sale${sales.length !== 1 ? 's' : ''} recorded</p>
+      </div>
+      <div class="view-header-actions">
+        <button class="btn btn-primary" onclick="openAddSale()">+ Log Sale</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="search" id="sales-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="loadSales()" />
+      <select id="sales-account" onchange="loadSales()">${acctOpts}</select>
+      <select id="sales-staff" onchange="loadSales()">${staffOpts}</select>
+      <select id="sales-status" onchange="loadSales()">
+        <option value="">All Statuses</option>
+        ${SALE_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Sale Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
+            <th>Sale Amt</th><th>Tax</th><th>Total</th><th>Delivery</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? `<tr><td colspan="10" class="empty-state">No sales found.</td></tr>` :
+            filtered.map(s => {
+              const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
+              return `<tr>
+                <td>${formatDate(s.SaleDate)}</td>
+                <td class="fw-600">${esc(s.AccountName)}</td>
+                <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
+                <td class="text-sm">${esc(s.StaffName) || '—'}</td>
+                <td>${fmtMoney(s.SaleAmount)}</td>
+                <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
+                <td class="fw-600">${fmtMoney(total)}</td>
+                <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
+                <td>${salesStatusBadge(s.Status)}</td>
+                <td class="td-actions">
+                  <button class="btn btn-ghost btn-sm" onclick="openEditSale('${esc(s.ID)}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteSale('${esc(s.ID)}')">Del</button>
+                </td>
+              </tr>`;
+            }).join('')}
+        </tbody>
+        ${filtered.length > 1 ? `
+        <tfoot>
+          <tr class="table-totals">
+            <td colspan="4" class="text-muted text-sm">${filtered.length} records</td>
+            <td>${fmtMoney(totalSale)}</td>
+            <td>${fmtMoney(totalTax)}</td>
+            <td class="fw-600">${fmtMoney(totalSale + totalTax)}</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>` : ''}
+      </table>
+    </div>`);
+}
+
+async function openAddSale(presetAccountId = '') {
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  modal.open('Log Sale', salesForm({}, presetAccountId), async () => {
+    const accountId = presetAccountId || val('f-account');
+    if (!accountId) { toast('Please select an account', 'error'); return; }
+    const saleDate = val('f-sale-date');
+    if (!saleDate) { toast('Sale date is required', 'error'); return; }
+    const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    await api.post('/api/sales', {
+      AccountID: accountId, AccountName: accountName,
+      StaffID: staffId, StaffName: staffName,
+      SaleDate: saleDate, DeliveryDate: val('f-delivery-date'),
+      InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+      SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
+      Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Sale logged');
+    loadSales();
+  });
+}
+
+function openEditSale(id) {
+  const sale = _salesCache.find(s => s.ID === id);
+  if (!sale) return;
+  modal.open('Edit Sale', salesForm(sale), async () => {
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    await api.put(`/api/sales/${id}`, {
+      StaffID: staffId, StaffName: staffName,
+      SaleDate: val('f-sale-date'), DeliveryDate: val('f-delivery-date'),
+      InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+      SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
+      Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Sale updated');
+    loadSales();
+  });
+}
+
+async function deleteSale(id) {
+  modal.confirm('Delete Sale', 'Delete this sale record? This cannot be undone.', async () => {
+    await api.del(`/api/sales/${id}`);
+    modal.close();
+    toast('Sale deleted');
+    loadSales();
+  });
+}
+
 // ── Navigation ────────────────────────────────────────────────────
 
 const VIEW_LOADERS = {
@@ -1002,6 +1405,8 @@ const VIEW_LOADERS = {
   accounts:  loadAccounts,
   outreach:  loadOutreach,
   reminders: loadReminders,
+  sales:     loadSales,
+  staff:     loadStaff,
 };
 
 function navigate(view) {
