@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Type, AccountID, AccountName, Title, DueDate, Priority, Notes } = req.body;
+    const { Type, AccountID, AccountName, Title, DueDate, Priority, Notes, StaffID, StaffName } = req.body;
     if (!Title) return res.status(400).json({ error: 'Title is required' });
     if (!DueDate) return res.status(400).json({ error: 'DueDate is required' });
 
@@ -41,6 +41,8 @@ router.post('/', async (req, res) => {
       Priority: Priority || 'Medium',
       Notes: Notes || '',
       Completed: 'false',
+      StaffID: StaffID || '',
+      StaffName: StaffName || '',
       CreatedAt: new Date().toISOString().split('T')[0],
     };
 
