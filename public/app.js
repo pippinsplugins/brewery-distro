@@ -956,7 +956,7 @@ async function loadDashboard() {
   const lowStockHtml = dash.lowStockItems.length === 0
     ? '<li class="empty-state" style="padding:12px 0">All products are well stocked.</li>'
     : dash.lowStockItems.map(i => `
-        <li>
+        <li class="clickable" onclick="navigate('inventory')">
           <span class="dash-label">${esc(i.Name)}</span>
           <span class="dash-meta">${esc(i.Units)} left (${esc(i.Format || 'units')})</span>
           <span class="badge badge-low-stock">Low</span>
@@ -965,7 +965,7 @@ async function loadDashboard() {
   const upcomingHtml = dash.upcomingReminders.length === 0
     ? '<li class="empty-state" style="padding:12px 0">No upcoming reminders in the next 7 days.</li>'
     : dash.upcomingReminders.map(r => `
-        <li>
+        <li class="clickable" onclick="navigate('reminders')">
           <div>
             ${urgencyBadge(r.DueDate, r.Completed)}
             <span class="dash-label">${esc(r.Title)}</span>
@@ -979,11 +979,11 @@ async function loadDashboard() {
       <div class="card-header"><h3 class="text-danger">Overdue (${dash.overdueReminders.length})</h3></div>
       <ul class="dash-list">
         ${dash.overdueReminders.map(r => `
-          <li>
+          <li class="clickable" onclick="navigate('reminders')">
             ${urgencyBadge(r.DueDate, r.Completed)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
-            <button class="btn btn-ghost btn-sm text-success" onclick="completeReminder('${esc(r.ID)}');loadDashboard()">Done</button>
+            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeReminder('${esc(r.ID)}');loadDashboard()">Done</button>
           </li>`).join('')}
       </ul>
     </div>`;
@@ -991,7 +991,7 @@ async function loadDashboard() {
   const recentHtml = dash.recentOutreach.length === 0
     ? '<li class="empty-state" style="padding:12px 0">No outreach logged yet.</li>'
     : dash.recentOutreach.map(o => `
-        <li>
+        <li class="clickable" onclick="navigate('outreach')">
           ${methodBadge(o.Method)}
           <span class="dash-label">${esc(o.AccountName)}</span>
           <span class="dash-meta">${formatDate(o.Date)}</span>
@@ -1009,23 +1009,23 @@ async function loadDashboard() {
     </div>
 
     <div class="stats-grid">
-      <div class="stat-card">
+      <div class="stat-card" onclick="navigate('inventory')">
         <div class="stat-value">${dash.totalProducts}</div>
         <div class="stat-label">Products</div>
       </div>
-      <div class="stat-card accent">
+      <div class="stat-card accent" onclick="navigate('accounts')">
         <div class="stat-value">${dash.activeAccounts}</div>
         <div class="stat-label">Active Accounts</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" onclick="navigate('accounts')">
         <div class="stat-value">${dash.prospectAccounts}</div>
         <div class="stat-label">Prospects</div>
       </div>
-      <div class="stat-card accent">
+      <div class="stat-card accent" onclick="navigate('sales')">
         <div class="stat-value">$${parseFloat(dash.monthlySalesTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
         <div class="stat-label">Sales This Month (${dash.monthlySalesCount || 0})</div>
       </div>
-      <div class="stat-card ${dash.overdueCount > 0 ? 'danger' : 'warning'}">
+      <div class="stat-card ${dash.overdueCount > 0 ? 'danger' : 'warning'}" onclick="navigate('reminders')">
         <div class="stat-value">${dash.overdueCount > 0 ? dash.overdueCount : dash.totalActiveReminders}</div>
         <div class="stat-label">${dash.overdueCount > 0 ? 'Overdue' : 'Active Reminders'}</div>
       </div>
