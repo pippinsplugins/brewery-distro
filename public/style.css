@@ -307,6 +307,13 @@ body {
   box-shadow: var(--shadow);
   padding: 18px 20px;
   border-left: 4px solid var(--green-mid);
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
 }
 
 .stat-card.accent  { border-left-color: var(--accent); }
@@ -353,6 +360,18 @@ body {
   padding: 8px 0;
   border-bottom: 1px solid var(--border-light);
   font-size: 13px;
+}
+
+.dash-list li.clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 8px 6px;
+  margin: 0 -6px;
+  transition: background 0.12s;
+}
+
+.dash-list li.clickable:hover {
+  background: var(--hover-bg, #f5f5f5);
 }
 
 .dash-list li:last-child { border-bottom: none; }
