@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brewery Distribution Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Setup Banner -->
+    <div id="setup-banner" class="setup-banner hidden">
+      <div class="setup-banner-inner">
+        <strong>Setup Required</strong>
+        Google Sheets is not configured. See <code>.env.example</code> and the README for setup instructions.
+        <button class="btn btn-sm btn-light" onclick="document.getElementById('setup-banner').classList.add('hidden')">Dismiss</button>
+      </div>
+    </div>
+
+    <div class="layout">
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-icon">&#127866;</span>
+          <div>
+            <div class="brand-title">Brewery Distro</div>
+            <div class="brand-sub">Distribution Manager</div>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a class="nav-item active" data-view="dashboard" href="#dashboard">
+            <span class="nav-icon">&#9632;</span> Dashboard
+          </a>
+          <a class="nav-item" data-view="inventory" href="#inventory">
+            <span class="nav-icon">&#9632;</span> Inventory
+          </a>
+          <a class="nav-item" data-view="accounts" href="#accounts">
+            <span class="nav-icon">&#9632;</span> Accounts
+          </a>
+          <a class="nav-item" data-view="outreach" href="#outreach">
+            <span class="nav-icon">&#9632;</span> Outreach
+          </a>
+          <a class="nav-item" data-view="reminders" href="#reminders">
+            <span class="nav-icon">&#9632;</span> Reminders
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span id="sidebar-status" class="status-dot connected"></span>
+          <span id="sidebar-status-text">Connected</span>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <div id="content-area" class="content-area">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      </main>
+
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal" id="modal-box">
+        <div class="modal-header">
+          <h2 id="modal-title">Modal</h2>
+          <button class="modal-close" id="modal-close-btn" aria-label="Close">&times;</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+          <button class="btn btn-primary" id="modal-submit-btn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" aria-live="polite"></div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
