@@ -12,6 +12,7 @@ const remindersRoutes = require('./routes/reminders');
 const staffRoutes     = require('./routes/staff');
 const salesRoutes     = require('./routes/sales');
 const dashboardRoutes = require('./routes/dashboard');
+const webhooksRoutes  = require('./routes/webhooks');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +27,7 @@ app.use('/api/reminders', remindersRoutes);
 app.use('/api/staff',     staffRoutes);
 app.use('/api/sales',     salesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/webhooks',      webhooksRoutes);
 
 app.get('/api/status', (req, res) => {
   res.json({
