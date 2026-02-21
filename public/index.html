@@ -54,9 +54,20 @@
           </a>
         </nav>
 
+        <div class="sidebar-user" id="sidebar-user" style="display:none">
+          <img id="sidebar-user-photo" class="sidebar-user-photo" src="" alt="" />
+          <div class="sidebar-user-info">
+            <div id="sidebar-user-name" class="sidebar-user-name"></div>
+            <div id="sidebar-user-email" class="sidebar-user-email"></div>
+          </div>
+        </div>
+
         <div class="sidebar-footer">
           <span id="sidebar-status" class="status-dot connected"></span>
           <span id="sidebar-status-text">Connected</span>
+          <form action="/auth/logout" method="post" style="margin-left:auto">
+            <button type="submit" class="btn-logout" title="Sign out">&#x2192;</button>
+          </form>
         </div>
       </aside>
 

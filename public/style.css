@@ -141,6 +141,43 @@ body {
   opacity: 1;
 }
 
+.sidebar-user {
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-user-photo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.1);
+}
+
+.sidebar-user-info {
+  overflow: hidden;
+}
+
+.sidebar-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sidebar-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-email {
+  font-size: 10px;
+  color: var(--sidebar-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sidebar-footer {
   padding: 14px 18px;
   border-top: 1px solid rgba(255,255,255,0.08);
@@ -149,6 +186,21 @@ body {
   gap: 7px;
   font-size: 12px;
   color: var(--sidebar-sub);
+}
+
+.btn-logout {
+  background: none;
+  border: none;
+  color: var(--sidebar-sub);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  transition: color .15s;
+}
+
+.btn-logout:hover {
+  color: var(--sidebar-text);
 }
 
 .status-dot {
