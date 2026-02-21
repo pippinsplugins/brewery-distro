@@ -585,7 +585,7 @@ async function loadAccountProfile(accountId) {
         <td class="text-sm">${formatDate(o.Date)}</td>
         <td>${methodBadge(o.Method)}</td>
         <td class="text-sm" style="max-width:320px;white-space:pre-wrap">${esc(o.Notes) || '—'}</td>
-        <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) + (o.FollowUpStatus !== 'None' ? ` <span class="text-muted">(${esc(o.FollowUpStatus)})</span>` : '') : '—'}</td>
+        <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
         <td class="td-actions">
           <button class="btn btn-ghost btn-sm" onclick="profileEditOutreach('${esc(o.ID)}')">Edit</button>
           <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOutreach('${esc(o.ID)}')">Del</button>
@@ -713,11 +713,9 @@ function profileEditOutreach(id) {
     const entry = items.find(i => i.ID === id);
     if (!entry) return;
     modal.open('Edit Outreach Entry', outreachForm(entry), async () => {
-      const followUpDate = val('f-followup-date');
       await api.put(`/api/outreach/${id}`, {
         Date: val('f-date'), Method: val('f-method'), Notes: val('f-notes'),
-        FollowUpDate: followUpDate,
-        FollowUpStatus: followUpDate ? val('f-followup-status') : 'None',
+        FollowUpDate: val('f-followup-date'),
       });
       modal.close();
       toast('Entry updated');
@@ -866,7 +864,6 @@ async function deleteAccount(id, name) {
 // ── Outreach View ─────────────────────────────────────────────────
 
 const OUTREACH_METHODS = ['Email', 'Phone', 'SMS', 'In-Person'];
-const FOLLOWUP_STATUSES = ['None', 'Pending', 'Completed'];
 
 function outreachForm(entry = {}, presetAccountId = '') {
   const selId = entry.AccountID || presetAccountId;
@@ -897,17 +894,9 @@ function outreachForm(entry = {}, presetAccountId = '') {
     </div>
     <hr class="form-divider" />
     <div class="form-section-title">Follow-up</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Follow-up Date</label>
-        <input class="form-control" id="f-followup-date" type="date" value="${esc(entry.FollowUpDate)}" />
-      </div>
-      <div class="form-group">
-        <label>Follow-up Status</label>
-        <select class="form-control" id="f-followup-status">
-          ${FOLLOWUP_STATUSES.map(s => `<option value="${s}" ${entry.FollowUpStatus === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
+    <div class="form-group">
+      <label>Follow-up Date</label>
+      <input class="form-control" id="f-followup-date" type="date" value="${esc(entry.FollowUpDate)}" />
     </div>
     <div class="form-group">
       <label>
@@ -973,18 +962,17 @@ function renderOutreach() {
         <thead>
           <tr>
             <th>Account</th><th>Date</th><th>Method</th><th>Notes</th>
-            <th>Follow-up</th><th>Status</th><th>Actions</th>
+            <th>Follow-up</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="7" class="empty-state">No outreach logged yet.</td></tr>` :
+          ${filtered.length === 0 ? `<tr><td colspan="6" class="empty-state">No outreach logged yet.</td></tr>` :
             filtered.map(o => `<tr>
               <td class="fw-600">${esc(o.AccountName)}</td>
               <td>${formatDate(o.Date)}</td>
               <td>${methodBadge(o.Method)}</td>
               <td class="text-sm">${esc(o.Notes).substring(0, 80)}${o.Notes && o.Notes.length > 80 ? '…' : ''}</td>
               <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
-              <td><span class="badge badge-${(o.FollowUpStatus || 'none').toLowerCase()}">${esc(o.FollowUpStatus || '—')}</span></td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm" onclick="openEditOutreach('${esc(o.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOutreach('${esc(o.ID)}')">Del</button>
@@ -1008,14 +996,12 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
     const accountName = presetAccountName ||
       (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
     const followUpDate = val('f-followup-date');
-    const followUpStatus = val('f-followup-status');
     const createTodo = document.getElementById('f-create-todo') && document.getElementById('f-create-todo').checked;
 
     const entry = await api.post('/api/outreach', {
       AccountID: accountId, AccountName: accountName,
       Date: val('f-date'), Method: val('f-method'),
       Notes: val('f-notes'), FollowUpDate: followUpDate,
-      FollowUpStatus: followUpDate ? (followUpStatus || 'Pending') : 'None',
     });
 
     if (createTodo && followUpDate) {
@@ -1045,11 +1031,9 @@ function openEditOutreach(id) {
     const entry = items.find(i => i.ID === id);
     if (!entry) return;
     modal.open('Edit Outreach Entry', outreachForm(entry), async () => {
-      const followUpDate = val('f-followup-date');
       await api.put(`/api/outreach/${id}`, {
         Date: val('f-date'), Method: val('f-method'), Notes: val('f-notes'),
-        FollowUpDate: followUpDate,
-        FollowUpStatus: followUpDate ? val('f-followup-status') : 'None',
+        FollowUpDate: val('f-followup-date'),
       });
       modal.close();
       toast('Entry updated');
