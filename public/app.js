@@ -419,9 +419,11 @@ async function loadAccounts() {
 
 function renderAccounts() {
   const accounts = state.accounts || [];
-  const typeFilter   = (document.getElementById('acct-type')   || {}).value || '';
-  const statusFilter = (document.getElementById('acct-status') || {}).value || '';
-  const search       = (document.getElementById('acct-search') || {}).value || '';
+  const nav = state.navFilters || {};
+  state.navFilters = {};
+  const typeFilter   = (document.getElementById('acct-type')   || {}).value ?? nav.type   ?? '';
+  const statusFilter = (document.getElementById('acct-status') || {}).value ?? nav.status ?? '';
+  const search       = (document.getElementById('acct-search') || {}).value ?? nav.search ?? '';
 
   let filtered = accounts;
   if (typeFilter)   filtered = filtered.filter(a => a.Type === typeFilter);
@@ -1033,11 +1035,11 @@ async function loadDashboard() {
         <div class="stat-value">${dash.totalProducts}</div>
         <div class="stat-label">Products</div>
       </div>
-      <div class="stat-card accent" onclick="navigate('accounts')">
+      <div class="stat-card accent" onclick="navigate('accounts', {status: 'Active'})">
         <div class="stat-value">${dash.activeAccounts}</div>
         <div class="stat-label">Active Accounts</div>
       </div>
-      <div class="stat-card" onclick="navigate('accounts')">
+      <div class="stat-card" onclick="navigate('accounts', {status: 'Prospect'})">
         <div class="stat-value">${dash.prospectAccounts}</div>
         <div class="stat-label">Prospects</div>
       </div>
@@ -1479,8 +1481,9 @@ const VIEW_LOADERS = {
   staff:     loadStaff,
 };
 
-function navigate(view) {
+function navigate(view, filters = {}) {
   state.view = view;
+  state.navFilters = filters;
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === view);
   });
