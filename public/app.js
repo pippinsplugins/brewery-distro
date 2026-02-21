@@ -586,6 +586,7 @@ async function loadAccountProfile(accountId) {
           <td class="fw-600">${fmtMoney(total)}</td>
           <td>${salesStatusBadge(s.Status)}</td>
           <td class="td-actions">
+            ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkSalePaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditSale('${esc(s.ID)}')">Edit</button>
             <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteSale('${esc(s.ID)}')">Del</button>
           </td>
@@ -1754,6 +1755,7 @@ function renderSales() {
                 <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
                 <td>${salesStatusBadge(s.Status)}</td>
                 <td class="td-actions">
+                  ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markSalePaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditSale('${esc(s.ID)}')">Edit</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteSale('${esc(s.ID)}')">Del</button>
                 </td>
@@ -1827,6 +1829,18 @@ async function deleteSale(id) {
     toast('Sale deleted');
     loadSales();
   });
+}
+
+async function markSalePaid(id) {
+  await api.put(`/api/sales/${id}`, { Status: 'Paid' });
+  toast('Sale marked as paid');
+  loadSales();
+}
+
+async function profileMarkSalePaid(id) {
+  await api.put(`/api/sales/${id}`, { Status: 'Paid' });
+  toast('Sale marked as paid');
+  loadAccountProfile(state.accountProfileId);
 }
 
 // ── Navigation ────────────────────────────────────────────────────
