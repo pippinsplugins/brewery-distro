@@ -1972,11 +1972,30 @@ async function init() {
     return;
   }
 
+  // Mobile sidebar toggle
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
+
+  menuBtn.addEventListener('click', () => {
+    const isOpen = sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', !isOpen);
+    backdrop.classList.toggle('open', !isOpen);
+  });
+
+  backdrop.addEventListener('click', closeSidebar);
+
   // Wire up nav clicks
   document.querySelectorAll('.nav-item').forEach(el => {
     el.addEventListener('click', e => {
       e.preventDefault();
       navigate(el.dataset.view);
+      closeSidebar();
     });
   });
 
