@@ -744,7 +744,7 @@ async function deleteOutreach(id) {
 
 // ── Reminders View ────────────────────────────────────────────────
 
-const REMINDER_TYPES = ['Follow-up', 'Delivery', 'Payment', 'Order', 'Tasting', 'Event', 'Other'];
+const REMINDER_TYPES = ['Follow-up', 'Delivery', 'Collect Payment', 'Sampling', 'Event', 'Draft Cleaning', 'Pre-Sale'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const RECURRENCE_OPTIONS = [
   { value: 'none',      label: 'None' },
