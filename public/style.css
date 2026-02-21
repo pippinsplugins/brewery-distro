@@ -515,6 +515,12 @@ thead th.sortable-th {
 thead th.sortable-th:hover { color: var(--primary); background: #eef5ee; }
 thead th.sorted { color: var(--primary); }
 
+.td-link {
+  cursor: pointer;
+  color: var(--green-dark);
+}
+.td-link:hover { text-decoration: underline; }
+
 tbody tr {
   border-bottom: 1px solid var(--border-light);
   transition: background 0.1s;
