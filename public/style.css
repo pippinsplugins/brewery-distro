@@ -508,6 +508,13 @@ thead th {
   white-space: nowrap;
 }
 
+thead th.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+thead th.sortable-th:hover { color: var(--primary); background: #eef5ee; }
+thead th.sorted { color: var(--primary); }
+
 tbody tr {
   border-bottom: 1px solid var(--border-light);
   transition: background 0.1s;
