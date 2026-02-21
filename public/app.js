@@ -610,7 +610,7 @@ async function loadAccountProfile(accountId) {
       </tr>`).join('');
 
   const salesRows = acctSales.length === 0
-    ? `<tr><td colspan="7" class="empty-state">No sales recorded yet.</td></tr>`
+    ? `<tr><td colspan="9" class="empty-state">No sales recorded yet.</td></tr>`
     : acctSales.map(s => {
         const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
         return `<tr>
@@ -621,6 +621,7 @@ async function loadAccountProfile(accountId) {
           <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
           <td class="fw-600">${fmtMoney(total)}</td>
           <td>${salesStatusBadge(s.Status)}</td>
+          <td class="text-center"><input type="checkbox" ${s.Delivered === 'true' ? 'checked' : ''} onchange="profileToggleDelivered('${esc(s.ID)}', ${s.Delivered === 'true'})" /></td>
           <td class="td-actions">
             ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkSalePaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditSale('${esc(s.ID)}')">Edit</button>
@@ -633,7 +634,7 @@ async function loadAccountProfile(accountId) {
     ? `<tfoot><tr class="table-totals">
         <td colspan="5" class="text-muted text-sm">${acctSales.length} sales</td>
         <td class="fw-600">${fmtMoney(totalRevenue)}</td>
-        <td colspan="2"></td>
+        <td colspan="3"></td>
       </tr></tfoot>`
     : '';
 
@@ -698,7 +699,7 @@ async function loadAccountProfile(accountId) {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Sale Date</th><th>Invoice #</th><th>Sales Rep</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Sale Date</th><th>Invoice #</th><th>Sales Rep</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
           <tbody>${salesRows}</tbody>
           ${salesFooter}
         </table>
@@ -1618,7 +1619,7 @@ async function deleteStaff(id, name) {
 
 // ── Sales View ────────────────────────────────────────────────────
 
-const SALE_STATUSES = ['Pending', 'Delivered', 'Paid', 'Cancelled'];
+const SALE_STATUSES = ['Pending', 'Paid', 'Cancelled'];
 
 function salesForm(sale = {}, presetAccountId = '') {
   const selAcctId = sale.AccountID || presetAccountId;
@@ -1673,6 +1674,12 @@ function salesForm(sale = {}, presetAccountId = '') {
       </div>
     </div>
     <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-delivered" ${sale.Delivered === 'true' ? 'checked' : ''} />
+        Order Delivered
+      </label>
+    </div>
+    <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(sale.Notes)}</textarea>
     </div>`;
@@ -1681,7 +1688,7 @@ function salesForm(sale = {}, presetAccountId = '') {
 let _salesCache = [];
 
 function salesStatusBadge(status) {
-  const map = { Pending: 'badge-pending', Delivered: 'badge-delivered', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
+  const map = { Pending: 'badge-pending', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
   return `<span class="badge ${map[status] || 'badge-pending'}">${esc(status || 'Pending')}</span>`;
 }
 
@@ -1763,11 +1770,11 @@ function renderSales() {
         <thead>
           <tr>
             <th>Sale Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
-            <th>Sale Amt</th><th>Tax</th><th>Total</th><th>Delivery</th><th>Status</th><th>Actions</th>
+            <th>Sale Amt</th><th>Tax</th><th>Total</th><th>Delivery</th><th>Status</th><th>Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="10" class="empty-state">No sales found.</td></tr>` :
+          ${filtered.length === 0 ? `<tr><td colspan="11" class="empty-state">No sales found.</td></tr>` :
             filtered.map(s => {
               const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
               return `<tr>
@@ -1780,6 +1787,7 @@ function renderSales() {
                 <td class="fw-600">${fmtMoney(total)}</td>
                 <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
                 <td>${salesStatusBadge(s.Status)}</td>
+                <td class="text-center"><input type="checkbox" ${s.Delivered === 'true' ? 'checked' : ''} onchange="toggleDelivered('${esc(s.ID)}')" /></td>
                 <td class="td-actions">
                   ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markSalePaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditSale('${esc(s.ID)}')">Edit</button>
@@ -1795,7 +1803,7 @@ function renderSales() {
             <td>${fmtMoney(totalSale)}</td>
             <td>${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalSale + totalTax)}</td>
-            <td colspan="3"></td>
+            <td colspan="4"></td>
           </tr>
         </tfoot>` : ''}
       </table>
@@ -1821,6 +1829,7 @@ async function openAddSale(presetAccountId = '') {
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
+      Delivered: document.getElementById('f-delivered').checked ? 'true' : 'false',
     });
     modal.close();
     toast('Sale logged');
@@ -1841,6 +1850,7 @@ function openEditSale(id) {
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
+      Delivered: document.getElementById('f-delivered').checked ? 'true' : 'false',
     });
     modal.close();
     toast('Sale updated');
@@ -1863,9 +1873,25 @@ async function markSalePaid(id) {
   loadSales();
 }
 
+async function toggleDelivered(id) {
+  const sale = _salesCache.find(s => s.ID === id);
+  if (!sale) return;
+  const newDelivered = sale.Delivered === 'true' ? 'false' : 'true';
+  await api.put(`/api/sales/${id}`, { Delivered: newDelivered });
+  toast(newDelivered === 'true' ? 'Marked as delivered' : 'Marked as undelivered');
+  loadSales();
+}
+
 async function profileMarkSalePaid(id) {
   await api.put(`/api/sales/${id}`, { Status: 'Paid' });
   toast('Sale marked as paid');
+  loadAccountProfile(state.accountProfileId);
+}
+
+async function profileToggleDelivered(id, isDelivered) {
+  const newDelivered = isDelivered ? 'false' : 'true';
+  await api.put(`/api/sales/${id}`, { Delivered: newDelivered });
+  toast(newDelivered === 'true' ? 'Marked as delivered' : 'Marked as undelivered');
   loadAccountProfile(state.accountProfileId);
 }
 

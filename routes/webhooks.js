@@ -19,7 +19,7 @@
  *   delivery_date   | DeliveryDate                    → DeliveryDate
  *   amount          | sale_amount    | SaleAmount      → SaleAmount     (pre-tax total)
  *   tax             | tax_amount     | TaxAmount       → TaxAmount
- *   status          | Status                          → Status          (Pending/Delivered/Paid/Cancelled)
+ *   status          | Status                          → Status          (Pending/Paid/Cancelled)
  *   notes           | Notes          | memo            → Notes
  *   account_id      | AccountID                       → AccountID       (our internal ID)
  *   account_name    | AccountName    | customer_name
@@ -81,7 +81,7 @@ function normalise(body) {
   };
 }
 
-const VALID_STATUSES = new Set(['Pending', 'Delivered', 'Paid', 'Cancelled']);
+const VALID_STATUSES = new Set(['Pending', 'Paid', 'Cancelled']);
 
 // ── POST /webhooks/zapier/sale ───────────────────────────────────
 

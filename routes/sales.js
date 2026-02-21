@@ -25,7 +25,7 @@ router.post('/', async (req, res) => {
     const {
       AccountID, AccountName, StaffID, StaffName,
       SaleDate, DeliveryDate, InvoiceNumber,
-      SaleAmount, TaxAmount, Notes, Status,
+      SaleAmount, TaxAmount, Notes, Status, Delivered,
     } = req.body;
 
     if (!AccountID) return res.status(400).json({ error: 'AccountID is required' });
@@ -42,8 +42,9 @@ router.post('/', async (req, res) => {
       InvoiceNumber: InvoiceNumber || '',
       SaleAmount: SaleAmount || '0',
       TaxAmount:  TaxAmount  || '0',
-      Notes:  Notes  || '',
-      Status: Status || 'Pending',
+      Notes:     Notes     || '',
+      Status:    Status    || 'Pending',
+      Delivered: Delivered || 'false',
       CreatedAt: new Date().toISOString().split('T')[0],
     };
 
