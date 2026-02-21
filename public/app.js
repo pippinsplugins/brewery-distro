@@ -385,6 +385,10 @@ const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
 function accountForm(acct = {}) {
   return `
+    ${acct.ID ? `<div class="form-group">
+      <label>Account ID</label>
+      <input class="form-control" value="${esc(acct.ID)}" readonly style="font-family:monospace;color:var(--text-muted);background:#f5f5f5;cursor:default" />
+    </div>` : ''}
     <div class="form-group">
       <label>Account / Business Name <span class="required">*</span></label>
       <input class="form-control" id="f-name" value="${esc(acct.Name)}" placeholder="e.g. The Rusty Tap" />
@@ -582,6 +586,7 @@ async function loadAccountProfile(accountId) {
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
 
   const infoRows = [
+    `<div class="profile-info-item"><span class="profile-info-label">Account ID</span><span class="text-muted text-sm" style="font-family:monospace">${esc(acct.ID)}</span></div>`,
     acct.ContactName  ? `<div class="profile-info-item"><span class="profile-info-label">Contact</span><span>${esc(acct.ContactName)}</span></div>` : '',
     acct.Email        ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email)}</span></div>` : '',
     acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(acct.Phone)}</span></div>` : '',
