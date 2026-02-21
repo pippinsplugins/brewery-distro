@@ -523,7 +523,7 @@ function renderAccounts() {
               <td class="text-sm text-muted">${formatDate(a.LastContacted)}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm" onclick="loadAccountProfile('${esc(a.ID)}')">View</button>
-                <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(a.ID)}', '${esc(a.Name)}')">+ Log</button>
+                <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(a.ID)}')">+ Log</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditAccount('${esc(a.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteAccount('${esc(a.ID)}', '${esc(a.Name)}')">Del</button>
               </td>
@@ -647,7 +647,7 @@ async function loadAccountProfile(accountId) {
         </div>
       </div>
       <div class="view-header-actions">
-        <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}', '${esc(acct.Name)}')">+ Log Contact</button>
+        <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddSale('${esc(accountId)}')">+ Log Sale</button>
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
@@ -668,7 +668,7 @@ async function loadAccountProfile(accountId) {
     <div class="profile-section">
       <div class="profile-section-header">
         <h3>Outreach History <span class="text-muted text-sm">(${acctOutreach.length})</span></h3>
-        <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}', '${esc(acct.Name)}')">+ Log Contact</button>
+        <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -1022,7 +1022,8 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
   });
 }
 
-function openLogOutreach(accountId, accountName) {
+function openLogOutreach(accountId) {
+  const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
   openAddOutreach(accountId, accountName);
 }
 
