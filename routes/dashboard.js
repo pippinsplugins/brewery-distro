@@ -7,12 +7,12 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const [inventory, accounts, outreach, reminders, sales] = await Promise.all([
+    const [inventory, accounts, outreach, reminders, orders] = await Promise.all([
       getAllRows('INVENTORY'),
       getAllRows('ACCOUNTS'),
       getAllRows('OUTREACH'),
       getAllRows('REMINDERS'),
-      getAllRows('SALES'),
+      getAllRows('ORDERS'),
     ]);
 
     const today = new Date().toISOString().split('T')[0];
@@ -39,9 +39,9 @@ router.get('/', async (req, res) => {
       .slice(0, 8);
 
     const currentMonth = today.substring(0, 7); // 'YYYY-MM'
-    const monthlySales = sales.filter(s => (s.SaleDate || '').startsWith(currentMonth));
-    const monthlySalesTotal = monthlySales.reduce((sum, s) => sum + parseFloat(s.SaleAmount || 0), 0);
-    const pendingDeliveries = sales.filter(s => s.Delivered !== 'true' && s.Status !== 'Cancelled').length;
+    const monthlyOrders = orders.filter(s => (s.OrderDate || '').startsWith(currentMonth));
+    const monthlyOrdersTotal = monthlyOrders.reduce((sum, s) => sum + parseFloat(s.OrderAmount || 0), 0);
+    const pendingDeliveries = orders.filter(s => s.Delivered !== 'true' && s.Status !== 'Cancelled').length;
 
     res.json({
       totalProducts: inventory.length,
@@ -54,8 +54,8 @@ router.get('/', async (req, res) => {
       overdueReminders: overdueReminders.sort((a, b) => a.DueDate.localeCompare(b.DueDate)),
       lowStockItems,
       recentOutreach,
-      monthlySalesTotal: monthlySalesTotal.toFixed(2),
-      monthlySalesCount: monthlySales.length,
+      monthlyOrdersTotal: monthlyOrdersTotal.toFixed(2),
+      monthlyOrdersCount: monthlyOrders.length,
       pendingDeliveries,
     });
   } catch (err) {

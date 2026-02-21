@@ -11,7 +11,7 @@ const SHEETS = {
   OUTREACH:  'Outreach',
   REMINDERS: 'Reminders',
   STAFF:     'Staff',
-  SALES:     'Sales',
+  ORDERS:    'Orders',
 };
 
 // HEADERS defines every column each sheet should have.
@@ -22,7 +22,7 @@ const HEADERS = {
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
-  SALES:     ['ID', 'AccountID', 'AccountName', 'StaffID', 'StaffName', 'SaleDate', 'DeliveryDate', 'InvoiceNumber', 'SaleAmount', 'TaxAmount', 'Notes', 'Status', 'Delivered', 'CreatedAt'],
+  ORDERS:    ['ID', 'AccountID', 'AccountName', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'Notes', 'Status', 'Delivered', 'CreatedAt'],
 };
 
 // Cached sheet header rows — avoids an extra API call on every write
