@@ -880,7 +880,7 @@ function renderReminders() {
               <td>${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
                 ${r.Completed !== 'true'
-                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeReminder('${esc(r.ID)}')">Done</button>`
+                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeReminder('${esc(r.ID)}','${esc(r.AccountID||'')}','${esc(r.AccountName||'')}')">Done</button>`
                   : `<button class="btn btn-ghost btn-sm" onclick="reopenReminder('${esc(r.ID)}')">Reopen</button>`
                 }
                 <button class="btn btn-ghost btn-sm" onclick="openEditReminder('${esc(r.ID)}')">Edit</button>
@@ -939,15 +939,76 @@ function openEditReminder(id) {
   });
 }
 
-async function completeReminder(id) {
-  const result = await api.put(`/api/reminders/${id}`, { Completed: 'true' });
-  if (result._nextReminder) {
-    const label = RECURRENCE_OPTIONS.find(o => o.value === result._nextReminder.Recurrence)?.label || result._nextReminder.Recurrence;
-    toast(`Done — next ${label.toLowerCase()} occurrence on ${formatDate(result._nextReminder.DueDate)}`);
-  } else {
-    toast('Marked as done');
-  }
-  loadReminders();
+async function completeReminder(id, accountId = '', accountName = '') {
+  // Prefer data from cache (reminders view); fall back to passed-in args (dashboard)
+  const cached = _remindersCache.find(r => r.ID === id);
+  const acctId   = (cached && cached.AccountID)   || accountId;
+  const acctName = (cached && cached.AccountName) || accountName;
+  const title    = (cached && cached.Title) || '';
+
+  const formHtml = `
+    <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px">
+      Marking <strong>${esc(title) || 'this reminder'}</strong> as done${acctName ? ` for <strong>${esc(acctName)}</strong>` : ''}.
+    </p>
+    ${acctId ? `
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" id="f-log-outreach" />
+        Also log an outreach contact
+      </label>
+    </div>
+    <div id="outreach-fields" style="display:none;margin-top:10px">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input class="form-control" id="f-date" type="date" value="${today()}" />
+        </div>
+        <div class="form-group">
+          <label>Method</label>
+          <select class="form-control" id="f-method">
+            ${OUTREACH_METHODS.map(m => `<option value="${m}">${m}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes / Outcome</label>
+        <textarea class="form-control" id="f-notes" rows="2" placeholder="What was discussed?"></textarea>
+      </div>
+    </div>` : ''}
+  `;
+
+  modal.open('Complete Reminder', formHtml, async () => {
+    const logOutreach = acctId && document.getElementById('f-log-outreach')?.checked;
+
+    const result = await api.put(`/api/reminders/${id}`, { Completed: 'true' });
+
+    if (logOutreach) {
+      await api.post('/api/outreach', {
+        AccountID: acctId, AccountName: acctName,
+        Date: val('f-date'), Method: val('f-method'),
+        Notes: val('f-notes'), FollowUpStatus: 'None',
+      });
+    }
+
+    modal.close();
+
+    if (result._nextReminder) {
+      const label = RECURRENCE_OPTIONS.find(o => o.value === result._nextReminder.Recurrence)?.label || result._nextReminder.Recurrence;
+      toast(`Done — next ${label.toLowerCase()} occurrence on ${formatDate(result._nextReminder.DueDate)}`);
+    } else {
+      toast(logOutreach ? 'Marked done & outreach logged' : 'Marked as done');
+    }
+
+    if (state.view === 'reminders') loadReminders();
+    else loadDashboard();
+  }, 'Mark Done');
+
+  // Wire up toggle after modal renders
+  setTimeout(() => {
+    const cb     = document.getElementById('f-log-outreach');
+    const fields = document.getElementById('outreach-fields');
+    if (cb && fields) cb.addEventListener('change', () => { fields.style.display = cb.checked ? '' : 'none'; });
+  }, 0);
 }
 
 async function reopenReminder(id) {
@@ -1005,7 +1066,7 @@ async function loadDashboard() {
             ${urgencyBadge(r.DueDate, r.Completed)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
-            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeReminder('${esc(r.ID)}');loadDashboard()">Done</button>
+            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeReminder('${esc(r.ID)}','${esc(r.AccountID||'')}','${esc(r.AccountName||'')}')">Done</button>
           </li>`).join('')}
       </ul>
     </div>`;
