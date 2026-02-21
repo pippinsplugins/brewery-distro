@@ -379,7 +379,7 @@ async function deleteInventory(id, name) {
 
 // ── Accounts View ─────────────────────────────────────────────────
 
-const ACCOUNT_TYPES = ['Bar', 'Restaurant', 'Bottle Shop', 'Grocery Store', 'Hotel', 'Event Venue', 'Other'];
+const ACCOUNT_TYPES = ['Bar', 'Restaurant', 'Retail Store', 'Grocery Store', 'Hotel', 'Event Venue', 'Other'];
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
