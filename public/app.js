@@ -143,6 +143,9 @@ document.getElementById('modal-cancel-btn').addEventListener('click', modal.clos
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay')) modal.close();
 });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('modal-overlay').classList.contains('hidden')) modal.close();
+});
 document.getElementById('modal-submit-btn').addEventListener('click', async () => {
   if (modal._onSubmit) {
     document.getElementById('modal-submit-btn').disabled = true;
