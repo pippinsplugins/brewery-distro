@@ -312,7 +312,7 @@ function renderInventory() {
             filtered.map(item => {
               const low = parseInt(item.Units || '0') <= parseInt(item.LowStockThreshold || '5');
               return `<tr>
-                <td class="fw-600">${esc(item.Name)}</td>
+                <td class="fw-600"><span class="td-link" onclick="openEditInventory('${esc(item.ID)}')">${esc(item.Name)}</span></td>
                 <td>${esc(item.Style)}</td>
                 <td>${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
                 <td>${esc(item.Format) || '—'}</td>
@@ -513,7 +513,7 @@ function renderAccounts() {
         <tbody>
           ${filtered.length === 0 ? `<tr><td colspan="9" class="empty-state">No accounts found.</td></tr>` :
             filtered.map(a => `<tr>
-              <td class="fw-600">${esc(a.Name)}<br><span class="text-muted text-sm">${esc(a.City)}${a.City && a.State ? ', ' : ''}${esc(a.State)}</span></td>
+              <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && a.State ? ', ' : ''}${esc(a.State)}</span></td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
               <td class="text-sm">${a.Email ? esc(a.Email) + '<br>' : ''}${esc(a.Phone)}</td>
@@ -595,7 +595,7 @@ async function loadAccountProfile(accountId) {
   const todoRows = acctTodos.length === 0
     ? `<tr><td colspan="6" class="empty-state">No todos for this account.</td></tr>`
     : acctTodos.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
-        <td class="fw-600">${esc(t.Title)}${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
+        <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
         <td>${esc(t.Type) || '—'}</td>
         <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
         <td>${priorityBadge(t.Priority)}</td>
@@ -968,7 +968,7 @@ function renderOutreach() {
         <tbody>
           ${filtered.length === 0 ? `<tr><td colspan="6" class="empty-state">No outreach logged yet.</td></tr>` :
             filtered.map(o => `<tr>
-              <td class="fw-600">${esc(o.AccountName)}</td>
+              <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(o.AccountID)}')">${esc(o.AccountName)}</span></td>
               <td>${formatDate(o.Date)}</td>
               <td>${methodBadge(o.Method)}</td>
               <td class="text-sm">${esc(o.Notes).substring(0, 80)}${o.Notes && o.Notes.length > 80 ? '…' : ''}</td>
@@ -1188,8 +1188,8 @@ function renderTodos() {
             filtered.map(r => `<tr>
               <td>${formatDate(r.DueDate)}</td>
               <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
-              <td class="fw-600">${esc(r.Title)}${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
-              <td class="text-sm">${esc(r.AccountName) || '—'}</td>
+              <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
+              <td class="text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
               <td class="text-sm">${esc(r.Type)}</td>
               <td class="text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${priorityBadge(r.Priority)}</td>
@@ -1554,7 +1554,7 @@ function renderStaff() {
         <tbody>
           ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No staff found. Add your first team member!</td></tr>` :
             filtered.map(s => `<tr>
-              <td class="fw-600">${esc(s.Name)}</td>
+              <td class="fw-600"><span class="td-link" onclick="openEditStaff('${esc(s.ID)}')">${esc(s.Name)}</span></td>
               <td>${esc(s.Role) || '—'}</td>
               <td class="text-sm">${esc(s.Email) || '—'}</td>
               <td class="text-sm">${esc(s.Phone) || '—'}</td>
@@ -1772,7 +1772,7 @@ function renderSales() {
               const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
               return `<tr>
                 <td>${formatDate(s.SaleDate)}</td>
-                <td class="fw-600">${esc(s.AccountName)}</td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span></td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
                 <td class="text-sm">${esc(s.StaffName) || '—'}</td>
                 <td>${fmtMoney(s.SaleAmount)}</td>
