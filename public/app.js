@@ -880,7 +880,7 @@ function renderReminders() {
               <td>${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
                 ${r.Completed !== 'true'
-                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeReminder('${esc(r.ID)}','${esc(r.AccountID||'')}','${esc(r.AccountName||'')}')">Done</button>`
+                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeReminder('${esc(r.ID)}')">Done</button>`
                   : `<button class="btn btn-ghost btn-sm" onclick="reopenReminder('${esc(r.ID)}')">Reopen</button>`
                 }
                 <button class="btn btn-ghost btn-sm" onclick="openEditReminder('${esc(r.ID)}')">Edit</button>
@@ -939,12 +939,13 @@ function openEditReminder(id) {
   });
 }
 
-async function completeReminder(id, accountId = '', accountName = '') {
-  // Prefer data from cache (reminders view); fall back to passed-in args (dashboard)
-  const cached = _remindersCache.find(r => r.ID === id);
-  const acctId   = (cached && cached.AccountID)   || accountId;
-  const acctName = (cached && cached.AccountName) || accountName;
-  const title    = (cached && cached.Title) || '';
+async function completeReminder(id) {
+  // Look up reminder data from whichever cache is populated
+  const reminder = _remindersCache.find(r => r.ID === id)
+                || (state.dashReminders || []).find(r => r.ID === id);
+  const acctId   = reminder?.AccountID   || '';
+  const acctName = reminder?.AccountName || '';
+  const title    = reminder?.Title       || '';
 
   const formHtml = `
     <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px">
@@ -1035,6 +1036,7 @@ async function loadDashboard() {
     api.get('/api/accounts'),
   ]);
   state.accounts = accounts;
+  state.dashReminders = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
 
   const lowStockHtml = dash.lowStockItems.length === 0
     ? '<li class="empty-state" style="padding:12px 0">All products are well stocked.</li>'
@@ -1066,7 +1068,7 @@ async function loadDashboard() {
             ${urgencyBadge(r.DueDate, r.Completed)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
-            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeReminder('${esc(r.ID)}','${esc(r.AccountID||'')}','${esc(r.AccountName||'')}')">Done</button>
+            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeReminder('${esc(r.ID)}')">Done</button>
           </li>`).join('')}
       </ul>
     </div>`;
