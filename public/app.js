@@ -1407,7 +1407,7 @@ async function loadDashboard() {
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
           </div>
-          <span class="dash-meta">${formatDate(r.DueDate)}</span>
+          <span class="dash-meta">${r.StaffName ? `${esc(r.StaffName)} · ` : ''}${formatDate(r.DueDate)}</span>
         </li>`).join('');
 
   const myTodosHtml = !currentStaffId
