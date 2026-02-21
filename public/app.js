@@ -161,6 +161,11 @@ function val(id) {
   return el ? el.value.trim() : '';
 }
 
+function refocusSearch(id) {
+  const el = document.getElementById(id);
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
+
 function accountOptions(selectedId = '') {
   return state.accounts
     .filter(a => a.Status !== 'Inactive')
@@ -239,6 +244,7 @@ async function loadInventory() {
 
 function renderInventory() {
   const items = state.inventory || [];
+  const _focused = document.activeElement?.id;
   const search = (document.getElementById('inv-search') || {}).value || '';
   const filtered = items.filter(i =>
     !search || i.Name.toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
@@ -286,6 +292,7 @@ function renderInventory() {
         </tbody>
       </table>
     </div>`);
+  if (_focused === 'inv-search') refocusSearch('inv-search');
 }
 
 function openAddInventory() {
@@ -419,6 +426,7 @@ async function loadAccounts() {
 
 function renderAccounts() {
   const accounts = state.accounts || [];
+  const _focused = document.activeElement?.id;
   const nav = state.navFilters || {};
   state.navFilters = {};
   const typeFilter   = (document.getElementById('acct-type')   || {}).value ?? nav.type   ?? '';
@@ -486,6 +494,7 @@ function renderAccounts() {
         </tbody>
       </table>
     </div>`);
+  if (_focused === 'acct-search') refocusSearch('acct-search');
 }
 
 function openAddAccount() {
@@ -605,6 +614,7 @@ async function loadOutreach() {
 
 function renderOutreach() {
   const outreach = state.outreach || [];
+  const _focused = document.activeElement?.id;
   const accountFilter = (document.getElementById('out-account') || {}).value || '';
   const methodFilter  = (document.getElementById('out-method') || {}).value || '';
   const search        = (document.getElementById('out-search') || {}).value || '';
@@ -670,6 +680,7 @@ function renderOutreach() {
         </tbody>
       </table>
     </div>`);
+  if (_focused === 'out-search') refocusSearch('out-search');
 }
 
 let _outreachCache = [];
@@ -830,6 +841,7 @@ async function loadReminders() {
 
 function renderReminders() {
   const reminders = _remindersCache;
+  const _focused = document.activeElement?.id;
   const statusFilter = (document.getElementById('rem-status') || {}).value || 'active';
   const search = (document.getElementById('rem-search') || {}).value || '';
 
@@ -890,6 +902,7 @@ function renderReminders() {
         </tbody>
       </table>
     </div>`);
+  if (_focused === 'rem-search') refocusSearch('rem-search');
 }
 
 function openAddReminder(presetAccountId = '') {
@@ -1200,6 +1213,7 @@ async function loadStaff() {
 
 function renderStaff() {
   const staff = _staffCache;
+  const _focused = document.activeElement?.id;
   const accounts = state.accounts || [];
 
   // Compute account count per staff member
@@ -1250,6 +1264,7 @@ function renderStaff() {
         </tbody>
       </table>
     </div>`);
+  if (_focused === 'staff-search') refocusSearch('staff-search');
 }
 
 function openAddStaff() {
@@ -1384,6 +1399,7 @@ async function loadSales() {
 
 function renderSales() {
   const sales = _salesCache;
+  const _focused = document.activeElement?.id;
   const accountFilter = (document.getElementById('sales-account') || {}).value || '';
   const staffFilter   = (document.getElementById('sales-staff') || {}).value || '';
   const statusFilter  = (document.getElementById('sales-status') || {}).value || '';
@@ -1477,6 +1493,7 @@ function renderSales() {
         </tfoot>` : ''}
       </table>
     </div>`);
+  if (_focused === 'sales-search') refocusSearch('sales-search');
 }
 
 async function openAddSale(presetAccountId = '') {
