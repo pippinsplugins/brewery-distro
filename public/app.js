@@ -242,13 +242,49 @@ async function loadInventory() {
   renderInventory();
 }
 
+let _invSort = { col: 'Name', dir: 'asc' };
+
+function sortInventory(col) {
+  if (_invSort.col === col) {
+    _invSort.dir = _invSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _invSort.col = col;
+    _invSort.dir = 'asc';
+  }
+  renderInventory();
+}
+
 function renderInventory() {
   const items = state.inventory || [];
   const _focused = document.activeElement?.id;
   const search = (document.getElementById('inv-search') || {}).value || '';
-  const filtered = items.filter(i =>
+
+  let filtered = items.filter(i =>
     !search || i.Name.toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  // Sort
+  const { col, dir } = _invSort;
+  filtered = [...filtered].sort((a, b) => {
+    let av, bv;
+    if (col === 'Name')       { av = (a.Name || '').toLowerCase();           bv = (b.Name || '').toLowerCase(); }
+    else if (col === 'Style') { av = (a.Style || '').toLowerCase();          bv = (b.Style || '').toLowerCase(); }
+    else if (col === 'ABV')   { av = parseFloat(a.ABV || 0);                 bv = parseFloat(b.ABV || 0); }
+    else if (col === 'Format'){ av = (a.Format || '').toLowerCase();         bv = (b.Format || '').toLowerCase(); }
+    else if (col === 'Units') { av = parseInt(a.Units || 0);                 bv = parseInt(b.Units || 0); }
+    else if (col === 'Price') { av = parseFloat(a.PricePerUnit || 0);        bv = parseFloat(b.PricePerUnit || 0); }
+    else if (col === 'Stock') { av = parseInt(a.Units||0) <= parseInt(a.LowStockThreshold||5) ? 0 : 1;
+                                bv = parseInt(b.Units||0) <= parseInt(b.LowStockThreshold||5) ? 0 : 1; }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const th = (label, colKey) => {
+    const active = _invSort.col === colKey;
+    const arrow = active ? (_invSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable-th${active ? ' sorted' : ''}" onclick="sortInventory('${colKey}')">${label}${arrow}</th>`;
+  };
 
   setContent(`
     <div class="view-header">
@@ -267,8 +303,8 @@ function renderInventory() {
       <table>
         <thead>
           <tr>
-            <th>Name</th><th>Style</th><th>ABV</th><th>Format</th>
-            <th>Units</th><th>Price/Unit</th><th>Stock</th><th>Actions</th>
+            ${th('Name', 'Name')}${th('Style', 'Style')}${th('ABV', 'ABV')}${th('Format', 'Format')}
+            ${th('Units', 'Units')}${th('Price/Unit', 'Price')}${th('Stock', 'Stock')}<th>Actions</th>
           </tr>
         </thead>
         <tbody>
