@@ -1,10 +1,15 @@
 'use strict';
 
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
 
 const router = express.Router();
+
+async function getNextAccountId() {
+  const accounts = await getAllRows('ACCOUNTS');
+  const maxId = Math.max(0, ...accounts.map(a => parseInt(a.ID, 10) || 0));
+  return String(maxId + 1);
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -21,7 +26,7 @@ router.post('/', async (req, res) => {
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
     const account = {
-      ID: uuidv4(),
+      ID: await getNextAccountId(),
       Name: Name.trim(),
       Type: Type || 'Bar',
       ContactName: ContactName || '',
