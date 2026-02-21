@@ -1872,6 +1872,33 @@ function navigate(view, filters = {}) {
 // ── Init ──────────────────────────────────────────────────────────
 
 async function init() {
+  // ── Auth check ──────────────────────────────────────────────────
+  // The server already guards this page, but we also populate the
+  // sidebar with the signed-in user's name/photo.
+  try {
+    const { user } = await api.get('/auth/me');
+    if (user) {
+      const panel = document.getElementById('sidebar-user');
+      if (panel) {
+        document.getElementById('sidebar-user-name').textContent  = user.name  || '';
+        document.getElementById('sidebar-user-email').textContent = user.email || '';
+        const photo = document.getElementById('sidebar-user-photo');
+        if (user.photo) {
+          photo.src = user.photo;
+          photo.alt = user.name || 'User';
+        } else {
+          photo.style.display = 'none';
+        }
+        panel.style.display = 'flex';
+      }
+    }
+  } catch (e) {
+    // Not authenticated – server will have already redirected, but
+    // redirect as a fallback in case we are running without the guard.
+    window.location.href = '/login';
+    return;
+  }
+
   // Wire up nav clicks
   document.querySelectorAll('.nav-item').forEach(el => {
     el.addEventListener('click', e => {
