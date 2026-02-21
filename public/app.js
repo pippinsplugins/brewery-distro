@@ -448,6 +448,10 @@ function accountForm(acct = {}) {
         <input class="form-control" id="f-state" value="${esc(acct.State)}" placeholder="e.g. CA" maxlength="2" />
       </div>
     </div>
+    <div class="form-group">
+      <label>ABC License #</label>
+      <input class="form-control" id="f-abc-license" value="${esc(acct.ABCLicense)}" placeholder="e.g. 47-123456" />
+    </div>
     <hr class="form-divider" />
     <div class="form-group">
       <label>Notes</label>
@@ -583,6 +587,7 @@ async function loadAccountProfile(accountId) {
     acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(acct.Phone)}</span></div>` : '',
     acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
     (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${[acct.Address, acct.City, acct.State].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
+    acct.ABCLicense   ? `<div class="profile-info-item"><span class="profile-info-label">ABC License</span><span>${esc(acct.ABCLicense)}</span></div>` : '',
     acct.StaffName    ? `<div class="profile-info-item"><span class="profile-info-label">Sales Rep</span><span>${esc(acct.StaffName)}</span></div>` : '',
     acct.LastContacted ? `<div class="profile-info-item"><span class="profile-info-label">Last Contact</span><span>${formatDate(acct.LastContacted)}</span></div>` : '',
     acct.Notes        ? `<div class="profile-info-item profile-info-full"><span class="profile-info-label">Notes</span><span>${esc(acct.Notes)}</span></div>` : '',
@@ -828,6 +833,7 @@ function openAddAccount() {
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'),
+      ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
@@ -849,6 +855,7 @@ function openEditAccount(id) {
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'),
+      ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
