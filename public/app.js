@@ -1371,12 +1371,23 @@ async function deleteTodo(id) {
 
 async function loadDashboard() {
   showLoading();
-  const [dash, accounts] = await Promise.all([
+  const [dash, accounts, staff] = await Promise.all([
     api.get('/api/dashboard'),
     api.get('/api/accounts'),
+    api.get('/api/staff'),
   ]);
   state.accounts = accounts;
+  state.staff = staff;
   state.dashTodos = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
+
+  // Identify current staff member by matching email
+  const currentStaff = staff.find(s => s.Email && s.Email === state.userEmail);
+  const currentStaffId = currentStaff ? currentStaff.ID : null;
+
+  // Build "My Todos" — overdue + upcoming assigned to current staff
+  const myOverdue = currentStaffId ? (dash.overdueReminders || []).filter(r => r.StaffID === currentStaffId) : [];
+  const myUpcoming = currentStaffId ? (dash.upcomingReminders || []).filter(r => r.StaffID === currentStaffId) : [];
+  const myTodos = [...myOverdue, ...myUpcoming];
 
   const lowStockHtml = dash.lowStockItems.length === 0
     ? '<li class="empty-state" style="padding:12px 0">All products are well stocked.</li>'
@@ -1398,6 +1409,20 @@ async function loadDashboard() {
           </div>
           <span class="dash-meta">${formatDate(r.DueDate)}</span>
         </li>`).join('');
+
+  const myTodosHtml = !currentStaffId
+    ? '<li class="empty-state" style="padding:12px 0">No staff profile linked to your account.</li>'
+    : myTodos.length === 0
+      ? '<li class="empty-state" style="padding:12px 0">You have no upcoming or overdue todos.</li>'
+      : myTodos.map(r => `
+          <li class="clickable" onclick="navigate('todos')">
+            <div>
+              ${urgencyBadge(r.DueDate, r.Completed)}
+              <span class="dash-label">${esc(r.Title)}</span>
+              ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
+            </div>
+            <span class="dash-meta">${formatDate(r.DueDate)}</span>
+          </li>`).join('');
 
   const overdueHtml = dash.overdueReminders.length === 0 ? '' : `
     <div class="card">
@@ -1457,6 +1482,14 @@ async function loadDashboard() {
     </div>
 
     <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-header">
+          <h3>My Todos${myOverdue.length > 0 ? ` <span class="text-danger">(${myOverdue.length} overdue)</span>` : ''}</h3>
+          ${currentStaffId ? `<button class="btn btn-ghost btn-sm" onclick="navigate('todos', {staffId: '${esc(currentStaffId)}', staffName: '${esc(currentStaff.Name)}'})">View all</button>` : ''}
+        </div>
+        <ul class="dash-list">${myTodosHtml}</ul>
+      </div>
+
       ${overdueHtml}
 
       <div class="card">
@@ -1951,6 +1984,7 @@ async function init() {
   try {
     const { user } = await api.get('/auth/me');
     if (user) {
+      state.userEmail = user.email || '';
       const panel = document.getElementById('sidebar-user');
       if (panel) {
         document.getElementById('sidebar-user-name').textContent  = user.name  || '';
