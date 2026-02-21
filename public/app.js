@@ -473,8 +473,14 @@ function renderAccounts() {
   const search       = (document.getElementById('acct-search') || {}).value ?? nav.search ?? '';
 
   let filtered = accounts;
-  if (typeFilter)   filtered = filtered.filter(a => a.Type === typeFilter);
-  if (statusFilter) filtered = filtered.filter(a => a.Status === statusFilter);
+  if (typeFilter) filtered = filtered.filter(a => a.Type === typeFilter);
+  if (statusFilter === 'Inactive') {
+    filtered = filtered.filter(a => a.Status === 'Inactive');
+  } else if (statusFilter) {
+    filtered = filtered.filter(a => a.Status === statusFilter);
+  } else {
+    filtered = filtered.filter(a => a.Status !== 'Inactive');
+  }
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(a =>
@@ -501,7 +507,7 @@ function renderAccounts() {
         ${ACCOUNT_TYPES.map(t => `<option value="${t}" ${typeFilter === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select>
       <select id="acct-status" onchange="renderAccounts()">
-        <option value="">All Statuses</option>
+        <option value="">All (excl. Inactive)</option>
         ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
     </div>
