@@ -16,7 +16,7 @@ const accountsRoutes  = require('./routes/accounts');
 const outreachRoutes  = require('./routes/outreach');
 const remindersRoutes = require('./routes/reminders');
 const staffRoutes     = require('./routes/staff');
-const salesRoutes     = require('./routes/sales');
+const ordersRoutes    = require('./routes/orders');
 const dashboardRoutes = require('./routes/dashboard');
 const webhooksRoutes  = require('./routes/webhooks');
 
@@ -60,7 +60,7 @@ app.use('/api/accounts',  requireAuth, accountsRoutes);
 app.use('/api/outreach',  requireAuth, outreachRoutes);
 app.use('/api/reminders', requireAuth, remindersRoutes);
 app.use('/api/staff',     requireAuth, staffRoutes);
-app.use('/api/sales',     requireAuth, salesRoutes);
+app.use('/api/orders',    requireAuth, ordersRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 
 // Status endpoint (public – used by the frontend before auth).

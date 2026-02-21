@@ -78,11 +78,11 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    // Cascade delete: remove associated sales
-    const sales = await getAllRows('SALES');
-    for (const sale of sales) {
-      if (sale.AccountID === id) {
-        await deleteRow('SALES', sale.ID);
+    // Cascade delete: remove associated orders
+    const orders = await getAllRows('ORDERS');
+    for (const order of orders) {
+      if (order.AccountID === id) {
+        await deleteRow('ORDERS', order.ID);
       }
     }
 

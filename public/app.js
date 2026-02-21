@@ -554,10 +554,10 @@ async function loadAccountProfile(accountId) {
   });
   showLoading();
 
-  const [outreach, todos, sales] = await Promise.all([
+  const [outreach, todos, orders] = await Promise.all([
     api.get('/api/outreach'),
     api.get('/api/reminders?status=all'),
-    api.get('/api/sales'),
+    api.get('/api/orders'),
   ]);
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
@@ -570,11 +570,11 @@ async function loadAccountProfile(accountId) {
   const acctTodos = todos
     .filter(t => t.AccountID === accountId)
     .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
-  const acctSales = sales
+  const acctOrders = orders
     .filter(s => s.AccountID === accountId)
-    .sort((a, b) => (b.SaleDate || '').localeCompare(a.SaleDate || ''));
+    .sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
 
-  const totalRevenue = acctSales.reduce((sum, s) => sum + (parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
+  const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
 
   const infoRows = [
@@ -618,30 +618,30 @@ async function loadAccountProfile(accountId) {
         </td>
       </tr>`).join('');
 
-  const salesRows = acctSales.length === 0
-    ? `<tr><td colspan="9" class="empty-state">No sales recorded yet.</td></tr>`
-    : acctSales.map(s => {
-        const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
+  const orderRows = acctOrders.length === 0
+    ? `<tr><td colspan="9" class="empty-state">No orders recorded yet.</td></tr>`
+    : acctOrders.map(s => {
+        const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
         return `<tr>
-          <td class="text-sm">${formatDate(s.SaleDate)}</td>
+          <td class="text-sm">${formatDate(s.OrderDate)}</td>
           <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
           <td class="text-sm">${esc(s.StaffName) || '—'}</td>
-          <td>${fmtMoney(s.SaleAmount)}</td>
+          <td>${fmtMoney(s.OrderAmount)}</td>
           <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
           <td class="fw-600">${fmtMoney(total)}</td>
-          <td>${salesStatusBadge(s.Status)}</td>
+          <td>${orderStatusBadge(s.Status)}</td>
           <td class="text-center"><input type="checkbox" ${s.Delivered === 'true' ? 'checked' : ''} onchange="profileToggleDelivered('${esc(s.ID)}', ${s.Delivered === 'true'})" /></td>
           <td class="td-actions">
-            ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkSalePaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="profileEditSale('${esc(s.ID)}')">Edit</button>
-            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteSale('${esc(s.ID)}')">Del</button>
+            ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">Edit</button>
+            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>
           </td>
         </tr>`;
       }).join('');
 
-  const salesFooter = acctSales.length > 1
+  const orderFooter = acctOrders.length > 1
     ? `<tfoot><tr class="table-totals">
-        <td colspan="5" class="text-muted text-sm">${acctSales.length} sales</td>
+        <td colspan="5" class="text-muted text-sm">${acctOrders.length} orders</td>
         <td class="fw-600">${fmtMoney(totalRevenue)}</td>
         <td colspan="3"></td>
       </tr></tfoot>`
@@ -659,7 +659,7 @@ async function loadAccountProfile(accountId) {
       <div class="view-header-actions">
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
-        <button class="btn btn-ghost btn-sm" onclick="openAddSale('${esc(accountId)}')">+ Log Sale</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
@@ -667,7 +667,7 @@ async function loadAccountProfile(accountId) {
     <div class="profile-stats">
       <div class="profile-stat"><div class="stat-value">${acctOutreach.length}</div><div class="stat-label">Contacts Logged</div></div>
       <div class="profile-stat"><div class="stat-value">${activeTodos}</div><div class="stat-label">Open Todos</div></div>
-      <div class="profile-stat"><div class="stat-value">${acctSales.length}</div><div class="stat-label">Sales</div></div>
+      <div class="profile-stat"><div class="stat-value">${acctOrders.length}</div><div class="stat-label">Orders</div></div>
       <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
     </div>
 
@@ -703,14 +703,14 @@ async function loadAccountProfile(accountId) {
 
     <div class="profile-section">
       <div class="profile-section-header">
-        <h3>Sales History <span class="text-muted text-sm">(${acctSales.length})</span></h3>
-        <button class="btn btn-ghost btn-sm" onclick="openAddSale('${esc(accountId)}')">+ Log Sale</button>
+        <h3>Order History <span class="text-muted text-sm">(${acctOrders.length})</span></h3>
+        <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Sale Date</th><th>Invoice #</th><th>Sales Rep</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
-          <tbody>${salesRows}</tbody>
-          ${salesFooter}
+          <thead><tr><th>Order Date</th><th>Invoice #</th><th>Sales Rep</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
+          <tbody>${orderRows}</tbody>
+          ${orderFooter}
         </table>
       </div>
     </div>
@@ -787,32 +787,32 @@ function profileDeleteTodo(id) {
   });
 }
 
-function profileEditSale(id) {
-  api.get('/api/sales').then(items => {
-    const sale = items.find(s => s.ID === id);
-    if (!sale) return;
-    modal.open('Edit Sale', salesForm(sale), async () => {
+function profileEditOrder(id) {
+  api.get('/api/orders').then(items => {
+    const order = items.find(s => s.ID === id);
+    if (!order) return;
+    modal.open('Edit Order', orderForm(order), async () => {
       const staffId = val('f-staff');
       const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-      await api.put(`/api/sales/${id}`, {
+      await api.put(`/api/orders/${id}`, {
         StaffID: staffId, StaffName: staffName,
-        SaleDate: val('f-sale-date'), DeliveryDate: val('f-delivery-date'),
+        OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
         InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-        SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
+        OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
         Notes: val('f-notes'),
       });
       modal.close();
-      toast('Sale updated');
+      toast('Order updated');
       loadAccountProfile(state.accountProfileId);
     });
   });
 }
 
-function profileDeleteSale(id) {
-  modal.confirm('Delete Sale', 'Delete this sale record? This cannot be undone.', async () => {
-    await api.del(`/api/sales/${id}`);
+function profileDeleteOrder(id) {
+  modal.confirm('Delete Order', 'Delete this order? This cannot be undone.', async () => {
+    await api.del(`/api/orders/${id}`);
     modal.close();
-    toast('Sale deleted');
+    toast('Order deleted');
     loadAccountProfile(state.accountProfileId);
   });
 }
@@ -861,7 +861,7 @@ function openEditAccount(id) {
 async function deleteAccount(id, name) {
   modal.confirm(
     'Delete Account',
-    `Delete "${name}"? All associated outreach logs, todos, and sales will also be deleted.`,
+    `Delete "${name}"? All associated outreach logs, todos, and orders will also be deleted.`,
     async () => {
       await api.del(`/api/accounts/${id}`);
       modal.close();
@@ -1434,9 +1434,9 @@ async function loadDashboard() {
         <div class="stat-value">${dash.prospectAccounts}</div>
         <div class="stat-label">Prospects</div>
       </div>
-      <div class="stat-card accent" onclick="navigate('sales')">
-        <div class="stat-value">$${parseFloat(dash.monthlySalesTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-        <div class="stat-label">Sales This Month (${dash.monthlySalesCount || 0})</div>
+      <div class="stat-card accent" onclick="navigate('orders')">
+        <div class="stat-value">$${parseFloat(dash.monthlyOrdersTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+        <div class="stat-label">Orders This Month (${dash.monthlyOrdersCount || 0})</div>
       </div>
       <div class="stat-card ${dash.overdueCount > 0 ? 'danger' : 'warning'}" onclick="navigate('todos')">
         <div class="stat-value">${dash.overdueCount > 0 ? dash.overdueCount : dash.totalActiveReminders}</div>
@@ -1626,12 +1626,12 @@ async function deleteStaff(id, name) {
   );
 }
 
-// ── Sales View ────────────────────────────────────────────────────
+// ── Orders View ───────────────────────────────────────────────────
 
-const SALE_STATUSES = ['Pending', 'Paid', 'Cancelled'];
+const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled'];
 
-function salesForm(sale = {}, presetAccountId = '') {
-  const selAcctId = sale.AccountID || presetAccountId;
+function orderForm(order = {}, presetAccountId = '') {
+  const selAcctId = order.AccountID || presetAccountId;
   return `
     <div class="form-row">
       <div class="form-group">
@@ -1646,57 +1646,57 @@ function salesForm(sale = {}, presetAccountId = '') {
         <label>Sales Rep</label>
         <select class="form-control" id="f-staff">
           <option value="">-- Unassigned --</option>
-          ${staffOptions(sale.StaffID)}
+          ${staffOptions(order.StaffID)}
         </select>
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Sale Date <span class="required">*</span></label>
-        <input class="form-control" id="f-sale-date" type="date" value="${esc(sale.SaleDate || today())}" />
+        <label>Order Date <span class="required">*</span></label>
+        <input class="form-control" id="f-order-date" type="date" value="${esc(order.OrderDate || today())}" />
       </div>
       <div class="form-group">
         <label>Delivery Date</label>
-        <input class="form-control" id="f-delivery-date" type="date" value="${esc(sale.DeliveryDate)}" />
+        <input class="form-control" id="f-delivery-date" type="date" value="${esc(order.DeliveryDate)}" />
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>Invoice Number</label>
-        <input class="form-control" id="f-invoice" value="${esc(sale.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
+        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
       </div>
       <div class="form-group">
         <label>Status</label>
         <select class="form-control" id="f-status">
-          ${SALE_STATUSES.map(s => `<option value="${s}" ${sale.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${ORDER_STATUSES.map(s => `<option value="${s}" ${order.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Sale Amount ($) <span class="required">*</span></label>
-        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(sale.SaleAmount || '')}" placeholder="0.00" />
+        <label>Order Amount ($) <span class="required">*</span></label>
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00" />
       </div>
       <div class="form-group">
         <label>Tax Amount ($)</label>
-        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(sale.TaxAmount || '')}" placeholder="0.00" />
+        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(order.TaxAmount || '')}" placeholder="0.00" />
       </div>
     </div>
     <div class="form-group">
       <label class="checkbox-label">
-        <input type="checkbox" id="f-delivered" ${sale.Delivered === 'true' ? 'checked' : ''} />
+        <input type="checkbox" id="f-delivered" ${order.Delivered === 'true' ? 'checked' : ''} />
         Order Delivered
       </label>
     </div>
     <div class="form-group">
       <label>Notes / Reference</label>
-      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(sale.Notes)}</textarea>
+      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>`;
 }
 
-let _salesCache = [];
+let _ordersCache = [];
 
-function salesStatusBadge(status) {
+function orderStatusBadge(status) {
   const map = { Pending: 'badge-pending', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
   return `<span class="badge ${map[status] || 'badge-pending'}">${esc(status || 'Pending')}</span>`;
 }
@@ -1706,28 +1706,28 @@ function fmtMoney(val) {
   return isNaN(n) ? '—' : '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-async function loadSales() {
+async function loadOrders() {
   showLoading();
-  const [sales, accounts, staff] = await Promise.all([
-    api.get('/api/sales'),
+  const [orders, accounts, staff] = await Promise.all([
+    api.get('/api/orders'),
     api.get('/api/accounts'),
     api.get('/api/staff'),
   ]);
   state.accounts = accounts;
   state.staff = staff;
-  _salesCache = sales;
-  renderSales();
+  _ordersCache = orders;
+  renderOrders();
 }
 
-function renderSales() {
-  const sales = _salesCache;
+function renderOrders() {
+  const orders = _ordersCache;
   const _focused = document.activeElement?.id;
-  const accountFilter = (document.getElementById('sales-account') || {}).value || '';
-  const staffFilter   = (document.getElementById('sales-staff') || {}).value || '';
-  const statusFilter  = (document.getElementById('sales-status') || {}).value || '';
-  const search        = (document.getElementById('sales-search') || {}).value || '';
+  const accountFilter = (document.getElementById('orders-account') || {}).value || '';
+  const staffFilter   = (document.getElementById('orders-staff') || {}).value || '';
+  const statusFilter  = (document.getElementById('orders-status') || {}).value || '';
+  const search        = (document.getElementById('orders-search') || {}).value || '';
 
-  let filtered = sales;
+  let filtered = orders;
   if (accountFilter) filtered = filtered.filter(s => s.AccountID === accountFilter);
   if (staffFilter)   filtered = filtered.filter(s => s.StaffID === staffFilter);
   if (statusFilter)  filtered = filtered.filter(s => s.Status === statusFilter);
@@ -1740,17 +1740,17 @@ function renderSales() {
     );
   }
 
-  const totalSale = filtered.reduce((sum, s) => sum + parseFloat(s.SaleAmount || 0), 0);
-  const totalTax  = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount  || 0), 0);
+  const totalOrder = filtered.reduce((sum, s) => sum + parseFloat(s.OrderAmount || 0), 0);
+  const totalTax   = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount   || 0), 0);
 
   const acctOpts = `<option value="">All Accounts</option>` +
-    [...new Map(sales.map(s => [s.AccountID, s.AccountName])).entries()]
+    [...new Map(orders.map(s => [s.AccountID, s.AccountName])).entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([id, name]) => `<option value="${esc(id)}" ${accountFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
       .join('');
 
   const staffOpts = `<option value="">All Reps</option>` +
-    [...new Map(sales.filter(s => s.StaffID).map(s => [s.StaffID, s.StaffName])).entries()]
+    [...new Map(orders.filter(s => s.StaffID).map(s => [s.StaffID, s.StaffName])).entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([id, name]) => `<option value="${esc(id)}" ${staffFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
       .join('');
@@ -1758,49 +1758,49 @@ function renderSales() {
   setContent(`
     <div class="view-header">
       <div>
-        <h2>Sales Log</h2>
-        <p class="subtitle">${sales.length} sale${sales.length !== 1 ? 's' : ''} recorded</p>
+        <h2>Orders</h2>
+        <p class="subtitle">${orders.length} order${orders.length !== 1 ? 's' : ''} recorded</p>
       </div>
       <div class="view-header-actions">
-        <button class="btn btn-primary" onclick="openAddSale()">+ Log Sale</button>
+        <button class="btn btn-primary" onclick="openAddOrder()">+ Log Order</button>
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="sales-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="renderSales()" />
-      <select id="sales-account" onchange="renderSales()">${acctOpts}</select>
-      <select id="sales-staff" onchange="renderSales()">${staffOpts}</select>
-      <select id="sales-status" onchange="renderSales()">
+      <input type="search" id="orders-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="renderOrders()" />
+      <select id="orders-account" onchange="renderOrders()">${acctOpts}</select>
+      <select id="orders-staff" onchange="renderOrders()">${staffOpts}</select>
+      <select id="orders-status" onchange="renderOrders()">
         <option value="">All Statuses</option>
-        ${SALE_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
+        ${ORDER_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Sale Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
-            <th>Sale Amt</th><th>Tax</th><th>Total</th><th>Delivery</th><th>Status</th><th>Delivered</th><th>Actions</th>
+            <th>Order Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
+            <th>Order Amt</th><th>Tax</th><th>Total</th><th>Delivery</th><th>Status</th><th>Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="11" class="empty-state">No sales found.</td></tr>` :
+          ${filtered.length === 0 ? `<tr><td colspan="11" class="empty-state">No orders found.</td></tr>` :
             filtered.map(s => {
-              const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
+              const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
               return `<tr>
-                <td>${formatDate(s.SaleDate)}</td>
+                <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span></td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
                 <td class="text-sm">${esc(s.StaffName) || '—'}</td>
-                <td>${fmtMoney(s.SaleAmount)}</td>
+                <td>${fmtMoney(s.OrderAmount)}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${fmtMoney(total)}</td>
                 <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
-                <td>${salesStatusBadge(s.Status)}</td>
+                <td>${orderStatusBadge(s.Status)}</td>
                 <td class="text-center"><input type="checkbox" ${s.Delivered === 'true' ? 'checked' : ''} onchange="toggleDelivered('${esc(s.ID)}')" /></td>
                 <td class="td-actions">
-                  ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markSalePaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
-                  <button class="btn btn-ghost btn-sm" onclick="openEditSale('${esc(s.ID)}')">Edit</button>
-                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteSale('${esc(s.ID)}')">Del</button>
+                  ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
+                  <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
                 </td>
               </tr>`;
             }).join('')}
@@ -1809,97 +1809,97 @@ function renderSales() {
         <tfoot>
           <tr class="table-totals">
             <td colspan="4" class="text-muted text-sm">${filtered.length} records</td>
-            <td>${fmtMoney(totalSale)}</td>
+            <td>${fmtMoney(totalOrder)}</td>
             <td>${fmtMoney(totalTax)}</td>
-            <td class="fw-600">${fmtMoney(totalSale + totalTax)}</td>
+            <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
             <td colspan="4"></td>
           </tr>
         </tfoot>` : ''}
       </table>
     </div>`);
-  if (_focused === 'sales-search') refocusSearch('sales-search');
+  if (_focused === 'orders-search') refocusSearch('orders-search');
 }
 
-async function openAddSale(presetAccountId = '') {
+async function openAddOrder(presetAccountId = '') {
   if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
-  modal.open('Log Sale', salesForm({}, presetAccountId), async () => {
+  modal.open('Log Order', orderForm({}, presetAccountId), async () => {
     const accountId = presetAccountId || val('f-account');
     if (!accountId) { toast('Please select an account', 'error'); return; }
-    const saleDate = val('f-sale-date');
-    if (!saleDate) { toast('Sale date is required', 'error'); return; }
+    const orderDate = val('f-order-date');
+    if (!orderDate) { toast('Order date is required', 'error'); return; }
     const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-    await api.post('/api/sales', {
+    await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       StaffID: staffId, StaffName: staffName,
-      SaleDate: saleDate, DeliveryDate: val('f-delivery-date'),
+      OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-      SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
+      OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
       Delivered: document.getElementById('f-delivered').checked ? 'true' : 'false',
     });
     modal.close();
-    toast('Sale logged');
+    toast('Order logged');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadSales();
+    else loadOrders();
   });
 }
 
-function openEditSale(id) {
-  const sale = _salesCache.find(s => s.ID === id);
-  if (!sale) return;
-  modal.open('Edit Sale', salesForm(sale), async () => {
+function openEditOrder(id) {
+  const order = _ordersCache.find(s => s.ID === id);
+  if (!order) return;
+  modal.open('Edit Order', orderForm(order), async () => {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-    await api.put(`/api/sales/${id}`, {
+    await api.put(`/api/orders/${id}`, {
       StaffID: staffId, StaffName: staffName,
-      SaleDate: val('f-sale-date'), DeliveryDate: val('f-delivery-date'),
+      OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-      SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
+      OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
       Delivered: document.getElementById('f-delivered').checked ? 'true' : 'false',
     });
     modal.close();
-    toast('Sale updated');
-    loadSales();
+    toast('Order updated');
+    loadOrders();
   });
 }
 
-async function deleteSale(id) {
-  modal.confirm('Delete Sale', 'Delete this sale record? This cannot be undone.', async () => {
-    await api.del(`/api/sales/${id}`);
+async function deleteOrder(id) {
+  modal.confirm('Delete Order', 'Delete this order? This cannot be undone.', async () => {
+    await api.del(`/api/orders/${id}`);
     modal.close();
-    toast('Sale deleted');
-    loadSales();
+    toast('Order deleted');
+    loadOrders();
   });
 }
 
-async function markSalePaid(id) {
-  await api.put(`/api/sales/${id}`, { Status: 'Paid' });
-  toast('Sale marked as paid');
-  loadSales();
+async function markOrderPaid(id) {
+  await api.put(`/api/orders/${id}`, { Status: 'Paid' });
+  toast('Order marked as paid');
+  loadOrders();
 }
 
 async function toggleDelivered(id) {
-  const sale = _salesCache.find(s => s.ID === id);
-  if (!sale) return;
-  const newDelivered = sale.Delivered === 'true' ? 'false' : 'true';
-  await api.put(`/api/sales/${id}`, { Delivered: newDelivered });
+  const order = _ordersCache.find(s => s.ID === id);
+  if (!order) return;
+  const newDelivered = order.Delivered === 'true' ? 'false' : 'true';
+  await api.put(`/api/orders/${id}`, { Delivered: newDelivered });
   toast(newDelivered === 'true' ? 'Marked as delivered' : 'Marked as undelivered');
-  loadSales();
+  loadOrders();
 }
 
-async function profileMarkSalePaid(id) {
-  await api.put(`/api/sales/${id}`, { Status: 'Paid' });
-  toast('Sale marked as paid');
+async function profileMarkOrderPaid(id) {
+  await api.put(`/api/orders/${id}`, { Status: 'Paid' });
+  toast('Order marked as paid');
   loadAccountProfile(state.accountProfileId);
 }
 
 async function profileToggleDelivered(id, isDelivered) {
   const newDelivered = isDelivered ? 'false' : 'true';
-  await api.put(`/api/sales/${id}`, { Delivered: newDelivered });
+  await api.put(`/api/orders/${id}`, { Delivered: newDelivered });
   toast(newDelivered === 'true' ? 'Marked as delivered' : 'Marked as undelivered');
   loadAccountProfile(state.accountProfileId);
 }
@@ -1912,7 +1912,7 @@ const VIEW_LOADERS = {
   accounts:  loadAccounts,
   outreach:  loadOutreach,
   todos: loadTodos,
-  sales:     loadSales,
+  orders:    loadOrders,
   staff:     loadStaff,
 };
 

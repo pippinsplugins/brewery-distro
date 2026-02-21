@@ -1,23 +1,25 @@
 'use strict';
 
 /**
- * Zapier Webhook — Sale Log Creation
+ * Zapier Webhook — Order Creation
  *
- * Endpoint:  POST /webhooks/zapier/sale
+ * Endpoint:  POST /webhooks/zapier/order
  * Auth:      Authorization: Bearer <WEBHOOK_SECRET>
  *
  * Zapier setup:
  *   Action:  Webhooks by Zapier → POST
- *   URL:     https://<your-domain>/webhooks/zapier/sale
+ *   URL:     https://<your-domain>/webhooks/zapier/order
  *   Headers: Authorization: Bearer <your WEBHOOK_SECRET value>
  *   Payload format: JSON (data below)
  *
  * Accepted fields (all optional except at least one of account_name / AccountName / AccountID):
  *
  *   invoice_number  | InvoiceNumber  | invoiceNumber   → InvoiceNumber
- *   sale_date       | SaleDate       | invoice_date    → SaleDate       (defaults to today)
+ *   order_date      | OrderDate      | sale_date
+ *                   | SaleDate       | invoice_date    → OrderDate       (defaults to today)
  *   delivery_date   | DeliveryDate                    → DeliveryDate
- *   amount          | sale_amount    | SaleAmount      → SaleAmount     (pre-tax total)
+ *   amount          | order_amount   | OrderAmount
+ *                   | sale_amount    | SaleAmount      → OrderAmount     (pre-tax total)
  *   tax             | tax_amount     | TaxAmount       → TaxAmount
  *   status          | Status                          → Status          (Pending/Paid/Cancelled)
  *   notes           | Notes          | memo            → Notes
@@ -26,7 +28,7 @@
  *                   | client_name                     → account name lookup
  *
  * Responses:
- *   201  { sale }                — created successfully
+ *   201  { order }               — created successfully
  *   400  { error, details }      — missing/invalid fields
  *   401  { error }               — bad or missing token
  *   404  { error }               — account name not found
@@ -72,9 +74,9 @@ function normalise(body) {
     accountId:     pick(body, 'AccountID',     'account_id'),
     accountName:   pick(body, 'AccountName',   'account_name', 'customer_name', 'client_name'),
     invoiceNumber: pick(body, 'InvoiceNumber', 'invoice_number', 'invoiceNumber'),
-    saleDate:      pick(body, 'SaleDate',      'sale_date',     'invoice_date', 'date'),
+    orderDate:     pick(body, 'OrderDate',     'order_date',    'SaleDate', 'sale_date', 'invoice_date', 'date'),
     deliveryDate:  pick(body, 'DeliveryDate',  'delivery_date'),
-    saleAmount:    pick(body, 'SaleAmount',    'sale_amount',   'amount',    'subtotal'),
+    orderAmount:   pick(body, 'OrderAmount',   'order_amount',  'SaleAmount', 'sale_amount', 'amount', 'subtotal'),
     taxAmount:     pick(body, 'TaxAmount',     'tax_amount',    'tax'),
     status:        pick(body, 'Status',        'status'),
     notes:         pick(body, 'Notes',         'notes',         'memo'),
@@ -83,9 +85,9 @@ function normalise(body) {
 
 const VALID_STATUSES = new Set(['Pending', 'Paid', 'Cancelled']);
 
-// ── POST /webhooks/zapier/sale ───────────────────────────────────
+// ── POST /webhooks/zapier/order ───────────────────────────────────
 
-router.post('/zapier/sale', requireWebhookSecret, async (req, res) => {
+router.post('/zapier/order', requireWebhookSecret, async (req, res) => {
   try {
     const f = normalise(req.body);
 
@@ -116,8 +118,8 @@ router.post('/zapier/sale', requireWebhookSecret, async (req, res) => {
     }
 
     // Date defaults
-    const today    = new Date().toISOString().split('T')[0];
-    const saleDate = f.saleDate || today;
+    const today     = new Date().toISOString().split('T')[0];
+    const orderDate = f.orderDate || today;
 
     // Status validation
     let status = f.status || 'Pending';
@@ -125,25 +127,25 @@ router.post('/zapier/sale', requireWebhookSecret, async (req, res) => {
     status = status.charAt(0).toUpperCase() + status.slice(1);
     if (!VALID_STATUSES.has(status)) status = 'Pending';
 
-    const sale = {
+    const order = {
       ID:            uuidv4(),
       AccountID:     resolvedAccountId,
       AccountName:   resolvedAccountName,
       StaffID:       '',
       StaffName:     '',
-      SaleDate:      saleDate,
+      OrderDate:     orderDate,
       DeliveryDate:  f.deliveryDate || '',
       InvoiceNumber: f.invoiceNumber || '',
-      SaleAmount:    f.saleAmount   || '0',
+      OrderAmount:   f.orderAmount  || '0',
       TaxAmount:     f.taxAmount    || '0',
       Notes:         f.notes        || '',
       Status:        status,
       CreatedAt:     today,
     };
 
-    await addRow('SALES', sale);
+    await addRow('ORDERS', order);
 
-    res.status(201).json({ sale });
+    res.status(201).json({ order });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
