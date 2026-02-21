@@ -540,7 +540,7 @@ function openEditAccount(id) {
 async function deleteAccount(id, name) {
   modal.confirm(
     'Delete Account',
-    `Delete "${name}"? All associated outreach logs, reminders, and sales will also be deleted.`,
+    `Delete "${name}"? All associated outreach logs, todos, and sales will also be deleted.`,
     async () => {
       await api.del(`/api/accounts/${id}`);
       modal.close();
@@ -598,8 +598,8 @@ function outreachForm(entry = {}, presetAccountId = '') {
     </div>
     <div class="form-group">
       <label>
-        <input type="checkbox" id="f-create-reminder" style="margin-right:6px;" />
-        Create a reminder for this follow-up
+        <input type="checkbox" id="f-create-todo" style="margin-right:6px;" />
+        Create a todo for this follow-up
       </label>
     </div>`;
 }
@@ -696,7 +696,7 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
       (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
     const followUpDate = val('f-followup-date');
     const followUpStatus = val('f-followup-status');
-    const createReminder = document.getElementById('f-create-reminder') && document.getElementById('f-create-reminder').checked;
+    const createTodo = document.getElementById('f-create-todo') && document.getElementById('f-create-todo').checked;
 
     const entry = await api.post('/api/outreach', {
       AccountID: accountId, AccountName: accountName,
@@ -705,7 +705,7 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
       FollowUpStatus: followUpDate ? (followUpStatus || 'Pending') : 'None',
     });
 
-    if (createReminder && followUpDate) {
+    if (createTodo && followUpDate) {
       await api.post('/api/reminders', {
         Type: 'Follow-up', AccountID: accountId, AccountName: accountName,
         Title: `Follow up with ${accountName}`,
@@ -753,9 +753,9 @@ async function deleteOutreach(id) {
   });
 }
 
-// ── Reminders View ────────────────────────────────────────────────
+// ── Todos View ────────────────────────────────────────────────
 
-const REMINDER_TYPES = ['Follow-up', 'Delivery', 'Collect Payment', 'Sampling', 'Event', 'Draft Cleaning', 'Pre-Sale'];
+const TODO_TYPES = ['Follow-up', 'Delivery', 'Collect Payment', 'Sampling', 'Event', 'Draft Cleaning', 'Pre-Sale'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const RECURRENCE_OPTIONS = [
   { value: 'none',      label: 'None' },
@@ -767,21 +767,21 @@ const RECURRENCE_OPTIONS = [
   { value: 'yearly',    label: 'Yearly' },
 ];
 
-function reminderForm(reminder = {}) {
+function todoForm(todo = {}) {
   return `
     <div class="form-group">
       <label>Title <span class="required">*</span></label>
-      <input class="form-control" id="f-title" value="${esc(reminder.Title)}" placeholder="e.g. Call The Rusty Tap about order" />
+      <input class="form-control" id="f-title" value="${esc(todo.Title)}" placeholder="e.g. Call The Rusty Tap about order" />
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>Due Date <span class="required">*</span></label>
-        <input class="form-control" id="f-due" type="date" value="${esc(reminder.DueDate || today())}" />
+        <input class="form-control" id="f-due" type="date" value="${esc(todo.DueDate || today())}" />
       </div>
       <div class="form-group">
         <label>Priority</label>
         <select class="form-control" id="f-priority">
-          ${PRIORITIES.map(p => `<option value="${p}" ${reminder.Priority === p ? 'selected' : ''}>${p}</option>`).join('')}
+          ${PRIORITIES.map(p => `<option value="${p}" ${todo.Priority === p ? 'selected' : ''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -789,14 +789,14 @@ function reminderForm(reminder = {}) {
       <div class="form-group">
         <label>Type</label>
         <select class="form-control" id="f-type">
-          ${REMINDER_TYPES.map(t => `<option value="${t}" ${reminder.Type === t ? 'selected' : ''}>${t}</option>`).join('')}
+          ${TODO_TYPES.map(t => `<option value="${t}" ${todo.Type === t ? 'selected' : ''}>${t}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
         <label>Linked Account (optional)</label>
         <select class="form-control" id="f-account">
           <option value="">-- None --</option>
-          ${accountOptions(reminder.AccountID)}
+          ${accountOptions(todo.AccountID)}
         </select>
       </div>
     </div>
@@ -805,47 +805,47 @@ function reminderForm(reminder = {}) {
         <label>Assign To</label>
         <select class="form-control" id="f-staff">
           <option value="">-- Unassigned --</option>
-          ${staffOptions(reminder.StaffID)}
+          ${staffOptions(todo.StaffID)}
         </select>
       </div>
       <div class="form-group">
         <label>Recurrence</label>
         <select class="form-control" id="f-recurrence">
-          ${RECURRENCE_OPTIONS.map(o => `<option value="${o.value}" ${(reminder.Recurrence || 'none') === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+          ${RECURRENCE_OPTIONS.map(o => `<option value="${o.value}" ${(todo.Recurrence || 'none') === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
         </select>
       </div>
     </div>
     <div class="form-group">
       <label>Notes</label>
-      <textarea class="form-control" id="f-notes" rows="2">${esc(reminder.Notes)}</textarea>
+      <textarea class="form-control" id="f-notes" rows="2">${esc(todo.Notes)}</textarea>
     </div>`;
 }
 
-let _remindersCache = [];
+let _todosCache = [];
 
-async function loadReminders() {
-  const statusFilter = (document.getElementById('rem-status') || {}).value || 'active';
+async function loadTodos() {
+  const statusFilter = (document.getElementById('todo-status') || {}).value || 'active';
   showLoading();
 
-  const [reminders, accounts, staff] = await Promise.all([
+  const [todos, accounts, staff] = await Promise.all([
     api.get(`/api/reminders?status=${statusFilter}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
   ]);
   state.accounts = accounts;
   state.staff = staff;
-  _remindersCache = reminders;
+  _todosCache = todos;
 
-  renderReminders();
+  renderTodos();
 }
 
-function renderReminders() {
-  const reminders = _remindersCache;
+function renderTodos() {
+  const todos = _todosCache;
   const _focused = document.activeElement?.id;
-  const statusFilter = (document.getElementById('rem-status') || {}).value || 'active';
-  const search = (document.getElementById('rem-search') || {}).value || '';
+  const statusFilter = (document.getElementById('todo-status') || {}).value || 'active';
+  const search = (document.getElementById('todo-search') || {}).value || '';
 
-  let filtered = reminders;
+  let filtered = todos;
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(r =>
@@ -857,16 +857,16 @@ function renderReminders() {
   setContent(`
     <div class="view-header">
       <div>
-        <h2>Reminders</h2>
-        <p class="subtitle">${reminders.filter(r => r.Completed !== 'true').length} active reminder${reminders.length !== 1 ? 's' : ''}</p>
+        <h2>Todos</h2>
+        <p class="subtitle">${todos.filter(r => r.Completed !== 'true').length} active todo${todos.length !== 1 ? 's' : ''}</p>
       </div>
       <div class="view-header-actions">
-        <button class="btn btn-primary" onclick="openAddReminder()">+ Add Reminder</button>
+        <button class="btn btn-primary" onclick="openAddTodo()">+ Add Todo</button>
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="rem-search" placeholder="Search reminders..." value="${esc(search)}" oninput="renderReminders()" />
-      <select id="rem-status" onchange="loadReminders()">
+      <input type="search" id="todo-search" placeholder="Search todos..." value="${esc(search)}" oninput="renderTodos()" />
+      <select id="todo-status" onchange="loadTodos()">
         <option value="active" ${statusFilter === 'active' ? 'selected' : ''}>Active</option>
         <option value="completed" ${statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
         <option value="all" ${statusFilter === 'all' ? 'selected' : ''}>All</option>
@@ -881,7 +881,7 @@ function renderReminders() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No reminders found.</td></tr>` :
+          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No todos found.</td></tr>` :
             filtered.map(r => `<tr>
               <td>${formatDate(r.DueDate)}</td>
               <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
@@ -892,23 +892,23 @@ function renderReminders() {
               <td>${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
                 ${r.Completed !== 'true'
-                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeReminder('${esc(r.ID)}')">Done</button>`
-                  : `<button class="btn btn-ghost btn-sm" onclick="reopenReminder('${esc(r.ID)}')">Reopen</button>`
+                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeTodo('${esc(r.ID)}')">Done</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="reopenTodo('${esc(r.ID)}')">Reopen</button>`
                 }
-                <button class="btn btn-ghost btn-sm" onclick="openEditReminder('${esc(r.ID)}')">Edit</button>
-                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteReminder('${esc(r.ID)}')">Del</button>
+                <button class="btn btn-ghost btn-sm" onclick="openEditTodo('${esc(r.ID)}')">Edit</button>
+                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteTodo('${esc(r.ID)}')">Del</button>
               </td>
             </tr>`).join('')}
         </tbody>
       </table>
     </div>`);
-  if (_focused === 'rem-search') refocusSearch('rem-search');
+  if (_focused === 'rem-search') refocusSearch("todo-search");
 }
 
-function openAddReminder(presetAccountId = '') {
+function openAddTodo(presetAccountId = '') {
   // Pre-populate the assigned staff from the account's assigned rep if available
   const presetAcct = presetAccountId ? (state.accounts.find(a => a.ID === presetAccountId) || {}) : {};
-  modal.open('Add Reminder', reminderForm({ AccountID: presetAccountId, StaffID: presetAcct.StaffID, StaffName: presetAcct.StaffName }), async () => {
+  modal.open('Add Todo', todoForm({ AccountID: presetAccountId, StaffID: presetAcct.StaffID, StaffName: presetAcct.StaffName }), async () => {
     const title = val('f-title');
     const dueDate = val('f-due');
     if (!title) { toast('Title is required', 'error'); return; }
@@ -924,15 +924,15 @@ function openAddReminder(presetAccountId = '') {
       Recurrence: val('f-recurrence'),
     });
     modal.close();
-    toast('Reminder added');
-    loadReminders();
+    toast('Todo added');
+    loadTodos();
   });
 }
 
-function openEditReminder(id) {
-  const reminder = _remindersCache.find(r => r.ID === id);
-  if (!reminder) return;
-  modal.open('Edit Reminder', reminderForm(reminder), async () => {
+function openEditTodo(id) {
+  const todo = _todosCache.find(r => r.ID === id);
+  if (!todo) return;
+  modal.open('Edit Todo', todoForm(todo), async () => {
     const title = val('f-title');
     const dueDate = val('f-due');
     if (!title) { toast('Title is required', 'error'); return; }
@@ -947,22 +947,22 @@ function openEditReminder(id) {
       Recurrence: val('f-recurrence'),
     });
     modal.close();
-    toast('Reminder updated');
-    loadReminders();
+    toast('Todo updated');
+    loadTodos();
   });
 }
 
-async function completeReminder(id) {
-  // Look up reminder data from whichever cache is populated
-  const reminder = _remindersCache.find(r => r.ID === id)
-                || (state.dashReminders || []).find(r => r.ID === id);
-  const acctId   = reminder?.AccountID   || '';
-  const acctName = reminder?.AccountName || '';
-  const title    = reminder?.Title       || '';
+async function completeTodo(id) {
+  // Look up todo data from whichever cache is populated
+  const todo = _todosCache.find(r => r.ID === id)
+                || (state.dashTodos || []).find(r => r.ID === id);
+  const acctId   = todo?.AccountID   || '';
+  const acctName = todo?.AccountName || '';
+  const title    = todo?.Title       || '';
 
   const formHtml = `
     <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px">
-      Marking <strong>${esc(title) || 'this reminder'}</strong> as done${acctName ? ` for <strong>${esc(acctName)}</strong>` : ''}.
+      Marking <strong>${esc(title) || 'this todo'}</strong> as done${acctName ? ` for <strong>${esc(acctName)}</strong>` : ''}.
     </p>
     ${acctId ? `
     <div class="form-group">
@@ -991,7 +991,7 @@ async function completeReminder(id) {
     </div>` : ''}
   `;
 
-  modal.open('Complete Reminder', formHtml, async () => {
+  modal.open('Complete Todo', formHtml, async () => {
     const logOutreach = acctId && document.getElementById('f-log-outreach')?.checked;
 
     const result = await api.put(`/api/reminders/${id}`, { Completed: 'true' });
@@ -1013,7 +1013,7 @@ async function completeReminder(id) {
       toast(logOutreach ? 'Marked done & outreach logged' : 'Marked as done');
     }
 
-    if (state.view === 'reminders') loadReminders();
+    if (state.view === 'todos') loadTodos();
     else loadDashboard();
   }, 'Mark Done');
 
@@ -1025,18 +1025,18 @@ async function completeReminder(id) {
   }, 0);
 }
 
-async function reopenReminder(id) {
+async function reopenTodo(id) {
   await api.put(`/api/reminders/${id}`, { Completed: 'false' });
-  toast('Reminder reopened');
-  loadReminders();
+  toast('Todo reopened');
+  loadTodos();
 }
 
-async function deleteReminder(id) {
-  modal.confirm('Delete Reminder', 'Delete this reminder?', async () => {
+async function deleteTodo(id) {
+  modal.confirm('Delete Todo', 'Delete this todo?', async () => {
     await api.del(`/api/reminders/${id}`);
     modal.close();
-    toast('Reminder deleted');
-    loadReminders();
+    toast('Todo deleted');
+    loadTodos();
   });
 }
 
@@ -1049,7 +1049,7 @@ async function loadDashboard() {
     api.get('/api/accounts'),
   ]);
   state.accounts = accounts;
-  state.dashReminders = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
+  state.dashTodos = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
 
   const lowStockHtml = dash.lowStockItems.length === 0
     ? '<li class="empty-state" style="padding:12px 0">All products are well stocked.</li>'
@@ -1061,9 +1061,9 @@ async function loadDashboard() {
         </li>`).join('');
 
   const upcomingHtml = dash.upcomingReminders.length === 0
-    ? '<li class="empty-state" style="padding:12px 0">No upcoming reminders in the next 7 days.</li>'
+    ? '<li class="empty-state" style="padding:12px 0">No upcoming todos in the next 7 days.</li>'
     : dash.upcomingReminders.map(r => `
-        <li class="clickable" onclick="navigate('reminders')">
+        <li class="clickable" onclick="navigate('todos')">
           <div>
             ${urgencyBadge(r.DueDate, r.Completed)}
             <span class="dash-label">${esc(r.Title)}</span>
@@ -1077,11 +1077,11 @@ async function loadDashboard() {
       <div class="card-header"><h3 class="text-danger">Overdue (${dash.overdueReminders.length})</h3></div>
       <ul class="dash-list">
         ${dash.overdueReminders.map(r => `
-          <li class="clickable" onclick="navigate('reminders')">
+          <li class="clickable" onclick="navigate('todos')">
             ${urgencyBadge(r.DueDate, r.Completed)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
-            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeReminder('${esc(r.ID)}')">Done</button>
+            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeTodo('${esc(r.ID)}')">Done</button>
           </li>`).join('')}
       </ul>
     </div>`;
@@ -1123,9 +1123,9 @@ async function loadDashboard() {
         <div class="stat-value">$${parseFloat(dash.monthlySalesTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
         <div class="stat-label">Sales This Month (${dash.monthlySalesCount || 0})</div>
       </div>
-      <div class="stat-card ${dash.overdueCount > 0 ? 'danger' : 'warning'}" onclick="navigate('reminders')">
+      <div class="stat-card ${dash.overdueCount > 0 ? 'danger' : 'warning'}" onclick="navigate('todos')">
         <div class="stat-value">${dash.overdueCount > 0 ? dash.overdueCount : dash.totalActiveReminders}</div>
-        <div class="stat-label">${dash.overdueCount > 0 ? 'Overdue' : 'Active Reminders'}</div>
+        <div class="stat-label">${dash.overdueCount > 0 ? 'Overdue' : 'Active Todos'}</div>
       </div>
     </div>
 
@@ -1135,7 +1135,7 @@ async function loadDashboard() {
       <div class="card">
         <div class="card-header">
           <h3>Upcoming (7 days)</h3>
-          <button class="btn btn-ghost btn-sm" onclick="navigate('reminders')">View all</button>
+          <button class="btn btn-ghost btn-sm" onclick="navigate('todos')">View all</button>
         </div>
         <ul class="dash-list">${upcomingHtml}</ul>
       </div>
@@ -1556,7 +1556,7 @@ const VIEW_LOADERS = {
   inventory: loadInventory,
   accounts:  loadAccounts,
   outreach:  loadOutreach,
-  reminders: loadReminders,
+  todos: loadTodos,
   sales:     loadSales,
   staff:     loadStaff,
 };
