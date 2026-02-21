@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
     const currentMonth = today.substring(0, 7); // 'YYYY-MM'
     const monthlySales = sales.filter(s => (s.SaleDate || '').startsWith(currentMonth));
     const monthlySalesTotal = monthlySales.reduce((sum, s) => sum + parseFloat(s.SaleAmount || 0), 0);
-    const pendingDeliveries = sales.filter(s => s.Status === 'Pending' || s.Status === 'Delivered').length;
+    const pendingDeliveries = sales.filter(s => s.Delivered !== 'true' && s.Status !== 'Cancelled').length;
 
     res.json({
       totalProducts: inventory.length,

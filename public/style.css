@@ -580,7 +580,6 @@ tbody td {
 
 /* Sales status badges */
 .badge-pending   { background: #e3f2fd; color: #1565c0; }
-.badge-delivered { background: var(--warning-bg); color: var(--warning-text); }
 .badge-paid      { background: var(--success-bg); color: var(--success-text); }
 .badge-cancelled { background: var(--neutral-bg); color: var(--neutral-text); }
 
