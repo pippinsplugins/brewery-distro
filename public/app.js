@@ -1291,7 +1291,8 @@ async function completeTodo(id) {
       toast(logOutreach ? 'Marked done & outreach logged' : 'Marked as done');
     }
 
-    if (state.view === 'todos') loadTodos();
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else if (state.view === 'todos') loadTodos();
     else loadDashboard();
   }, 'Mark Done');
 
