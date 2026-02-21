@@ -486,6 +486,7 @@ function renderAccounts() {
               <td>${statusBadge(a.Status)}</td>
               <td class="text-sm text-muted">${formatDate(a.LastContacted)}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm" onclick="loadAccountProfile('${esc(a.ID)}')">View</button>
                 <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(a.ID)}', '${esc(a.Name)}')">+ Log</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditAccount('${esc(a.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteAccount('${esc(a.ID)}', '${esc(a.Name)}')">Del</button>
@@ -495,6 +496,280 @@ function renderAccounts() {
       </table>
     </div>`);
   if (_focused === 'acct-search') refocusSearch('acct-search');
+}
+
+// ── Account Profile View ──────────────────────────────────────────
+
+async function loadAccountProfile(accountId) {
+  state.view = 'account-profile';
+  state.accountProfileId = accountId;
+  // Keep 'accounts' nav item highlighted
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === 'accounts');
+  });
+  showLoading();
+
+  const [outreach, todos, sales] = await Promise.all([
+    api.get('/api/outreach'),
+    api.get('/api/reminders?status=all'),
+    api.get('/api/sales'),
+  ]);
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+
+  const acct = state.accounts.find(a => a.ID === accountId);
+  if (!acct) { toast('Account not found', 'error'); return; }
+
+  const acctOutreach = outreach
+    .filter(o => o.AccountID === accountId)
+    .sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+  const acctTodos = todos
+    .filter(t => t.AccountID === accountId)
+    .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
+  const acctSales = sales
+    .filter(s => s.AccountID === accountId)
+    .sort((a, b) => (b.SaleDate || '').localeCompare(a.SaleDate || ''));
+
+  const totalRevenue = acctSales.reduce((sum, s) => sum + (parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
+  const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
+
+  const infoRows = [
+    acct.ContactName  ? `<div class="profile-info-item"><span class="profile-info-label">Contact</span><span>${esc(acct.ContactName)}</span></div>` : '',
+    acct.Email        ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email)}</span></div>` : '',
+    acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(acct.Phone)}</span></div>` : '',
+    acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
+    (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${[acct.Address, acct.City, acct.State].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
+    acct.StaffName    ? `<div class="profile-info-item"><span class="profile-info-label">Sales Rep</span><span>${esc(acct.StaffName)}</span></div>` : '',
+    acct.LastContacted ? `<div class="profile-info-item"><span class="profile-info-label">Last Contact</span><span>${formatDate(acct.LastContacted)}</span></div>` : '',
+    acct.Notes        ? `<div class="profile-info-item profile-info-full"><span class="profile-info-label">Notes</span><span>${esc(acct.Notes)}</span></div>` : '',
+  ].filter(Boolean).join('');
+
+  const outreachRows = acctOutreach.length === 0
+    ? `<tr><td colspan="5" class="empty-state">No outreach logged yet.</td></tr>`
+    : acctOutreach.map(o => `<tr>
+        <td class="text-sm">${formatDate(o.Date)}</td>
+        <td>${methodBadge(o.Method)}</td>
+        <td class="text-sm" style="max-width:320px;white-space:pre-wrap">${esc(o.Notes) || '—'}</td>
+        <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) + (o.FollowUpStatus !== 'None' ? ` <span class="text-muted">(${esc(o.FollowUpStatus)})</span>` : '') : '—'}</td>
+        <td class="td-actions">
+          <button class="btn btn-ghost btn-sm" onclick="profileEditOutreach('${esc(o.ID)}')">Edit</button>
+          <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOutreach('${esc(o.ID)}')">Del</button>
+        </td>
+      </tr>`).join('');
+
+  const todoRows = acctTodos.length === 0
+    ? `<tr><td colspan="6" class="empty-state">No todos for this account.</td></tr>`
+    : acctTodos.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
+        <td class="fw-600">${esc(t.Title)}${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
+        <td>${esc(t.Type) || '—'}</td>
+        <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
+        <td>${priorityBadge(t.Priority)}</td>
+        <td class="text-sm text-muted">${esc(t.Notes) || '—'}</td>
+        <td class="td-actions">
+          ${t.Completed !== 'true'
+            ? `<button class="btn btn-ghost btn-sm" onclick="profileCompleteTodo('${esc(t.ID)}')">Done</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="profileReopenTodo('${esc(t.ID)}')">Reopen</button>`}
+          <button class="btn btn-ghost btn-sm" onclick="profileEditTodo('${esc(t.ID)}')">Edit</button>
+          <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteTodo('${esc(t.ID)}')">Del</button>
+        </td>
+      </tr>`).join('');
+
+  const salesRows = acctSales.length === 0
+    ? `<tr><td colspan="7" class="empty-state">No sales recorded yet.</td></tr>`
+    : acctSales.map(s => {
+        const total = parseFloat(s.SaleAmount || 0) + parseFloat(s.TaxAmount || 0);
+        return `<tr>
+          <td class="text-sm">${formatDate(s.SaleDate)}</td>
+          <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
+          <td class="text-sm">${esc(s.StaffName) || '—'}</td>
+          <td>${fmtMoney(s.SaleAmount)}</td>
+          <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
+          <td class="fw-600">${fmtMoney(total)}</td>
+          <td>${salesStatusBadge(s.Status)}</td>
+          <td class="td-actions">
+            <button class="btn btn-ghost btn-sm" onclick="profileEditSale('${esc(s.ID)}')">Edit</button>
+            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteSale('${esc(s.ID)}')">Del</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+  const salesFooter = acctSales.length > 1
+    ? `<tfoot><tr class="table-totals">
+        <td colspan="5" class="text-muted text-sm">${acctSales.length} sales</td>
+        <td class="fw-600">${fmtMoney(totalRevenue)}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>`
+    : '';
+
+  setContent(`
+    <div class="view-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-ghost btn-sm" onclick="loadAccounts()">&#8592; Accounts</button>
+        <div>
+          <h2>${esc(acct.Name)}</h2>
+          <p class="subtitle">${esc(acct.Type)} &mdash; ${statusBadge(acct.Status)}</p>
+        </div>
+      </div>
+      <div class="view-header-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}', '${esc(acct.Name)}')">+ Log Contact</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAddSale('${esc(accountId)}')">+ Log Sale</button>
+        <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
+      </div>
+    </div>
+
+    <div class="profile-stats">
+      <div class="profile-stat"><div class="stat-value">${acctOutreach.length}</div><div class="stat-label">Contacts Logged</div></div>
+      <div class="profile-stat"><div class="stat-value">${activeTodos}</div><div class="stat-label">Open Todos</div></div>
+      <div class="profile-stat"><div class="stat-value">${acctSales.length}</div><div class="stat-label">Sales</div></div>
+      <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
+    </div>
+
+    <div class="profile-info card" style="margin-bottom:24px">
+      ${infoRows || '<span class="text-muted">No additional info on file.</span>'}
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <h3>Outreach History <span class="text-muted text-sm">(${acctOutreach.length})</span></h3>
+        <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}', '${esc(acct.Name)}')">+ Log Contact</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Method</th><th>Notes</th><th>Follow-up</th><th>Actions</th></tr></thead>
+          <tbody>${outreachRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <h3>Todos <span class="text-muted text-sm">(${activeTodos} open / ${acctTodos.length} total)</span></h3>
+        <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Title</th><th>Type</th><th>Due</th><th>Priority</th><th>Notes</th><th>Actions</th></tr></thead>
+          <tbody>${todoRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <h3>Sales History <span class="text-muted text-sm">(${acctSales.length})</span></h3>
+        <button class="btn btn-ghost btn-sm" onclick="openAddSale('${esc(accountId)}')">+ Log Sale</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sale Date</th><th>Invoice #</th><th>Sales Rep</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${salesRows}</tbody>
+          ${salesFooter}
+        </table>
+      </div>
+    </div>
+  `);
+}
+
+// Profile-page action wrappers — reload profile instead of their default views
+function profileEditOutreach(id) {
+  api.get('/api/outreach').then(items => {
+    const entry = items.find(i => i.ID === id);
+    if (!entry) return;
+    modal.open('Edit Outreach Entry', outreachForm(entry), async () => {
+      const followUpDate = val('f-followup-date');
+      await api.put(`/api/outreach/${id}`, {
+        Date: val('f-date'), Method: val('f-method'), Notes: val('f-notes'),
+        FollowUpDate: followUpDate,
+        FollowUpStatus: followUpDate ? val('f-followup-status') : 'None',
+      });
+      modal.close();
+      toast('Entry updated');
+      loadAccountProfile(state.accountProfileId);
+    });
+  });
+}
+
+function profileDeleteOutreach(id) {
+  modal.confirm('Delete Entry', 'Delete this outreach log entry?', async () => {
+    await api.del(`/api/outreach/${id}`);
+    modal.close();
+    toast('Entry deleted');
+    loadAccountProfile(state.accountProfileId);
+  });
+}
+
+function profileEditTodo(id) {
+  api.get('/api/reminders?status=all').then(items => {
+    const todo = items.find(t => t.ID === id);
+    if (!todo) return;
+    modal.open('Edit Todo', todoForm(todo), async () => {
+      const title = val('f-title');
+      const dueDate = val('f-due');
+      if (!title) { toast('Title is required', 'error'); return; }
+      const accountId = val('f-account');
+      const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
+      const staffId = val('f-staff');
+      const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+      await api.put(`/api/reminders/${id}`, {
+        Title: title, DueDate: dueDate, Priority: val('f-priority'),
+        Type: val('f-type'), AccountID: accountId, AccountName: accountName,
+        StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
+        Recurrence: val('f-recurrence'),
+      });
+      modal.close();
+      toast('Todo updated');
+      loadAccountProfile(state.accountProfileId);
+    });
+  });
+}
+
+async function profileCompleteTodo(id) {
+  await completeTodo(id);
+}
+
+async function profileReopenTodo(id) {
+  await api.put(`/api/reminders/${id}`, { Completed: 'false' });
+  toast('Todo reopened');
+  loadAccountProfile(state.accountProfileId);
+}
+
+function profileDeleteTodo(id) {
+  modal.confirm('Delete Todo', 'Delete this todo?', async () => {
+    await api.del(`/api/reminders/${id}`);
+    modal.close();
+    toast('Todo deleted');
+    loadAccountProfile(state.accountProfileId);
+  });
+}
+
+function profileEditSale(id) {
+  api.get('/api/sales').then(items => {
+    const sale = items.find(s => s.ID === id);
+    if (!sale) return;
+    modal.open('Edit Sale', salesForm(sale), async () => {
+      const staffId = val('f-staff');
+      const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+      await api.put(`/api/sales/${id}`, {
+        StaffID: staffId, StaffName: staffName,
+        SaleDate: val('f-sale-date'), DeliveryDate: val('f-delivery-date'),
+        InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+        SaleAmount: val('f-amount'), TaxAmount: val('f-tax'),
+        Notes: val('f-notes'),
+      });
+      modal.close();
+      toast('Sale updated');
+      loadAccountProfile(state.accountProfileId);
+    });
+  });
+}
+
+function profileDeleteSale(id) {
+  modal.confirm('Delete Sale', 'Delete this sale record? This cannot be undone.', async () => {
+    await api.del(`/api/sales/${id}`);
+    modal.close();
+    toast('Sale deleted');
+    loadAccountProfile(state.accountProfileId);
+  });
 }
 
 function openAddAccount() {
@@ -533,7 +808,8 @@ function openEditAccount(id) {
     });
     modal.close();
     toast('Account updated');
-    loadAccounts();
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadAccounts();
   });
 }
 
@@ -716,7 +992,8 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
 
     modal.close();
     toast('Contact logged');
-    if (state.view === 'outreach') loadOutreach();
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else if (state.view === 'outreach') loadOutreach();
     else if (state.view === 'accounts') loadAccounts();
     else loadDashboard();
   });
@@ -925,7 +1202,8 @@ function openAddTodo(presetAccountId = '') {
     });
     modal.close();
     toast('Todo added');
-    loadTodos();
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadTodos();
   });
 }
 
@@ -1517,7 +1795,8 @@ async function openAddSale(presetAccountId = '') {
     });
     modal.close();
     toast('Sale logged');
-    loadSales();
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadSales();
   });
 }
 
