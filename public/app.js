@@ -1122,8 +1122,11 @@ function renderTodos() {
   const _focused = document.activeElement?.id;
   const statusFilter = (document.getElementById('todo-status') || {}).value || 'active';
   const search = (document.getElementById('todo-search') || {}).value || '';
+  const staffFilter = state.navFilters?.staffId || '';
+  const staffFilterName = state.navFilters?.staffName || '';
 
   let filtered = todos;
+  if (staffFilter) filtered = filtered.filter(r => r.StaffID === staffFilter);
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(r =>
@@ -1135,10 +1138,11 @@ function renderTodos() {
   setContent(`
     <div class="view-header">
       <div>
-        <h2>Todos</h2>
-        <p class="subtitle">${todos.filter(r => r.Completed !== 'true').length} active todo${todos.length !== 1 ? 's' : ''}</p>
+        <h2>Todos${staffFilterName ? ` — ${esc(staffFilterName)}` : ''}</h2>
+        <p class="subtitle">${filtered.filter(r => r.Completed !== 'true').length} active todo${filtered.length !== 1 ? 's' : ''}${staffFilterName ? ` assigned to ${esc(staffFilterName)}` : ''}</p>
       </div>
       <div class="view-header-actions">
+        ${staffFilter ? `<button class="btn btn-ghost" onclick="state.navFilters={}; renderTodos()">Clear Filter</button>` : ''}
         <button class="btn btn-primary" onclick="openAddTodo()">+ Add Todo</button>
       </div>
     </div>
@@ -1537,6 +1541,7 @@ function renderStaff() {
               <td><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
               <td class="text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm" onclick="navigate('todos', { staffId: '${esc(s.ID)}', staffName: '${esc(s.Name)}' })">Todos</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditStaff('${esc(s.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteStaff('${esc(s.ID)}', '${esc(s.Name)}')">Delete</button>
               </td>
