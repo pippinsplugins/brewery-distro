@@ -72,6 +72,20 @@ function priorityBadge(p) {
   return `<span class="badge ${map[p] || 'badge-medium'}">${esc(p)}</span>`;
 }
 
+function typeBadge(type) {
+  if (!type) return '';
+  const map = {
+    'Follow-up': 'badge-type-followup',
+    'Delivery': 'badge-type-delivery',
+    'Collect Payment': 'badge-type-payment',
+    'Sampling': 'badge-type-sampling',
+    'Event': 'badge-type-event',
+    'Draft Cleaning': 'badge-type-cleaning',
+    'Pre-Sale': 'badge-type-presale',
+  };
+  return `<span class="badge ${map[type] || 'badge-type-followup'}">${esc(type)}</span>`;
+}
+
 function toast(msg, type = 'success') {
   const el = document.createElement('div');
   el.className = `toast ${type !== 'success' ? type : ''}`;
@@ -615,7 +629,7 @@ async function loadAccountProfile(accountId) {
     ? `<tr><td colspan="6" class="empty-state">No todos for this account.</td></tr>`
     : acctTodos.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
         <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
-        <td>${esc(t.Type) || '—'}</td>
+        <td>${typeBadge(t.Type) || '—'}</td>
         <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
         <td>${priorityBadge(t.Priority)}</td>
         <td class="text-sm text-muted">${esc(t.Notes) || '—'}</td>
@@ -1212,7 +1226,7 @@ function renderTodos() {
               <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
               <td class="text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
-              <td class="text-sm">${esc(r.Type)}</td>
+              <td class="text-sm">${typeBadge(r.Type)}</td>
               <td class="text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
@@ -1404,6 +1418,7 @@ async function loadDashboard() {
         <li class="clickable" onclick="navigate('todos')">
           <div>
             ${urgencyBadge(r.DueDate, r.Completed)}
+            ${typeBadge(r.Type)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
           </div>
@@ -1418,6 +1433,7 @@ async function loadDashboard() {
           <li class="clickable" onclick="navigate('todos')">
             <div>
               ${urgencyBadge(r.DueDate, r.Completed)}
+              ${typeBadge(r.Type)}
               <span class="dash-label">${esc(r.Title)}</span>
               ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
             </div>
@@ -1431,6 +1447,7 @@ async function loadDashboard() {
         ${dash.overdueReminders.map(r => `
           <li class="clickable" onclick="navigate('todos')">
             ${urgencyBadge(r.DueDate, r.Completed)}
+            ${typeBadge(r.Type)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
             <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeTodo('${esc(r.ID)}')">Done</button>
