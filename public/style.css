@@ -607,9 +607,6 @@ tbody td {
   font-weight: 700;
   background: #f7faf7;
   border-top: 2px solid var(--border);
-  padding-top: 14px;
-  padding-bottom: 14px;
-  font-size: 14px;
 }
 
 /* ── Modal ────────────────────────────────────────────── */
