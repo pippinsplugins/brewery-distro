@@ -1700,24 +1700,50 @@ async function deleteTodo(id) {
 async function loadDashboard() {
   showLoading();
   const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
-  const [dash, accounts, staff, kegSummary] = await Promise.all([
+  const [dash, accounts, staff, kegSummary, allOrders] = await Promise.all([
     api.get(`/api/dashboard${locParam}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
     api.get('/api/keg-tracking/summary'),
+    api.get('/api/orders'),
   ]);
   state.accounts = accounts;
   state.staff = staff;
   state.dashTodos = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
 
+  // Pending deliveries: undelivered orders with a delivery date
+  const pendingDeliveries = (allOrders || [])
+    .filter(o => o.Delivered !== 'true' && o.DeliveryDate)
+    .map(o => ({
+      _type: 'delivery',
+      ID: o.ID,
+      Title: `Deliver order${o.InvoiceNumber ? ' #' + o.InvoiceNumber : ''} to ${o.AccountName || 'account'}`,
+      DueDate: o.DeliveryDate,
+      AccountID: o.AccountID,
+      AccountName: o.AccountName,
+      StaffID: o.StaffID || '',
+      StaffName: o.StaffName || '',
+      Completed: 'false',
+      Type: 'Delivery',
+    }));
+
   // Identify current staff member by matching email
   const currentStaff = staff.find(s => s.Email && s.Email === state.userEmail);
   const currentStaffId = currentStaff ? currentStaff.ID : null;
 
-  // Build "My Todos" — overdue + upcoming assigned to current staff
+  // Build upcoming: todos + pending deliveries within 7 days
+  const upcomingDeliveries = pendingDeliveries.filter(d => {
+    const diff = daysFromToday(d.DueDate);
+    return diff !== null && diff >= 0 && diff <= 7;
+  });
+  const allUpcoming = [...(dash.upcomingReminders || []), ...upcomingDeliveries]
+    .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
+
+  // Build "My Todos" — overdue + upcoming assigned to current staff, including pending deliveries
   const myOverdue = currentStaffId ? (dash.overdueReminders || []).filter(r => r.StaffID === currentStaffId) : [];
-  const myUpcoming = currentStaffId ? (dash.upcomingReminders || []).filter(r => r.StaffID === currentStaffId) : [];
-  const myTodos = [...myOverdue, ...myUpcoming];
+  const myUpcoming = currentStaffId ? [...(dash.upcomingReminders || []), ...upcomingDeliveries].filter(r => r.StaffID === currentStaffId) : [];
+  const myTodos = [...myOverdue, ...myUpcoming]
+    .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
 
   const lowStockHtml = dash.lowStockItems.length === 0
     ? '<li class="empty-state" style="padding:12px 0">All products are well stocked.</li>'
@@ -1728,9 +1754,9 @@ async function loadDashboard() {
           <span class="badge badge-low-stock">Low</span>
         </li>`).join('');
 
-  const upcomingHtml = dash.upcomingReminders.length === 0
-    ? '<li class="empty-state" style="padding:12px 0">No upcoming todos in the next 7 days.</li>'
-    : dash.upcomingReminders.map(r => `
+  const upcomingHtml = allUpcoming.length === 0
+    ? '<li class="empty-state" style="padding:12px 0">No upcoming todos or deliveries in the next 7 days.</li>'
+    : allUpcoming.map(r => `
         <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
           <div>
             ${urgencyBadge(r.DueDate, r.Completed)}
@@ -1744,7 +1770,7 @@ async function loadDashboard() {
   const myTodosHtml = !currentStaffId
     ? '<li class="empty-state" style="padding:12px 0">No staff profile linked to your account.</li>'
     : myTodos.length === 0
-      ? '<li class="empty-state" style="padding:12px 0">You have no upcoming or overdue todos.</li>'
+      ? '<li class="empty-state" style="padding:12px 0">You have no upcoming todos or deliveries.</li>'
       : myTodos.map(r => `
           <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
             <div>
