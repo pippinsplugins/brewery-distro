@@ -1039,7 +1039,8 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, e
     });
     modal.close();
     toast(`${returnQty} keg${returnQty > 1 ? 's' : ''} marked as returned`);
-    loadAccountProfile(state.accountProfileId);
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadKegs();
   });
 }
 
