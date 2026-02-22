@@ -992,31 +992,19 @@ async function loadAccountProfile(accountId) {
 function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned) {
   const outstanding = totalQty - alreadyReturned;
   const formHtml = `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      <strong>${esc(productName)} — ${esc(format)}</strong><br>
+      Delivered: <strong>${totalQty}</strong> &mdash;
+      Returned: <strong>${alreadyReturned}</strong> &mdash;
+      Outstanding: <strong class="text-danger">${outstanding}</strong>
+    </p>
     <div class="form-group">
-      <label class="form-label">Product</label>
-      <div class="text-sm">${esc(productName)} — ${esc(format)}</div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Total Delivered</label>
-        <div class="text-sm">${totalQty}</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Already Returned</label>
-        <div class="text-sm">${alreadyReturned}</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Outstanding</label>
-        <div class="text-sm fw-600 text-danger">${outstanding}</div>
-      </div>
+      <label for="f-return-qty">Kegs Returned Now <span class="required">*</span></label>
+      <input class="form-control" type="number" id="f-return-qty" min="1" max="${outstanding}" value="${outstanding}" />
     </div>
     <div class="form-group">
-      <label class="form-label" for="f-return-qty">Kegs Returned Now</label>
-      <input class="form-input" type="number" id="f-return-qty" min="1" max="${outstanding}" value="${outstanding}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label" for="f-return-notes">Notes</label>
-      <input class="form-input" type="text" id="f-return-notes" placeholder="Optional notes" />
+      <label for="f-return-notes">Notes</label>
+      <input class="form-control" type="text" id="f-return-notes" placeholder="Optional notes" />
     </div>
   `;
   modal.open('Return Kegs', formHtml, async () => {
