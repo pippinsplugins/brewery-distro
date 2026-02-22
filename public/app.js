@@ -155,8 +155,9 @@ function typeBadge(type) {
     'Event': 'badge-type-event',
     'Draft Cleaning': 'badge-type-cleaning',
     'Pre-Sale': 'badge-type-presale',
+    'Other': 'badge-type-other',
   };
-  return `<span class="badge ${map[type] || 'badge-type-followup'}">${esc(type)}</span>`;
+  return `<span class="badge ${map[type] || 'badge-type-other'}">${esc(type)}</span>`;
 }
 
 function toast(msg, type = 'success') {
@@ -1186,7 +1187,7 @@ async function deleteOutreach(id) {
 
 // ── Todos View ────────────────────────────────────────────────
 
-const TODO_TYPES = ['Follow-up', 'Delivery', 'Collect Payment', 'Sampling', 'Event', 'Draft Cleaning', 'Pre-Sale'];
+const TODO_TYPES = ['Follow-up', 'Delivery', 'Collect Payment', 'Sampling', 'Event', 'Draft Cleaning', 'Pre-Sale', 'Other'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const RECURRENCE_OPTIONS = [
   { value: 'none',      label: 'None' },

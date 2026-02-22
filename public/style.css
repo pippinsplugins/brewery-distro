@@ -591,6 +591,7 @@ tbody td {
 .badge-type-event     { background: #e0f2f1; color: #00695c; }
 .badge-type-cleaning  { background: #fce4ec; color: #c62828; }
 .badge-type-presale   { background: #e8eaf6; color: #283593; }
+.badge-type-other     { background: #eceff1; color: #455a64; }
 
 /* Staff active badges */
 .badge-staff-active   { background: var(--success-bg); color: var(--success-text); }
