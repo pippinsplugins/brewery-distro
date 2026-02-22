@@ -8,10 +8,11 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { accountId, staffId } = req.query;
+    const { accountId, staffId, location } = req.query;
     let orders = await getAllRows('ORDERS');
     if (accountId) orders = orders.filter(s => s.AccountID === accountId);
     if (staffId)   orders = orders.filter(s => s.StaffID === staffId);
+    if (location)  orders = orders.filter(s => s.Location === location);
     // Sort newest first
     orders.sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
     res.json(orders);
@@ -23,7 +24,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const {
-      AccountID, AccountName, StaffID, StaffName,
+      AccountID, AccountName, Location, StaffID, StaffName,
       OrderDate, DeliveryDate, InvoiceNumber,
       OrderAmount, TaxAmount, Notes, Status, Delivered,
     } = req.body;
@@ -35,6 +36,7 @@ router.post('/', async (req, res) => {
       ID: uuidv4(),
       AccountID,
       AccountName: AccountName || '',
+      Location:    Location || '',
       StaffID:     StaffID || '',
       StaffName:   StaffName || '',
       OrderDate,

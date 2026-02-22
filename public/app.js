@@ -1,8 +1,11 @@
 'use strict';
 
 // ── State ────────────────────────────────────────────────────────
+const LOCATIONS = ['Hutchinson', 'Mission'];
+
 const state = {
   view: 'dashboard',
+  location: localStorage.getItem('brewLocation') || LOCATIONS[0],
   accounts: [],      // cached for select dropdowns
   inventory: [],
   staff: [],         // cached for staff dropdowns
@@ -299,6 +302,14 @@ function inventoryForm(item = {}) {
         <input class="form-control" id="f-name" value="${esc(item.Name)}" placeholder="e.g. Cascade IPA" />
       </div>
       <div class="form-group">
+        <label>Location <span class="required">*</span></label>
+        <select class="form-control" id="f-location">
+          ${LOCATIONS.map(l => `<option value="${l}" ${(item.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Style</label>
         <select class="form-control" id="f-style">
           <option value="">-- Select --</option>
@@ -342,7 +353,8 @@ function inventoryForm(item = {}) {
 async function loadInventory() {
   _paginationReset('inventory');
   showLoading();
-  const items = await api.get('/api/inventory');
+  const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
+  const items = await api.get(`/api/inventory${locParam}`);
   state.inventory = items;
   renderInventory();
 }
@@ -398,7 +410,7 @@ function renderInventory() {
     <div class="view-header">
       <div>
         <h2>Inventory</h2>
-        <p class="subtitle">${items.length} product${items.length !== 1 ? 's' : ''} tracked</p>
+        <p class="subtitle">${items.length} product${items.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
         <button class="btn btn-primary" onclick="openAddInventory()">+ Add Product</button>
@@ -447,7 +459,7 @@ function openAddInventory() {
     const name = val('f-name');
     if (!name) { toast('Name is required', 'error'); return; }
     await api.post('/api/inventory', {
-      Name: name, Style: val('f-style'), ABV: val('f-abv'),
+      Name: name, Location: val('f-location'), Style: val('f-style'), ABV: val('f-abv'),
       Format: val('f-format'), Units: val('f-units'),
       PricePerUnit: val('f-price'), LowStockThreshold: val('f-threshold'),
       Notes: val('f-notes'),
@@ -1587,8 +1599,9 @@ async function deleteTodo(id) {
 
 async function loadDashboard() {
   showLoading();
+  const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
   const [dash, accounts, staff] = await Promise.all([
-    api.get('/api/dashboard'),
+    api.get(`/api/dashboard${locParam}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
   ]);
@@ -1911,6 +1924,14 @@ function orderForm(order = {}, presetAccountId = '') {
         ${presetAccountId ? `<input type="hidden" id="f-account-hidden" value="${esc(presetAccountId)}" />` : ''}
       </div>
       <div class="form-group">
+        <label>Location <span class="required">*</span></label>
+        <select class="form-control" id="f-location">
+          ${LOCATIONS.map(l => `<option value="${l}" ${(order.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Sales Rep</label>
         <select class="form-control" id="f-staff">
           <option value="">-- Unassigned --</option>
@@ -1971,8 +1992,9 @@ function fmtMoney(val) {
 async function loadOrders() {
   _paginationReset('orders');
   showLoading();
+  const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
   const [orders, accounts, staff] = await Promise.all([
-    api.get('/api/orders'),
+    api.get(`/api/orders${locParam}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
   ]);
@@ -2023,7 +2045,7 @@ function renderOrders() {
     <div class="view-header">
       <div>
         <h2>Orders</h2>
-        <p class="subtitle">${orders.length} order${orders.length !== 1 ? 's' : ''} recorded</p>
+        <p class="subtitle">${orders.length} order${orders.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
         <button class="btn btn-primary" onclick="openAddOrder()">+ Log Order</button>
@@ -2100,6 +2122,7 @@ async function openAddOrder(presetAccountId = '') {
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
+      Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
@@ -2120,6 +2143,7 @@ function openEditOrder(id) {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.put(`/api/orders/${id}`, {
+      Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
@@ -2150,8 +2174,7 @@ async function markOrderPaid(id) {
 async function toggleDelivered(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
-  if (state.inventory.length === 0) state.inventory = await api.get('/api/inventory');
-  openDeliveryConfirmModal(id, order, loadOrders);
+  await openDeliveryConfirmModal(id, order, loadOrders);
 }
 
 async function profileMarkOrderPaid(id) {
@@ -2161,21 +2184,21 @@ async function profileMarkOrderPaid(id) {
 }
 
 async function profileToggleDelivered(id) {
-  if (state.inventory.length === 0) state.inventory = await api.get('/api/inventory');
   const orders = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
   const order = orders.find(s => s.ID === id);
   if (!order) return;
-  openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
+  await openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
 }
 
-function openDeliveryConfirmModal(orderId, order, onComplete) {
-  const items = state.inventory;
+async function openDeliveryConfirmModal(orderId, order, onComplete) {
+  const locQuery = order.Location ? `?location=${encodeURIComponent(order.Location)}` : '';
+  const items = await api.get(`/api/inventory${locQuery}`);
   const acctName = order.AccountName || '';
   const invLabel = order.InvoiceNumber ? ` — Invoice #${esc(order.InvoiceNumber)}` : '';
 
   if (!items.length) {
     modal.confirm('Confirm Delivery',
-      `No inventory products are configured. Mark this order as delivered without recording stock movements?`,
+      `No inventory products are configured for ${order.Location || 'this location'}. Mark this order as delivered without recording stock movements?`,
       async () => {
         await api.put(`/api/orders/${orderId}`, { Delivered: 'true' });
         modal.close();
@@ -2269,6 +2292,24 @@ function navigate(view, filters = {}) {
   });
 }
 
+// ── Location ──────────────────────────────────────────────────────
+
+function updateLocationSwitcher() {
+  LOCATIONS.forEach(loc => {
+    const btn = document.getElementById(`loc-btn-${loc}`);
+    if (btn) btn.classList.toggle('active', state.location === loc);
+  });
+}
+
+function switchLocation(loc) {
+  state.location = loc;
+  localStorage.setItem('brewLocation', loc);
+  state.inventory = []; // clear cached inventory so next load refetches for new location
+  updateLocationSwitcher();
+  const loader = VIEW_LOADERS[state.view];
+  if (loader) loader().catch(err => toast(err.message, 'error'));
+}
+
 // ── Init ──────────────────────────────────────────────────────────
 
 async function init() {
@@ -2299,6 +2340,8 @@ async function init() {
     window.location.href = '/login';
     return;
   }
+
+  updateLocationSwitcher();
 
   // Mobile sidebar toggle
   const menuBtn = document.getElementById('mobile-menu-btn');
