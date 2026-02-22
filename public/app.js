@@ -91,6 +91,15 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+let _noteIdCounter = 0;
+function truncateNote(text, limit = 100) {
+  if (!text) return '—';
+  const safe = esc(text);
+  if (text.length <= limit) return `<span class="note-text">${safe}</span>`;
+  const id = '_n' + (++_noteIdCounter);
+  return `<span class="note-text"><span id="${id}_short">${esc(text.substring(0, limit))}… <a href="#" class="note-toggle" onclick="event.preventDefault();document.getElementById('${id}_short').style.display='none';document.getElementById('${id}_full').style.display='inline'">more</a></span><span id="${id}_full" style="display:none">${safe} <a href="#" class="note-toggle" onclick="event.preventDefault();document.getElementById('${id}_full').style.display='none';document.getElementById('${id}_short').style.display='inline'">less</a></span></span>`;
+}
+
 function formatDate(d) {
   if (!d) return '—';
   const [y, m, day] = d.split('-');
@@ -700,7 +709,7 @@ async function loadAccountProfile(accountId) {
     : acctOutreach.map(o => `<tr>
         <td class="text-sm">${formatDate(o.Date)}</td>
         <td>${methodBadge(o.Method)}</td>
-        <td class="text-sm" style="max-width:320px;white-space:pre-wrap">${esc(o.Notes) || '—'}</td>
+        <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
         <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
         <td class="td-actions">
           <button class="btn btn-ghost btn-sm" onclick="profileEditOutreach('${esc(o.ID)}')">Edit</button>
@@ -1100,7 +1109,7 @@ function renderOutreach() {
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(o.AccountID)}')">${esc(o.AccountName)}</span></td>
               <td>${formatDate(o.Date)}</td>
               <td>${methodBadge(o.Method)}</td>
-              <td class="text-sm">${esc(o.Notes).substring(0, 80)}${o.Notes && o.Notes.length > 80 ? '…' : ''}</td>
+              <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
               <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm" onclick="openEditOutreach('${esc(o.ID)}')">Edit</button>
