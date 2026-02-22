@@ -898,6 +898,63 @@ tr.row-completed button {
   opacity: 1;
 }
 
+/* ── Pagination ──────────────────────────────────────── */
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--card-bg);
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: var(--shadow);
+  margin-top: -1px;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.pagination-per-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-per-page label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pagination-per-page select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: var(--font);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pagination-info {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pagination-ellipsis {
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ── Mobile Menu Button & Backdrop (hidden on desktop) ── */
 
 .mobile-menu-btn {
@@ -1076,6 +1133,19 @@ tr.row-completed button {
   /* ── Dashboard grid: single column ── */
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* ── Pagination: stack vertically ── */
+  .pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .pagination-per-page,
+  .pagination-nav {
+    justify-content: center;
   }
 
   /* ── Buttons: slightly smaller for mobile density ── */

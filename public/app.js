@@ -8,6 +8,79 @@ const state = {
   staff: [],         // cached for staff dropdowns
 };
 
+// ── Pagination ──────────────────────────────────────────────────
+const _pagination = {
+  inventory: { page: 1, perPage: 25 },
+  accounts:  { page: 1, perPage: 25 },
+  outreach:  { page: 1, perPage: 25 },
+  todos:     { page: 1, perPage: 25 },
+  staff:     { page: 1, perPage: 25 },
+  orders:    { page: 1, perPage: 25 },
+};
+
+function paginate(filtered, viewKey) {
+  const pg = _pagination[viewKey];
+  const total = filtered.length;
+  if (pg.perPage === 0) return { rows: filtered, page: 1, total, perPage: 0, totalPages: 1 };
+  const totalPages = Math.max(1, Math.ceil(total / pg.perPage));
+  if (pg.page > totalPages) pg.page = totalPages;
+  if (pg.page < 1) pg.page = 1;
+  const start = (pg.page - 1) * pg.perPage;
+  return { rows: filtered.slice(start, start + pg.perPage), page: pg.page, total, perPage: pg.perPage, totalPages };
+}
+
+function paginationControls(viewKey, pg, renderFnName) {
+  const { page, total, perPage, totalPages } = pg;
+  const opts = [10, 25, 50, 0];
+  const showStart = total === 0 ? 0 : perPage === 0 ? 1 : (page - 1) * perPage + 1;
+  const showEnd = total === 0 ? 0 : perPage === 0 ? total : Math.min(page * perPage, total);
+
+  let pageNums = '';
+  if (totalPages > 1) {
+    const parts = [];
+    let s = Math.max(1, page - 2);
+    let e = Math.min(totalPages, s + 4);
+    s = Math.max(1, e - 4);
+    if (s > 1) parts.push(`<button class="btn btn-ghost btn-sm" onclick="_paginationGo('${viewKey}',1,'${renderFnName}')">1</button>`);
+    if (s > 2) parts.push('<span class="pagination-ellipsis">\u2026</span>');
+    for (let i = s; i <= e; i++) parts.push(`<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-ghost'}" onclick="_paginationGo('${viewKey}',${i},'${renderFnName}')">${i}</button>`);
+    if (e < totalPages - 1) parts.push('<span class="pagination-ellipsis">\u2026</span>');
+    if (e < totalPages) parts.push(`<button class="btn btn-ghost btn-sm" onclick="_paginationGo('${viewKey}',${totalPages},'${renderFnName}')">${totalPages}</button>`);
+    pageNums = parts.join('');
+  }
+
+  return `
+    <div class="pagination-bar">
+      <div class="pagination-per-page">
+        <label>Show</label>
+        <select onchange="_paginationPerPage('${viewKey}',this.value,'${renderFnName}')">
+          ${opts.map(n => `<option value="${n}" ${perPage === n ? 'selected' : ''}>${n === 0 ? 'All' : n}</option>`).join('')}
+        </select>
+        <span class="pagination-info">Showing ${showStart}\u2013${showEnd} of ${total}</span>
+      </div>
+      <div class="pagination-nav">
+        <button class="btn btn-ghost btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="_paginationGo('${viewKey}',${page - 1},'${renderFnName}')">\u2039 Prev</button>
+        ${pageNums}
+        <button class="btn btn-ghost btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="_paginationGo('${viewKey}',${page + 1},'${renderFnName}')">Next \u203a</button>
+      </div>
+    </div>`;
+}
+
+function _paginationGo(viewKey, page, renderFnName) {
+  _pagination[viewKey].page = page;
+  window[renderFnName]();
+}
+
+function _paginationPerPage(viewKey, value, renderFnName) {
+  _pagination[viewKey].perPage = parseInt(value);
+  _pagination[viewKey].page = 1;
+  window[renderFnName]();
+}
+
+function _paginationReset(viewKey) {
+  _pagination[viewKey].page = 1;
+}
+
 // ── Utilities ────────────────────────────────────────────────────
 
 function esc(str) {
@@ -253,6 +326,7 @@ function inventoryForm(item = {}) {
 }
 
 async function loadInventory() {
+  _paginationReset('inventory');
   showLoading();
   const items = await api.get('/api/inventory');
   state.inventory = items;
@@ -262,6 +336,7 @@ async function loadInventory() {
 let _invSort = { col: 'Name', dir: 'asc' };
 
 function sortInventory(col) {
+  _paginationReset('inventory');
   if (_invSort.col === col) {
     _invSort.dir = _invSort.dir === 'asc' ? 'desc' : 'asc';
   } else {
@@ -297,6 +372,8 @@ function renderInventory() {
     return 0;
   });
 
+  const pg = paginate(filtered, 'inventory');
+
   const th = (label, colKey) => {
     const active = _invSort.col === colKey;
     const arrow = active ? (_invSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
@@ -314,7 +391,7 @@ function renderInventory() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="inv-search" placeholder="Search products..." value="${esc(search)}" oninput="renderInventory()" />
+      <input type="search" id="inv-search" placeholder="Search products..." value="${esc(search)}" oninput="_paginationReset('inventory'); renderInventory()" />
     </div>
     <div class="table-wrap">
       <table>
@@ -325,8 +402,8 @@ function renderInventory() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No products found. Add your first product!</td></tr>` :
-            filtered.map(item => {
+          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No products found. Add your first product!</td></tr>` :
+            pg.rows.map(item => {
               const low = parseInt(item.Units || '0') <= parseInt(item.LowStockThreshold || '5');
               return `<tr>
                 <td class="fw-600"><span class="td-link" onclick="openEditInventory('${esc(item.ID)}')">${esc(item.Name)}</span></td>
@@ -344,7 +421,8 @@ function renderInventory() {
             }).join('')}
         </tbody>
       </table>
-    </div>`);
+    </div>
+    ${pg.total > 0 ? paginationControls('inventory', pg, 'renderInventory') : ''}`);
   if (_focused === 'inv-search') refocusSearch('inv-search');
 }
 
@@ -478,6 +556,7 @@ function accountForm(acct = {}) {
 }
 
 async function loadAccounts() {
+  _paginationReset('accounts');
   showLoading();
   const [accounts, staff] = await Promise.all([api.get('/api/accounts'), api.get('/api/staff')]);
   state.accounts = accounts;
@@ -512,6 +591,8 @@ function renderAccounts() {
     );
   }
 
+  const pg = paginate(filtered, 'accounts');
+
   setContent(`
     <div class="view-header">
       <div>
@@ -523,12 +604,12 @@ function renderAccounts() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="renderAccounts()" />
-      <select id="acct-type" onchange="renderAccounts()">
+      <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="_paginationReset('accounts'); renderAccounts()" />
+      <select id="acct-type" onchange="_paginationReset('accounts'); renderAccounts()">
         <option value="">All Types</option>
         ${ACCOUNT_TYPES.map(t => `<option value="${t}" ${typeFilter === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select>
-      <select id="acct-status" onchange="renderAccounts()">
+      <select id="acct-status" onchange="_paginationReset('accounts'); renderAccounts()">
         <option value="">All (excl. Inactive)</option>
         ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
@@ -542,8 +623,8 @@ function renderAccounts() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="9" class="empty-state">No accounts found.</td></tr>` :
-            filtered.map(a => `<tr>
+          ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No accounts found.</td></tr>` :
+            pg.rows.map(a => `<tr>
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && a.State ? ', ' : ''}${esc(a.State)}</span></td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
@@ -561,7 +642,8 @@ function renderAccounts() {
             </tr>`).join('')}
         </tbody>
       </table>
-    </div>`);
+    </div>
+    ${pg.total > 0 ? paginationControls('accounts', pg, 'renderAccounts') : ''}`);
   if (_focused === 'acct-search') refocusSearch('acct-search');
 }
 
@@ -950,6 +1032,7 @@ function outreachForm(entry = {}, presetAccountId = '') {
 }
 
 async function loadOutreach() {
+  _paginationReset('outreach');
   showLoading();
   const [outreach, accounts] = await Promise.all([api.get('/api/outreach'), api.get('/api/accounts')]);
   state.outreach = outreach;
@@ -982,6 +1065,8 @@ function renderOutreach() {
         return `<option value="${esc(id)}" ${accountFilter === id ? 'selected' : ''}>${esc(o.AccountName)}</option>`;
       }).join('');
 
+  const pg = paginate(filtered, 'outreach');
+
   setContent(`
     <div class="view-header">
       <div>
@@ -993,9 +1078,9 @@ function renderOutreach() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="out-search" placeholder="Search..." value="${esc(search)}" oninput="renderOutreach()" />
-      <select id="out-account" onchange="renderOutreach()">${acctOpts}</select>
-      <select id="out-method" onchange="renderOutreach()">
+      <input type="search" id="out-search" placeholder="Search..." value="${esc(search)}" oninput="_paginationReset('outreach'); renderOutreach()" />
+      <select id="out-account" onchange="_paginationReset('outreach'); renderOutreach()">${acctOpts}</select>
+      <select id="out-method" onchange="_paginationReset('outreach'); renderOutreach()">
         <option value="">All Methods</option>
         ${OUTREACH_METHODS.map(m => `<option value="${m}" ${methodFilter === m ? 'selected' : ''}>${m}</option>`).join('')}
       </select>
@@ -1009,8 +1094,8 @@ function renderOutreach() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="6" class="empty-state">No outreach logged yet.</td></tr>` :
-            filtered.map(o => `<tr>
+          ${pg.total === 0 ? `<tr><td colspan="6" class="empty-state">No outreach logged yet.</td></tr>` :
+            pg.rows.map(o => `<tr>
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(o.AccountID)}')">${esc(o.AccountName)}</span></td>
               <td>${formatDate(o.Date)}</td>
               <td>${methodBadge(o.Method)}</td>
@@ -1023,7 +1108,8 @@ function renderOutreach() {
             </tr>`).join('')}
         </tbody>
       </table>
-    </div>`);
+    </div>
+    ${pg.total > 0 ? paginationControls('outreach', pg, 'renderOutreach') : ''}`);
   if (_focused === 'out-search') refocusSearch('out-search');
 }
 
@@ -1169,6 +1255,7 @@ function todoForm(todo = {}) {
 let _todosCache = [];
 
 async function loadTodos() {
+  _paginationReset('todos');
   const statusFilter = (document.getElementById('todo-status') || {}).value || 'active';
   showLoading();
 
@@ -1202,6 +1289,8 @@ function renderTodos() {
     );
   }
 
+  const pg = paginate(filtered, 'todos');
+
   setContent(`
     <div class="view-header">
       <div>
@@ -1214,8 +1303,8 @@ function renderTodos() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="todo-search" placeholder="Search todos..." value="${esc(search)}" oninput="renderTodos()" />
-      <select id="todo-status" onchange="loadTodos()">
+      <input type="search" id="todo-search" placeholder="Search todos..." value="${esc(search)}" oninput="_paginationReset('todos'); renderTodos()" />
+      <select id="todo-status" onchange="_paginationReset('todos'); loadTodos()">
         <option value="active" ${statusFilter === 'active' ? 'selected' : ''}>Active</option>
         <option value="completed" ${statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
         <option value="all" ${statusFilter === 'all' ? 'selected' : ''}>All</option>
@@ -1230,8 +1319,8 @@ function renderTodos() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No todos found.</td></tr>` :
-            filtered.map(r => `<tr>
+          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No todos found.</td></tr>` :
+            pg.rows.map(r => `<tr>
               <td>${formatDate(r.DueDate)}</td>
               <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
@@ -1250,7 +1339,8 @@ function renderTodos() {
             </tr>`).join('')}
         </tbody>
       </table>
-    </div>`);
+    </div>
+    ${pg.total > 0 ? paginationControls('todos', pg, 'renderTodos') : ''}`);
   if (_focused === 'rem-search') refocusSearch("todo-search");
 }
 
@@ -1590,6 +1680,7 @@ function staffForm(member = {}) {
 let _staffCache = [];
 
 async function loadStaff() {
+  _paginationReset('staff');
   showLoading();
   const [staff, accounts] = await Promise.all([api.get('/api/staff'), api.get('/api/accounts')]);
   state.staff = staff;
@@ -1612,6 +1703,8 @@ function renderStaff() {
     ? staff.filter(s => s.Name.toLowerCase().includes(search.toLowerCase()) || (s.Role || '').toLowerCase().includes(search.toLowerCase()))
     : staff;
 
+  const pg = paginate(filtered, 'staff');
+
   setContent(`
     <div class="view-header">
       <div>
@@ -1623,7 +1716,7 @@ function renderStaff() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="staff-search" placeholder="Search staff..." value="${esc(search)}" oninput="renderStaff()" />
+      <input type="search" id="staff-search" placeholder="Search staff..." value="${esc(search)}" oninput="_paginationReset('staff'); renderStaff()" />
     </div>
     <div class="table-wrap">
       <table>
@@ -1634,8 +1727,8 @@ function renderStaff() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="8" class="empty-state">No staff found. Add your first team member!</td></tr>` :
-            filtered.map(s => `<tr>
+          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No staff found. Add your first team member!</td></tr>` :
+            pg.rows.map(s => `<tr>
               <td class="fw-600"><span class="td-link" onclick="openEditStaff('${esc(s.ID)}')">${esc(s.Name)}</span></td>
               <td>${esc(s.Role) || '—'}</td>
               <td class="text-sm">${esc(s.Email) || '—'}</td>
@@ -1651,7 +1744,8 @@ function renderStaff() {
             </tr>`).join('')}
         </tbody>
       </table>
-    </div>`);
+    </div>
+    ${pg.total > 0 ? paginationControls('staff', pg, 'renderStaff') : ''}`);
   if (_focused === 'staff-search') refocusSearch('staff-search');
 }
 
@@ -1779,6 +1873,7 @@ function fmtMoney(val) {
 }
 
 async function loadOrders() {
+  _paginationReset('orders');
   showLoading();
   const [orders, accounts, staff] = await Promise.all([
     api.get('/api/orders'),
@@ -1814,6 +1909,7 @@ function renderOrders() {
 
   const totalOrder = filtered.reduce((sum, s) => sum + parseFloat(s.OrderAmount || 0), 0);
   const totalTax   = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount   || 0), 0);
+  const pg = paginate(filtered, 'orders');
 
   const acctOpts = `<option value="">All Accounts</option>` +
     [...new Map(orders.map(s => [s.AccountID, s.AccountName])).entries()]
@@ -1838,10 +1934,10 @@ function renderOrders() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="orders-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="renderOrders()" />
-      <select id="orders-account" onchange="renderOrders()">${acctOpts}</select>
-      <select id="orders-staff" onchange="renderOrders()">${staffOpts}</select>
-      <select id="orders-status" onchange="renderOrders()">
+      <input type="search" id="orders-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="_paginationReset('orders'); renderOrders()" />
+      <select id="orders-account" onchange="_paginationReset('orders'); renderOrders()">${acctOpts}</select>
+      <select id="orders-staff" onchange="_paginationReset('orders'); renderOrders()">${staffOpts}</select>
+      <select id="orders-status" onchange="_paginationReset('orders'); renderOrders()">
         <option value="">All Statuses</option>
         ${ORDER_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
@@ -1855,8 +1951,8 @@ function renderOrders() {
           </tr>
         </thead>
         <tbody>
-          ${filtered.length === 0 ? `<tr><td colspan="11" class="empty-state">No orders found.</td></tr>` :
-            filtered.map(s => {
+          ${pg.total === 0 ? `<tr><td colspan="11" class="empty-state">No orders found.</td></tr>` :
+            pg.rows.map(s => {
               const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
@@ -1877,10 +1973,10 @@ function renderOrders() {
               </tr>`;
             }).join('')}
         </tbody>
-        ${filtered.length > 1 ? `
+        ${pg.total > 1 ? `
         <tfoot>
           <tr class="table-totals">
-            <td colspan="4" class="text-muted text-sm">${filtered.length} records</td>
+            <td colspan="4" class="text-muted text-sm">${pg.total} records</td>
             <td>${fmtMoney(totalOrder)}</td>
             <td>${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
@@ -1888,7 +1984,8 @@ function renderOrders() {
           </tr>
         </tfoot>` : ''}
       </table>
-    </div>`);
+    </div>
+    ${pg.total > 0 ? paginationControls('orders', pg, 'renderOrders') : ''}`);
   if (_focused === 'orders-search') refocusSearch('orders-search');
 }
 
