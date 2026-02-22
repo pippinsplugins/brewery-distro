@@ -1001,6 +1001,43 @@ tr.row-completed button {
   font-size: 12px;
 }
 
+/* ── Settings ────────────────────────────────────────── */
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  max-width: 640px;
+}
+
+.settings-location-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-location-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.settings-location-item:last-child {
+  border-bottom: none;
+}
+
+.settings-location-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.settings-location-actions {
+  display: flex;
+  gap: 4px;
+}
+
 /* ── Mobile Menu Button & Backdrop (hidden on desktop) ── */
 
 .mobile-menu-btn {

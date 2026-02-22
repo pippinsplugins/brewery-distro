@@ -28,14 +28,13 @@
         <div class="sidebar-brand">
           <span class="brand-icon">&#127866;</span>
           <div>
-            <div class="brand-title">Brewery Distro</div>
+            <div class="brand-title" id="brand-title">Brewery Distro</div>
             <div class="brand-sub">Distribution Manager</div>
           </div>
         </div>
 
-        <div class="location-switcher">
-          <button class="loc-btn" id="loc-btn-Hutchinson" onclick="switchLocation('Hutchinson')">Hutchinson</button>
-          <button class="loc-btn" id="loc-btn-Mission" onclick="switchLocation('Mission')">Mission</button>
+        <div class="location-switcher" id="location-switcher">
+          <!-- Populated dynamically by app.js -->
         </div>
 
         <nav class="sidebar-nav">
@@ -59,6 +58,9 @@
           </a>
           <a class="nav-item" data-view="staff" href="#staff">
             <span class="nav-icon">&#9632;</span> Staff
+          </a>
+          <a class="nav-item" data-view="settings" href="#settings">
+            <span class="nav-icon">&#9632;</span> Settings
           </a>
         </nav>
 
