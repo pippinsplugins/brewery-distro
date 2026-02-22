@@ -16,9 +16,10 @@ const accountsRoutes  = require('./routes/accounts');
 const outreachRoutes  = require('./routes/outreach');
 const remindersRoutes = require('./routes/reminders');
 const staffRoutes     = require('./routes/staff');
-const ordersRoutes    = require('./routes/orders');
-const dashboardRoutes = require('./routes/dashboard');
-const webhooksRoutes  = require('./routes/webhooks');
+const ordersRoutes         = require('./routes/orders');
+const dashboardRoutes      = require('./routes/dashboard');
+const webhooksRoutes       = require('./routes/webhooks');
+const stockMovementsRoutes = require('./routes/stock-movements');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -61,8 +62,9 @@ app.use('/api/accounts',  requireAuth, accountsRoutes);
 app.use('/api/outreach',  requireAuth, outreachRoutes);
 app.use('/api/reminders', requireAuth, remindersRoutes);
 app.use('/api/staff',     requireAuth, staffRoutes);
-app.use('/api/orders',    requireAuth, ordersRoutes);
-app.use('/api/dashboard', requireAuth, dashboardRoutes);
+app.use('/api/orders',          requireAuth, ordersRoutes);
+app.use('/api/stock-movements', requireAuth, stockMovementsRoutes);
+app.use('/api/dashboard',       requireAuth, dashboardRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {

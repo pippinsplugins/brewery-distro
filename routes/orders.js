@@ -57,6 +57,14 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    // Prevent un-delivering an already-delivered order
+    if (req.body.Delivered === 'false') {
+      const orders = await getAllRows('ORDERS');
+      const existing = orders.find(o => o.ID === req.params.id);
+      if (existing && existing.Delivered === 'true') {
+        return res.status(400).json({ error: 'Delivered orders cannot be un-delivered' });
+      }
+    }
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
