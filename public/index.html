@@ -116,6 +116,21 @@
     <div id="toast-container" aria-live="polite"></div>
 
   </div>
-  <script src="app.js"></script>
+  <!-- Core: state, utilities, API, modal, pagination, form helpers -->
+  <script src="js/core.js"></script>
+
+  <!-- Views -->
+  <script src="js/inventory.js"></script>
+  <script src="js/outreach.js"></script>
+  <script src="js/todos.js"></script>
+  <script src="js/orders.js"></script>
+  <script src="js/staff.js"></script>
+  <script src="js/accounts.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/kegs.js"></script>
+
+  <!-- Init: must load last (VIEW_LOADERS references all load functions) -->
+  <script src="js/init.js"></script>
 </body>
 </html>
