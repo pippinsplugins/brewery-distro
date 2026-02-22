@@ -42,7 +42,7 @@ router.post('/', async (req, res) => {
       LastContacted: '',
       StaffID: StaffID || '',
       StaffName: StaffName || '',
-      CreatedAt: new Date().toISOString().split('T')[0],
+      CreatedAt: new Date().toISOString(),
     };
 
     await addRow('ACCOUNTS', account);
