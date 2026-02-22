@@ -7,13 +7,18 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const [inventory, accounts, outreach, reminders, orders] = await Promise.all([
+    const { location } = req.query;
+    let [inventory, accounts, outreach, reminders, orders] = await Promise.all([
       getAllRows('INVENTORY'),
       getAllRows('ACCOUNTS'),
       getAllRows('OUTREACH'),
       getAllRows('REMINDERS'),
       getAllRows('ORDERS'),
     ]);
+    if (location) {
+      inventory = inventory.filter(i => i.Location === location);
+      orders    = orders.filter(o => o.Location === location);
+    }
 
     const today = new Date().toISOString().split('T')[0];
     const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];

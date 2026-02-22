@@ -8,7 +8,9 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const items = await getAllRows('INVENTORY');
+    const { location } = req.query;
+    let items = await getAllRows('INVENTORY');
+    if (location) items = items.filter(i => i.Location === location);
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -17,12 +19,13 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Style, ABV, Format, Units, PricePerUnit, LowStockThreshold, Notes } = req.body;
+    const { Name, Location, Style, ABV, Format, Units, PricePerUnit, LowStockThreshold, Notes } = req.body;
     if (!Name) return res.status(400).json({ error: 'Name is required' });
 
     const item = {
       ID: uuidv4(),
       Name: Name.trim(),
+      Location: Location || '',
       Style: Style || '',
       ABV: ABV || '',
       Format: Format || '',
