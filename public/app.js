@@ -1731,17 +1731,23 @@ async function loadDashboard() {
   const currentStaff = staff.find(s => s.Email && s.Email === state.userEmail);
   const currentStaffId = currentStaff ? currentStaff.ID : null;
 
-  // Build upcoming: todos + pending deliveries within 7 days
+  // Split pending deliveries into overdue vs upcoming
+  const overdueDeliveries = pendingDeliveries.filter(d => {
+    const diff = daysFromToday(d.DueDate);
+    return diff !== null && diff < 0;
+  });
   const upcomingDeliveries = pendingDeliveries.filter(d => {
     const diff = daysFromToday(d.DueDate);
     return diff !== null && diff >= 0 && diff <= 7;
   });
   const allUpcoming = [...(dash.upcomingReminders || []), ...upcomingDeliveries]
     .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
+  const allOverdue = [...(dash.overdueReminders || []), ...overdueDeliveries]
+    .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
 
   // Build "My Todos" — overdue + upcoming assigned to current staff, including pending deliveries
-  const myOverdue = currentStaffId ? (dash.overdueReminders || []).filter(r => r.StaffID === currentStaffId) : [];
-  const myUpcoming = currentStaffId ? [...(dash.upcomingReminders || []), ...upcomingDeliveries].filter(r => r.StaffID === currentStaffId) : [];
+  const myOverdue = currentStaffId ? allOverdue.filter(r => r.StaffID === currentStaffId) : [];
+  const myUpcoming = currentStaffId ? allUpcoming.filter(r => r.StaffID === currentStaffId) : [];
   const myTodos = [...myOverdue, ...myUpcoming]
     .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
 
@@ -1782,17 +1788,17 @@ async function loadDashboard() {
             <span class="dash-meta">${formatDate(r.DueDate)}</span>
           </li>`).join('');
 
-  const overdueHtml = dash.overdueReminders.length === 0 ? '' : `
+  const overdueHtml = allOverdue.length === 0 ? '' : `
     <div class="card">
-      <div class="card-header"><h3 class="text-danger">Overdue (${dash.overdueReminders.length})</h3></div>
+      <div class="card-header"><h3 class="text-danger">Overdue (${allOverdue.length})</h3></div>
       <ul class="dash-list">
-        ${dash.overdueReminders.map(r => `
+        ${allOverdue.map(r => `
           <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
             ${urgencyBadge(r.DueDate, r.Completed)}
             ${typeBadge(r.Type)}
             <span class="dash-label">${esc(r.Title)}</span>
             ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
-            <button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeTodo('${esc(r.ID)}')">Done</button>
+            ${r._type !== 'delivery' ? `<button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeTodo('${esc(r.ID)}')">Done</button>` : ''}
           </li>`).join('')}
       </ul>
     </div>`;
