@@ -1032,12 +1032,20 @@ function outreachForm(entry = {}, presetAccountId = '') {
         Create a todo for this follow-up
       </label>
     </div>
-    <div class="form-group">
-      <label>Assign To</label>
-      <select class="form-control" id="f-todo-staff">
-        <option value="">-- Unassigned --</option>
-        ${staffOptions()}
-      </select>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Todo Type</label>
+        <select class="form-control" id="f-todo-type">
+          ${TODO_TYPES.map(t => `<option value="${t}" ${t === 'Follow-up' ? 'selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Assign To</label>
+        <select class="form-control" id="f-todo-staff">
+          <option value="">-- Unassigned --</option>
+          ${staffOptions()}
+        </select>
+      </div>
     </div>`;
 }
 
@@ -1144,10 +1152,11 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
     });
 
     if (createTodo && followUpDate) {
+      const todoType = val('f-todo-type') || 'Follow-up';
       const todoStaffId = val('f-todo-staff');
       const todoStaffName = todoStaffId ? (state.staff.find(s => s.ID === todoStaffId) || {}).Name || '' : '';
       await api.post('/api/reminders', {
-        Type: 'Follow-up', AccountID: accountId, AccountName: accountName,
+        Type: todoType, AccountID: accountId, AccountName: accountName,
         Title: `Follow up with ${accountName}`,
         DueDate: followUpDate, Priority: 'Medium',
         Notes: `Re: outreach on ${val('f-date')}`,
