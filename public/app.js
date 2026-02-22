@@ -909,7 +909,7 @@ async function loadAccountProfile(accountId) {
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned})">Return Kegs</button>`
+              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned}, '${esc(k.Notes || '')}')">Return Kegs</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
           </td>
         </tr>`;
@@ -998,8 +998,14 @@ async function loadAccountProfile(accountId) {
   `);
 }
 
-function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned) {
+function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes) {
   const outstanding = totalQty - alreadyReturned;
+  const notesHistory = existingNotes
+    ? `<div style="margin-bottom:16px;padding:10px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #e0e0e0">
+        <div class="text-muted text-sm" style="margin-bottom:4px;font-weight:600">Previous notes</div>
+        <div class="text-sm">${esc(existingNotes)}</div>
+      </div>`
+    : '';
   const formHtml = `
     <p class="text-muted text-sm" style="margin-bottom:16px">
       <strong>${esc(productName)} — ${esc(format)}</strong><br>
@@ -1007,6 +1013,7 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned) {
       Returned: <strong>${alreadyReturned}</strong> &mdash;
       Outstanding: <strong class="text-danger">${outstanding}</strong>
     </p>
+    ${notesHistory}
     <div class="form-group">
       <label for="f-return-qty">Kegs Returned Now <span class="required">*</span></label>
       <input class="form-control" type="number" id="f-return-qty" min="1" max="${outstanding}" value="${outstanding}" />
@@ -1023,14 +1030,17 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned) {
       return;
     }
     const newReturnedTotal = alreadyReturned + returnQty;
+    const newNote = val('f-return-notes') || '';
+    const combinedNotes = [existingNotes, newNote].filter(Boolean).join(' | ');
     await api.put(`/api/keg-tracking/${kegId}`, {
       ReturnedQuantity: String(newReturnedTotal),
       ReturnedDate: new Date().toISOString().split('T')[0],
-      Notes: val('f-return-notes') || '',
+      Notes: combinedNotes,
     });
     modal.close();
     toast(`${returnQty} keg${returnQty > 1 ? 's' : ''} marked as returned`);
-    loadAccountProfile(state.accountProfileId);
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadKegs();
   });
 }
 
@@ -2681,7 +2691,7 @@ function renderKegs() {
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned})">Return</button>`
+              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned}, '${esc(k.Notes || '')}')">Return</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
           </td>
         </tr>`;
