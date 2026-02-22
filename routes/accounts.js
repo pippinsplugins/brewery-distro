@@ -92,6 +92,14 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
+    // Cascade delete: remove associated keg tracking records
+    const kegs = await getAllRows('KEG_TRACKING');
+    for (const keg of kegs) {
+      if (keg.AccountID === id) {
+        await deleteRow('KEG_TRACKING', keg.ID);
+      }
+    }
+
     await deleteRow('ACCOUNTS', id);
     res.json({ success: true });
   } catch (err) {

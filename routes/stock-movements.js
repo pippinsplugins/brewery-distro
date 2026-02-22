@@ -28,10 +28,15 @@ router.post('/bulk', async (req, res) => {
     if (!orderId) return res.status(400).json({ error: 'orderId is required' });
     if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
 
+    // Fetch the order to get AccountID/AccountName for keg tracking
+    const allOrders = await getAllRows('ORDERS');
+    const order = allOrders.find(o => o.ID === orderId);
+
     const inventory = await getAllRows('INVENTORY');
     const movDate   = date || new Date().toISOString().split('T')[0];
     const createdAt = new Date().toISOString();
     const movements = [];
+    const kegRecords = [];
 
     for (const item of items) {
       const qty = parseInt(item.quantity);
@@ -59,10 +64,31 @@ router.post('/bulk', async (req, res) => {
         Units:       String(newUnits),
         LastUpdated: movDate,
       });
+
+      // Auto-create keg tracking record for keg-format products
+      if (inv.Format && inv.Format.toLowerCase().includes('keg') && order) {
+        const kegRecord = {
+          ID:               uuidv4(),
+          AccountID:        order.AccountID || '',
+          AccountName:      order.AccountName || '',
+          OrderID:          orderId,
+          InventoryID:      item.inventoryId,
+          ProductName:      inv.Name || '',
+          Format:           inv.Format || '',
+          Quantity:         String(qty),
+          DeliveredDate:    movDate,
+          ReturnedDate:     '',
+          ReturnedQuantity: '0',
+          Notes:            '',
+          CreatedAt:        createdAt,
+        };
+        await addRow('KEG_TRACKING', kegRecord);
+        kegRecords.push(kegRecord);
+      }
     }
 
     await updateRow('ORDERS', orderId, { Delivered: 'true' });
-    res.json({ movements });
+    res.json({ movements, kegRecords });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
