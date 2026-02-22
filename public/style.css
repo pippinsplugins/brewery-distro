@@ -863,7 +863,7 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 
 .profile-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -1127,7 +1127,7 @@ tr.row-completed button {
     justify-content: flex-start;
   }
 
-  /* ── Profile stats: 2 columns instead of 4 ── */
+  /* ── Profile stats: 2 columns instead of 5 ── */
   .profile-stats {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;

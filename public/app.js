@@ -778,10 +778,11 @@ async function loadAccountProfile(accountId) {
   });
   showLoading();
 
-  const [outreach, todos, orders] = await Promise.all([
+  const [outreach, todos, orders, kegRecords] = await Promise.all([
     api.get('/api/outreach'),
     api.get('/api/reminders?status=all'),
     api.get('/api/orders'),
+    api.get(`/api/keg-tracking?accountId=${accountId}`),
   ]);
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
@@ -800,6 +801,14 @@ async function loadAccountProfile(accountId) {
 
   const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
+
+  // Keg tracking calculations
+  const acctKegs = (kegRecords || []).sort((a, b) => (b.DeliveredDate || '').localeCompare(a.DeliveredDate || ''));
+  const outstandingKegs = acctKegs.reduce((sum, k) => {
+    const qty = parseInt(k.Quantity) || 0;
+    const returned = parseInt(k.ReturnedQuantity) || 0;
+    return sum + Math.max(0, qty - returned);
+  }, 0);
 
   const infoRows = [
     `<div class="profile-info-item"><span class="profile-info-label">Account ID</span><span class="text-muted text-sm" style="font-family:monospace">${esc(acct.ID)}</span></div>`,
@@ -875,6 +884,28 @@ async function loadAccountProfile(accountId) {
       </tr></tfoot>`
     : '';
 
+  const kegRows = acctKegs.length === 0
+    ? `<tr><td colspan="7" class="empty-state">No keg deliveries recorded.</td></tr>`
+    : acctKegs.map(k => {
+        const qty = parseInt(k.Quantity) || 0;
+        const returned = parseInt(k.ReturnedQuantity) || 0;
+        const outstanding = Math.max(0, qty - returned);
+        const fullyReturned = outstanding === 0;
+        return `<tr class="${fullyReturned ? 'row-completed' : ''}">
+          <td class="text-sm">${formatDate(k.DeliveredDate)}</td>
+          <td class="fw-600">${esc(k.ProductName)}</td>
+          <td class="text-sm">${esc(k.Format)}</td>
+          <td class="text-center">${qty}</td>
+          <td class="text-center">${returned}</td>
+          <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
+          <td class="td-actions">
+            ${outstanding > 0
+              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned})">Return Kegs</button>`
+              : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
+          </td>
+        </tr>`;
+      }).join('');
+
   setContent(`
     <div class="view-header">
       <div style="display:flex;align-items:center;gap:12px">
@@ -897,6 +928,7 @@ async function loadAccountProfile(accountId) {
       <div class="profile-stat"><div class="stat-value">${activeTodos}</div><div class="stat-label">Open Todos</div></div>
       <div class="profile-stat"><div class="stat-value">${acctOrders.length}</div><div class="stat-label">Orders</div></div>
       <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
+      <div class="profile-stat"><div class="stat-value${outstandingKegs > 0 ? ' text-danger' : ''}">${outstandingKegs}</div><div class="stat-label">Kegs Out</div></div>
     </div>
 
     <div class="profile-info card" style="margin-bottom:24px">
@@ -942,7 +974,67 @@ async function loadAccountProfile(accountId) {
         </table>
       </div>
     </div>
+
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <h3>Keg Tracking <span class="text-muted text-sm">(${outstandingKegs} outstanding)</span></h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Delivered</th><th>Product</th><th>Format</th><th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Actions</th></tr></thead>
+          <tbody>${kegRows}</tbody>
+        </table>
+      </div>
+    </div>
   `);
+}
+
+function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned) {
+  const outstanding = totalQty - alreadyReturned;
+  const formHtml = `
+    <div class="form-group">
+      <label class="form-label">Product</label>
+      <div class="text-sm">${esc(productName)} — ${esc(format)}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Total Delivered</label>
+        <div class="text-sm">${totalQty}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Already Returned</label>
+        <div class="text-sm">${alreadyReturned}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Outstanding</label>
+        <div class="text-sm fw-600 text-danger">${outstanding}</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="f-return-qty">Kegs Returned Now</label>
+      <input class="form-input" type="number" id="f-return-qty" min="1" max="${outstanding}" value="${outstanding}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="f-return-notes">Notes</label>
+      <input class="form-input" type="text" id="f-return-notes" placeholder="Optional notes" />
+    </div>
+  `;
+  modal.open('Return Kegs', formHtml, async () => {
+    const returnQty = parseInt(val('f-return-qty'));
+    if (!returnQty || returnQty < 1 || returnQty > outstanding) {
+      toast('Enter a valid return quantity (1–' + outstanding + ')', 'error');
+      return;
+    }
+    const newReturnedTotal = alreadyReturned + returnQty;
+    await api.put(`/api/keg-tracking/${kegId}`, {
+      ReturnedQuantity: String(newReturnedTotal),
+      ReturnedDate: new Date().toISOString().split('T')[0],
+      Notes: val('f-return-notes') || '',
+    });
+    modal.close();
+    toast(`${returnQty} keg${returnQty > 1 ? 's' : ''} marked as returned`);
+    loadAccountProfile(state.accountProfileId);
+  });
 }
 
 // Profile-page action wrappers — reload profile instead of their default views
