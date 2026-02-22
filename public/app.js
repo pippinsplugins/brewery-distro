@@ -2191,7 +2191,7 @@ function openDeliveryConfirmModal(orderId, order, onComplete) {
             <td class="fw-600">${esc(item.Name)}</td>
             <td class="text-sm">${esc(item.Format) || '—'}</td>
             <td class="text-sm">${esc(item.Units)}</td>
-            <td><input class="form-control" type="number" min="0" value="0"
+            <td><input class="form-control" type="number" min="0" max="${parseInt(item.Units || '0')}" value="0"
                  id="deliv-qty-${item.ID}" style="width:80px" /></td>
           </tr>`;
 
@@ -2223,9 +2223,13 @@ function openDeliveryConfirmModal(orderId, order, onComplete) {
     const delivItems = items
       .map(item => ({
         inventoryId: item.ID,
+        name: item.Name,
+        stock: parseInt(item.Units || '0'),
         quantity: parseInt(document.getElementById(`deliv-qty-${item.ID}`)?.value || '0'),
       }))
       .filter(i => i.quantity > 0);
+    const overStock = delivItems.find(i => i.quantity > i.stock);
+    if (overStock) { toast(`${overStock.name} only has ${overStock.stock} in stock`, 'error'); return; }
     const notes = (document.getElementById('deliv-notes')?.value || '').trim();
     await api.post('/api/stock-movements/bulk', {
       orderId,
