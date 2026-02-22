@@ -288,6 +288,10 @@ const FORMATS = ['1/2 Keg', '1/4 Keg', '1/6 Keg', '12oz Can (case/24)', '16oz Ca
 const STYLES  = ['IPA', 'Double IPA', 'Pale Ale', 'Lager', 'Pilsner', 'Wheat', 'Hefeweizen', 'Stout', 'Porter', 'Sour', 'Saison', 'Amber', 'Brown Ale', 'Barleywine', 'Other'];
 
 function inventoryForm(item = {}) {
+  const isEdit = !!item.ID;
+  const unitsField = isEdit
+    ? `<input class="form-control" id="f-units" value="${esc(item.Units || '0')}" readonly style="background:#f5f5f5;cursor:default;color:var(--text-muted)" title="Use the Adjust button to change stock levels" />`
+    : `<input class="form-control" id="f-units" type="number" min="0" value="0" />`;
   return `
     <div class="form-row">
       <div class="form-group">
@@ -317,8 +321,8 @@ function inventoryForm(item = {}) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Units in Stock <span class="required">*</span></label>
-        <input class="form-control" id="f-units" type="number" min="0" value="${esc(item.Units || '0')}" />
+        <label>Units in Stock${isEdit ? ' <span class="text-muted text-sm">(adjust via Adjust button)</span>' : ' <span class="required">*</span>'}</label>
+        ${unitsField}
       </div>
       <div class="form-group">
         <label>Price per Unit ($)</label>
@@ -425,6 +429,8 @@ function renderInventory() {
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
                   <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
+                  <button class="btn btn-ghost btn-sm" onclick="openInventoryHistory('${esc(item.ID)}')">History</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteInventory('${esc(item.ID)}', '${esc(item.Name)}')">Delete</button>
                 </td>
               </tr>`;
@@ -460,7 +466,7 @@ function openEditInventory(id) {
     if (!name) { toast('Name is required', 'error'); return; }
     await api.put(`/api/inventory/${id}`, {
       Name: name, Style: val('f-style'), ABV: val('f-abv'),
-      Format: val('f-format'), Units: val('f-units'),
+      Format: val('f-format'),
       PricePerUnit: val('f-price'), LowStockThreshold: val('f-threshold'),
       Notes: val('f-notes'),
     });
@@ -477,6 +483,79 @@ async function deleteInventory(id, name) {
     toast('Product deleted');
     loadInventory();
   });
+}
+
+function openAdjustInventory(id) {
+  const item = state.inventory.find(i => i.ID === id);
+  if (!item) return;
+  const label = item.Format ? `${item.Name} — ${item.Format}` : item.Name;
+  modal.open('Adjust Stock', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      <strong>${esc(label)}</strong> &mdash; current stock: <strong>${esc(item.Units)} units</strong>
+    </p>
+    <div class="form-group">
+      <label>Movement Type <span class="required">*</span></label>
+      <select class="form-control" id="f-adj-type">
+        <option value="received">Received (add stock)</option>
+        <option value="write-off">Write-off (remove stock)</option>
+        <option value="adjustment">Adjustment (remove stock)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Quantity <span class="required">*</span></label>
+      <input class="form-control" id="f-adj-qty" type="number" min="1" placeholder="e.g. 10" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input class="form-control" id="f-adj-date" type="date" value="${today()}" />
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-control" id="f-adj-notes" rows="2" placeholder="Reason for adjustment..."></textarea>
+    </div>`, async () => {
+    const type = val('f-adj-type');
+    const qty  = parseInt(val('f-adj-qty'));
+    if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    const result = await api.post('/api/stock-movements', {
+      inventoryId: id,
+      type,
+      quantity: qty,
+      notes: val('f-adj-notes'),
+      date:  val('f-adj-date'),
+    });
+    modal.close();
+    toast(`Stock adjusted — new total: ${result.newUnits} units`);
+    loadInventory();
+  });
+}
+
+async function openInventoryHistory(id) {
+  const item = state.inventory.find(i => i.ID === id);
+  if (!item) return;
+  const movements = await api.get(`/api/stock-movements?inventoryId=${encodeURIComponent(id)}`);
+  const typeLabel = { sale: 'Sale', received: 'Received', 'write-off': 'Write-off', adjustment: 'Adjustment' };
+  const rows = movements.length === 0
+    ? `<tr><td colspan="5" class="empty-state">No stock movements recorded yet.</td></tr>`
+    : movements.map(m => {
+        const qty = parseInt(m.Quantity || 0);
+        const sign = qty >= 0 ? '+' : '';
+        const cls  = qty >= 0 ? 'text-success' : 'text-danger';
+        return `<tr>
+          <td class="text-sm">${formatDate(m.Date)}</td>
+          <td><span class="badge badge-type-other">${typeLabel[m.Type] || esc(m.Type)}</span></td>
+          <td class="fw-600 ${cls}">${sign}${qty}</td>
+          <td class="text-sm text-muted">${m.OrderID ? 'Order' : '—'}</td>
+          <td class="text-sm note-cell">${truncateNote(m.Notes)}</td>
+        </tr>`;
+      }).join('');
+  modal.open(`Stock History — ${esc(item.Name)}`, `
+    <p class="text-muted text-sm" style="margin-bottom:16px">Current stock: <strong>${esc(item.Units)} units</strong></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Source</th><th>Notes</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`, () => { modal.close(); }, 'Close');
 }
 
 // ── Accounts View ─────────────────────────────────────────────────
@@ -746,7 +825,9 @@ async function loadAccountProfile(accountId) {
           <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
           <td class="fw-600">${fmtMoney(total)}</td>
           <td>${orderStatusBadge(s.Status)}</td>
-          <td class="text-center"><input type="checkbox" ${s.Delivered === 'true' ? 'checked' : ''} onchange="profileToggleDelivered('${esc(s.ID)}', ${s.Delivered === 'true'})" /></td>
+          <td class="text-center">${s.Delivered === 'true'
+            ? '<input type="checkbox" checked disabled />'
+            : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
           <td class="td-actions">
             ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">Edit</button>
@@ -1870,12 +1951,6 @@ function orderForm(order = {}, presetAccountId = '') {
       </div>
     </div>
     <div class="form-group">
-      <label class="checkbox-label">
-        <input type="checkbox" id="f-delivered" ${order.Delivered === 'true' ? 'checked' : ''} />
-        Order Delivered
-      </label>
-    </div>
-    <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>`;
@@ -1985,7 +2060,9 @@ function renderOrders() {
                 <td class="fw-600">${fmtMoney(total)}</td>
                 <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
                 <td>${orderStatusBadge(s.Status)}</td>
-                <td class="text-center"><input type="checkbox" ${s.Delivered === 'true' ? 'checked' : ''} onchange="toggleDelivered('${esc(s.ID)}')" /></td>
+                <td class="text-center">${s.Delivered === 'true'
+                  ? '<input type="checkbox" checked disabled />'
+                  : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
                 <td class="td-actions">
                   ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
@@ -2028,7 +2105,6 @@ async function openAddOrder(presetAccountId = '') {
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
-      Delivered: document.getElementById('f-delivered').checked ? 'true' : 'false',
     });
     modal.close();
     toast('Order logged');
@@ -2049,7 +2125,6 @@ function openEditOrder(id) {
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
-      Delivered: document.getElementById('f-delivered').checked ? 'true' : 'false',
     });
     modal.close();
     toast('Order updated');
@@ -2075,10 +2150,8 @@ async function markOrderPaid(id) {
 async function toggleDelivered(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
-  const newDelivered = order.Delivered === 'true' ? 'false' : 'true';
-  await api.put(`/api/orders/${id}`, { Delivered: newDelivered });
-  toast(newDelivered === 'true' ? 'Marked as delivered' : 'Marked as undelivered');
-  loadOrders();
+  if (state.inventory.length === 0) state.inventory = await api.get('/api/inventory');
+  openDeliveryConfirmModal(id, order, loadOrders);
 }
 
 async function profileMarkOrderPaid(id) {
@@ -2087,11 +2160,71 @@ async function profileMarkOrderPaid(id) {
   loadAccountProfile(state.accountProfileId);
 }
 
-async function profileToggleDelivered(id, isDelivered) {
-  const newDelivered = isDelivered ? 'false' : 'true';
-  await api.put(`/api/orders/${id}`, { Delivered: newDelivered });
-  toast(newDelivered === 'true' ? 'Marked as delivered' : 'Marked as undelivered');
-  loadAccountProfile(state.accountProfileId);
+async function profileToggleDelivered(id) {
+  if (state.inventory.length === 0) state.inventory = await api.get('/api/inventory');
+  const orders = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  const order = orders.find(s => s.ID === id);
+  if (!order) return;
+  openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
+}
+
+function openDeliveryConfirmModal(orderId, order, onComplete) {
+  const items = state.inventory;
+  const acctName = order.AccountName || '';
+  const invLabel = order.InvoiceNumber ? ` — Invoice #${esc(order.InvoiceNumber)}` : '';
+
+  if (!items.length) {
+    modal.confirm('Confirm Delivery',
+      `No inventory products are configured. Mark this order as delivered without recording stock movements?`,
+      async () => {
+        await api.put(`/api/orders/${orderId}`, { Delivered: 'true' });
+        modal.close();
+        toast('Order marked as delivered');
+        onComplete();
+      });
+    return;
+  }
+
+  modal.open('Confirm Delivery', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      Confirming delivery for <strong>${esc(acctName)}</strong>${invLabel}.
+      Enter the quantity delivered for each product (leave at 0 to skip).
+    </p>
+    <div class="table-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>Product</th><th>Format</th><th>In Stock</th><th>Qty Delivered</th></tr></thead>
+        <tbody>
+          ${items.map(item => `<tr>
+            <td class="fw-600">${esc(item.Name)}</td>
+            <td class="text-sm">${esc(item.Format) || '—'}</td>
+            <td class="text-sm">${esc(item.Units)}</td>
+            <td><input class="form-control" type="number" min="0" value="0"
+                 id="deliv-qty-${item.ID}" style="width:80px" /></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-group">
+      <label>Delivery Notes</label>
+      <textarea class="form-control" id="deliv-notes" rows="2" placeholder="Optional notes..."></textarea>
+    </div>`, async () => {
+    const delivItems = items
+      .map(item => ({
+        inventoryId: item.ID,
+        quantity: parseInt(document.getElementById(`deliv-qty-${item.ID}`)?.value || '0'),
+      }))
+      .filter(i => i.quantity > 0);
+    const notes = (document.getElementById('deliv-notes')?.value || '').trim();
+    await api.post('/api/stock-movements/bulk', {
+      orderId,
+      items: delivItems,
+      notes,
+      date: today(),
+    });
+    modal.close();
+    toast('Delivery confirmed');
+    onComplete();
+  }, 'Confirm Delivery');
 }
 
 // ── Navigation ────────────────────────────────────────────────────

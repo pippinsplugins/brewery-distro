@@ -6,12 +6,13 @@ require('dotenv').config();
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 
 const SHEETS = {
-  INVENTORY: 'Inventory',
-  ACCOUNTS:  'Accounts',
-  OUTREACH:  'Outreach',
-  REMINDERS: 'Reminders',
-  STAFF:     'Staff',
-  ORDERS:    'Orders',
+  INVENTORY:       'Inventory',
+  ACCOUNTS:        'Accounts',
+  OUTREACH:        'Outreach',
+  REMINDERS:       'Reminders',
+  STAFF:           'Staff',
+  ORDERS:          'Orders',
+  STOCK_MOVEMENTS: 'StockMovements',
 };
 
 // HEADERS defines every column each sheet should have.
@@ -22,7 +23,8 @@ const HEADERS = {
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
-  ORDERS:    ['ID', 'AccountID', 'AccountName', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'Notes', 'Status', 'Delivered', 'CreatedAt'],
+  ORDERS:          ['ID', 'AccountID', 'AccountName', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'Notes', 'Status', 'Delivered', 'CreatedAt'],
+  STOCK_MOVEMENTS: ['ID', 'InventoryID', 'InventoryName', 'OrderID', 'Type', 'Quantity', 'Notes', 'Date', 'CreatedAt'],
 };
 
 // Cached sheet header rows — avoids an extra API call on every write

@@ -44,6 +44,7 @@ router.put('/:id', async (req, res) => {
   try {
     const updates = { ...req.body };
     delete updates.ID;
+    delete updates.Units; // Units are managed exclusively via /api/stock-movements
     updates.LastUpdated = new Date().toISOString().split('T')[0];
     const updated = await updateRow('INVENTORY', req.params.id, updates);
     res.json(updated);
