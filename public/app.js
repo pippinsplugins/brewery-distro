@@ -1515,7 +1515,7 @@ async function loadDashboard() {
   const upcomingHtml = dash.upcomingReminders.length === 0
     ? '<li class="empty-state" style="padding:12px 0">No upcoming todos in the next 7 days.</li>'
     : dash.upcomingReminders.map(r => `
-        <li class="clickable" onclick="navigate('todos')">
+        <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
           <div>
             ${urgencyBadge(r.DueDate, r.Completed)}
             ${typeBadge(r.Type)}
@@ -1530,7 +1530,7 @@ async function loadDashboard() {
     : myTodos.length === 0
       ? '<li class="empty-state" style="padding:12px 0">You have no upcoming or overdue todos.</li>'
       : myTodos.map(r => `
-          <li class="clickable" onclick="navigate('todos')">
+          <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
             <div>
               ${urgencyBadge(r.DueDate, r.Completed)}
               ${typeBadge(r.Type)}
@@ -1545,7 +1545,7 @@ async function loadDashboard() {
       <div class="card-header"><h3 class="text-danger">Overdue (${dash.overdueReminders.length})</h3></div>
       <ul class="dash-list">
         ${dash.overdueReminders.map(r => `
-          <li class="clickable" onclick="navigate('todos')">
+          <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
             ${urgencyBadge(r.DueDate, r.Completed)}
             ${typeBadge(r.Type)}
             <span class="dash-label">${esc(r.Title)}</span>
