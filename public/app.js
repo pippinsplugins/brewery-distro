@@ -2657,9 +2657,9 @@ function renderKegs() {
     </div>
 
     <div class="filter-bar">
-      <input type="search" class="form-control" id="kegs-search" placeholder="Search accounts or products…" value="${esc(search)}"
+      <input type="search" id="kegs-search" placeholder="Search accounts or products…" value="${esc(search)}"
              oninput="_paginationReset('kegs'); renderKegs()" />
-      <select class="form-control" id="kegs-status" onchange="_kegsStatusFilter=this.value; _paginationReset('kegs'); renderKegs()">
+      <select id="kegs-status" onchange="_kegsStatusFilter=this.value; _paginationReset('kegs'); renderKegs()">
         <option value="outstanding"${statusFilter === 'outstanding' ? ' selected' : ''}>Outstanding Only</option>
         <option value="all"${statusFilter === 'all' ? ' selected' : ''}>All Records</option>
       </select>
