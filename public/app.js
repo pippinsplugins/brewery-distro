@@ -2364,21 +2364,24 @@ function openRenameLocation(index, oldName) {
       <label>New Name <span class="required">*</span></label>
       <input class="form-control" id="f-location-name" value="${esc(oldName)}" />
     </div>
+    <p class="text-sm text-muted" style="margin-top:8px">All inventory and order records at this location will be updated.</p>
   `, async () => {
     const newName = val('f-location-name');
     if (!newName) { toast('Location name is required', 'error'); return; }
     const current = Array.isArray(state.settings.locations) ? [...state.settings.locations] : [...LOCATIONS];
     if (current.includes(newName) && newName !== oldName) { toast('Location already exists', 'error'); return; }
     current[index] = newName;
-    const updated = await api.put('/api/settings', { locations: current });
+    const updated = await api.put('/api/settings/rename-location', { oldName, newName, locations: current });
     state.settings = updated;
     applySettings(updated);
     if (state.location === oldName) {
       state.location = newName;
       localStorage.setItem('brewLocation', newName);
     }
+    state.inventory = []; // clear cached inventory
     modal.close();
-    toast('Location renamed');
+    const info = updated._renamed || {};
+    toast(`Location renamed — ${info.inventoryUpdated || 0} product(s) and ${info.ordersUpdated || 0} order(s) updated`);
     renderSettings();
   });
 }
