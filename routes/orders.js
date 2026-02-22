@@ -47,7 +47,7 @@ router.post('/', async (req, res) => {
       Notes:     Notes     || '',
       Status:    Status    || 'Pending',
       Delivered: Delivered || 'false',
-      CreatedAt: new Date().toISOString().split('T')[0],
+      CreatedAt: new Date().toISOString(),
     };
 
     await addRow('ORDERS', order);

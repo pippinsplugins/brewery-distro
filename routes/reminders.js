@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
       StaffName: StaffName || '',
       Recurrence: recurrence,
       RecurrenceParentID: RecurrenceParentID || '',
-      CreatedAt: new Date().toISOString().split('T')[0],
+      CreatedAt: new Date().toISOString(),
     };
 
     await addRow('REMINDERS', reminder);
@@ -95,7 +95,7 @@ router.put('/:id', async (req, res) => {
         StaffName: updated.StaffName || '',
         Recurrence: updated.Recurrence,
         RecurrenceParentID: updated.RecurrenceParentID || updated.ID,
-        CreatedAt: new Date().toISOString().split('T')[0],
+        CreatedAt: new Date().toISOString(),
       };
       await addRow('REMINDERS', next);
       return res.json({ ...updated, _nextReminder: next });

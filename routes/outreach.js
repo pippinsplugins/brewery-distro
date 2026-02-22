@@ -35,7 +35,7 @@ router.post('/', async (req, res) => {
       Notes: Notes || '',
       FollowUpDate: FollowUpDate || '',
       FollowUpStatus: FollowUpStatus || (FollowUpDate ? 'Pending' : 'None'),
-      CreatedAt: new Date().toISOString().split('T')[0],
+      CreatedAt: new Date().toISOString(),
     };
 
     await addRow('OUTREACH', entry);

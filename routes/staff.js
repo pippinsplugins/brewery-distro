@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
       Role: Role || '',
       Active: 'true',
       Notes: Notes || '',
-      CreatedAt: new Date().toISOString().split('T')[0],
+      CreatedAt: new Date().toISOString(),
     };
 
     await addRow('STAFF', member);
