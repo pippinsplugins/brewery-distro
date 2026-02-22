@@ -31,11 +31,12 @@ app.use(session({
   secret:            process.env.SESSION_SECRET || 'change-me-in-production',
   resave:            false,
   saveUninitialized: false,
+  rolling:           true, // Reset expiry on every request so active users stay logged in
   cookie: {
     httpOnly: true,
     // Set secure:true when behind HTTPS in production.
     secure:   process.env.NODE_ENV === 'production',
-    maxAge:   8 * 60 * 60 * 1000, // 8 hours
+    maxAge:   24 * 60 * 60 * 1000, // 24 hours
   },
 }));
 
