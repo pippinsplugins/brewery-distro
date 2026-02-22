@@ -1558,7 +1558,7 @@ async function loadDashboard() {
   const recentHtml = dash.recentOutreach.length === 0
     ? '<li class="empty-state" style="padding:12px 0">No outreach logged yet.</li>'
     : dash.recentOutreach.map(o => `
-        <li class="clickable" onclick="navigate('outreach')">
+        <li class="clickable" onclick="loadAccountProfile('${esc(o.AccountID)}')">
           ${methodBadge(o.Method)}
           <span class="dash-label">${esc(o.AccountName)}</span>
           <span class="dash-meta">${formatDate(o.Date)}</span>
