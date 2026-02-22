@@ -13,6 +13,7 @@ const SHEETS = {
   STAFF:           'Staff',
   ORDERS:          'Orders',
   STOCK_MOVEMENTS: 'StockMovements',
+  SETTINGS:        'Settings',
 };
 
 // HEADERS defines every column each sheet should have.
@@ -25,6 +26,7 @@ const HEADERS = {
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
   ORDERS:          ['ID', 'AccountID', 'AccountName', 'Location', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'Notes', 'Status', 'Delivered', 'CreatedAt'],
   STOCK_MOVEMENTS: ['ID', 'InventoryID', 'InventoryName', 'OrderID', 'Type', 'Quantity', 'Notes', 'Date', 'CreatedAt'],
+  SETTINGS:        ['ID', 'Key', 'Value', 'UpdatedAt'],
 };
 
 // Cached sheet header rows — avoids an extra API call on every write
