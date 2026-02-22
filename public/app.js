@@ -1342,7 +1342,7 @@ function renderTodos() {
       </table>
     </div>
     ${pg.total > 0 ? paginationControls('todos', pg, 'renderTodos') : ''}`);
-  if (_focused === 'rem-search') refocusSearch("todo-search");
+  if (_focused === 'todo-search') refocusSearch('todo-search');
 }
 
 function openAddTodo(presetAccountId = '') {
