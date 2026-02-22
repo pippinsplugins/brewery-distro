@@ -1052,9 +1052,10 @@ function outreachForm(entry = {}, presetAccountId = '') {
 async function loadOutreach() {
   _paginationReset('outreach');
   showLoading();
-  const [outreach, accounts] = await Promise.all([api.get('/api/outreach'), api.get('/api/accounts')]);
+  const [outreach, accounts, staff] = await Promise.all([api.get('/api/outreach'), api.get('/api/accounts'), api.get('/api/staff')]);
   state.outreach = outreach;
   state.accounts = accounts;
+  state.staff = staff;
   renderOutreach();
 }
 
