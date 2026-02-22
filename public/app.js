@@ -115,6 +115,24 @@ function today() {
   return new Date().toISOString().split('T')[0];
 }
 
+function dateRange(preset) {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const t = fmt(d);
+  switch (preset) {
+    case 'today': return [t, t];
+    case 'yesterday': { const y = new Date(d); y.setDate(y.getDate() - 1); return [fmt(y), fmt(y)]; }
+    case 'last7': { const s = new Date(d); s.setDate(s.getDate() - 6); return [fmt(s), t]; }
+    case 'last30': { const s = new Date(d); s.setDate(s.getDate() - 29); return [fmt(s), t]; }
+    case 'this-month': return [`${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`, t];
+    case 'last-month': { const lm = new Date(d.getFullYear(), d.getMonth() - 1, 1); const le = new Date(d.getFullYear(), d.getMonth(), 0); return [fmt(lm), fmt(le)]; }
+    case 'this-year': return [`${d.getFullYear()}-01-01`, t];
+    case 'last-year': return [`${d.getFullYear() - 1}-01-01`, `${d.getFullYear() - 1}-12-31`];
+    default: return ['', ''];
+  }
+}
+
 function daysFromToday(dateStr) {
   if (!dateStr) return null;
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -1979,6 +1997,9 @@ function orderForm(order = {}, presetAccountId = '') {
 }
 
 let _ordersCache = [];
+let _ordersDatePreset = '';
+let _ordersDateFrom = '';
+let _ordersDateTo = '';
 
 function orderStatusBadge(status) {
   const map = { Pending: 'badge-pending', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
@@ -1992,6 +2013,9 @@ function fmtMoney(val) {
 
 async function loadOrders() {
   _paginationReset('orders');
+  _ordersDatePreset = '';
+  _ordersDateFrom = '';
+  _ordersDateTo = '';
   showLoading();
   const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
   const [orders, accounts, staff] = await Promise.all([
@@ -2005,6 +2029,20 @@ async function loadOrders() {
   renderOrders();
 }
 
+function applyOrderDatePreset(preset) {
+  _ordersDatePreset = preset;
+  if (preset && preset !== 'custom') {
+    const [from, to] = dateRange(preset);
+    _ordersDateFrom = from;
+    _ordersDateTo = to;
+  } else if (preset === '') {
+    _ordersDateFrom = '';
+    _ordersDateTo = '';
+  }
+  _paginationReset('orders');
+  renderOrders();
+}
+
 function renderOrders() {
   const orders = _ordersCache;
   const _focused = document.activeElement?.id;
@@ -2013,10 +2051,20 @@ function renderOrders() {
   const statusFilter  = (document.getElementById('orders-status') || {}).value || '';
   const search        = (document.getElementById('orders-search') || {}).value || '';
 
+  // Read date filter from DOM or fall back to state
+  const datePreset = (document.getElementById('orders-date-preset') || {}).value || _ordersDatePreset;
+  const dateFrom = (document.getElementById('orders-date-from') || {}).value || _ordersDateFrom;
+  const dateTo = (document.getElementById('orders-date-to') || {}).value || _ordersDateTo;
+  _ordersDatePreset = datePreset;
+  _ordersDateFrom = dateFrom;
+  _ordersDateTo = dateTo;
+
   let filtered = orders;
   if (accountFilter) filtered = filtered.filter(s => s.AccountID === accountFilter);
   if (staffFilter)   filtered = filtered.filter(s => s.StaffID === staffFilter);
   if (statusFilter)  filtered = filtered.filter(s => s.Status === statusFilter);
+  if (dateFrom) filtered = filtered.filter(s => (s.OrderDate || '') >= dateFrom);
+  if (dateTo)   filtered = filtered.filter(s => (s.OrderDate || '') <= dateTo);
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(s =>
@@ -2060,7 +2108,26 @@ function renderOrders() {
         <option value="">All Statuses</option>
         ${ORDER_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
+      <select id="orders-date-preset" onchange="applyOrderDatePreset(this.value)">
+        <option value="" ${datePreset === '' ? 'selected' : ''}>All Dates</option>
+        <option value="today" ${datePreset === 'today' ? 'selected' : ''}>Today</option>
+        <option value="yesterday" ${datePreset === 'yesterday' ? 'selected' : ''}>Yesterday</option>
+        <option value="last7" ${datePreset === 'last7' ? 'selected' : ''}>Last 7 Days</option>
+        <option value="last30" ${datePreset === 'last30' ? 'selected' : ''}>Last 30 Days</option>
+        <option value="this-month" ${datePreset === 'this-month' ? 'selected' : ''}>This Month</option>
+        <option value="last-month" ${datePreset === 'last-month' ? 'selected' : ''}>Last Month</option>
+        <option value="this-year" ${datePreset === 'this-year' ? 'selected' : ''}>This Year</option>
+        <option value="last-year" ${datePreset === 'last-year' ? 'selected' : ''}>Last Year</option>
+        <option value="custom" ${datePreset === 'custom' ? 'selected' : ''}>Custom Range</option>
+      </select>
     </div>
+    ${datePreset === 'custom' ? `
+    <div class="filter-bar">
+      <label class="text-sm text-muted" style="white-space:nowrap">From</label>
+      <input type="date" class="form-control" id="orders-date-from" value="${esc(dateFrom)}" onchange="_paginationReset('orders'); renderOrders()" />
+      <label class="text-sm text-muted" style="white-space:nowrap">To</label>
+      <input type="date" class="form-control" id="orders-date-to" value="${esc(dateTo)}" onchange="_paginationReset('orders'); renderOrders()" />
+    </div>` : ''}
     <div class="table-wrap">
       <table>
         <thead>
