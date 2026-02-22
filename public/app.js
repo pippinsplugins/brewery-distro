@@ -939,6 +939,13 @@ function outreachForm(entry = {}, presetAccountId = '') {
         <input type="checkbox" id="f-create-todo" style="margin-right:6px;" />
         Create a todo for this follow-up
       </label>
+    </div>
+    <div class="form-group">
+      <label>Assign To</label>
+      <select class="form-control" id="f-todo-staff">
+        <option value="">-- Unassigned --</option>
+        ${staffOptions()}
+      </select>
     </div>`;
 }
 
@@ -1041,11 +1048,14 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
     });
 
     if (createTodo && followUpDate) {
+      const todoStaffId = val('f-todo-staff');
+      const todoStaffName = todoStaffId ? (state.staff.find(s => s.ID === todoStaffId) || {}).Name || '' : '';
       await api.post('/api/reminders', {
         Type: 'Follow-up', AccountID: accountId, AccountName: accountName,
         Title: `Follow up with ${accountName}`,
         DueDate: followUpDate, Priority: 'Medium',
         Notes: `Re: outreach on ${val('f-date')}`,
+        StaffID: todoStaffId, StaffName: todoStaffName,
       });
     }
 
