@@ -112,6 +112,14 @@ function formatDate(d) {
   return `${m}/${day}/${y}`;
 }
 
+function formatPhone(p) {
+  if (!p) return '';
+  const digits = p.replace(/\D/g, '');
+  if (digits.length === 10) return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits[0] === '1') return `(${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+  return p; // Return as-is if not a standard US number
+}
+
 function today() {
   return new Date().toISOString().split('T')[0];
 }
@@ -646,7 +654,7 @@ function accountForm(acct = {}) {
       </div>
       <div class="form-group">
         <label>Phone</label>
-        <input class="form-control" id="f-phone" type="tel" value="${esc(acct.Phone)}" placeholder="(555) 000-0000" />
+        <input class="form-control" id="f-phone" type="tel" value="${esc(formatPhone(acct.Phone))}" placeholder="(555) 000-0000" onblur="this.value=formatPhone(this.value)" />
       </div>
     </div>
     <hr class="form-divider" />
@@ -749,7 +757,7 @@ function renderAccounts() {
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && a.State ? ', ' : ''}${esc(a.State)}</span></td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
-              <td class="text-sm">${a.Email ? esc(a.Email) + '<br>' : ''}${esc(a.Phone)}</td>
+              <td class="text-sm">${a.Email ? esc(a.Email) + '<br>' : ''}${esc(formatPhone(a.Phone))}</td>
               <td>${methodBadge(a.PreferredMethod)}</td>
               <td class="text-sm">${esc(a.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${statusBadge(a.Status)}</td>
@@ -815,7 +823,7 @@ async function loadAccountProfile(accountId) {
     `<div class="profile-info-item"><span class="profile-info-label">Account ID</span><span class="text-muted text-sm" style="font-family:monospace">${esc(acct.ID)}</span></div>`,
     acct.ContactName  ? `<div class="profile-info-item"><span class="profile-info-label">Contact</span><span>${esc(acct.ContactName)}</span></div>` : '',
     acct.Email        ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email)}</span></div>` : '',
-    acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(acct.Phone)}</span></div>` : '',
+    acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(formatPhone(acct.Phone))}</span></div>` : '',
     acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
     (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${[acct.Address, acct.City, acct.State].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
     acct.ABCLicense   ? `<div class="profile-info-item"><span class="profile-info-label">ABC License</span><span>${esc(acct.ABCLicense)}</span></div>` : '',
@@ -1926,7 +1934,7 @@ function staffForm(member = {}) {
       </div>
       <div class="form-group">
         <label>Phone</label>
-        <input class="form-control" id="f-phone" type="tel" value="${esc(member.Phone)}" placeholder="(555) 000-0000" />
+        <input class="form-control" id="f-phone" type="tel" value="${esc(formatPhone(member.Phone))}" placeholder="(555) 000-0000" onblur="this.value=formatPhone(this.value)" />
       </div>
     </div>
     <div class="form-group">
@@ -1997,7 +2005,7 @@ function renderStaff() {
               <td class="fw-600"><span class="td-link" onclick="openEditStaff('${esc(s.ID)}')">${esc(s.Name)}</span></td>
               <td>${esc(s.Role) || '—'}</td>
               <td class="text-sm">${esc(s.Email) || '—'}</td>
-              <td class="text-sm">${esc(s.Phone) || '—'}</td>
+              <td class="text-sm">${s.Phone ? esc(formatPhone(s.Phone)) : '—'}</td>
               <td><span class="badge badge-prospect">${acctCounts[s.ID] || 0} account${(acctCounts[s.ID] || 0) !== 1 ? 's' : ''}</span></td>
               <td><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
               <td class="text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
