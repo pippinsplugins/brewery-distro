@@ -2232,11 +2232,11 @@ function renderOrders() {
         <thead>
           <tr>
             <th>Order Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
-            <th>Order Amt</th><th>Tax</th><th>Total</th><th>Delivery</th><th>Status</th><th>Delivered</th><th>Actions</th>
+            <th>Order Amt</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="11" class="empty-state">No orders found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="10" class="empty-state">No orders found.</td></tr>` :
             pg.rows.map(s => {
               const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
               return `<tr>
@@ -2247,13 +2247,12 @@ function renderOrders() {
                 <td>${fmtMoney(s.OrderAmount)}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${fmtMoney(total)}</td>
-                <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
                 <td>${orderStatusBadge(s.Status)}</td>
                 <td class="text-center">${s.Delivered === 'true'
-                  ? '<input type="checkbox" checked disabled />'
+                  ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
                 <td class="td-actions">
-                  ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
+                  ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
                 </td>
@@ -2267,7 +2266,7 @@ function renderOrders() {
             <td>${fmtMoney(totalOrder)}</td>
             <td>${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
-            <td colspan="4"></td>
+            <td colspan="3"></td>
           </tr>
         </tfoot>` : ''}
       </table>
