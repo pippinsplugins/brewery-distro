@@ -1028,11 +1028,11 @@ function outreachForm(entry = {}, presetAccountId = '') {
     </div>
     <div class="form-group">
       <label>
-        <input type="checkbox" id="f-create-todo" style="margin-right:6px;" />
+        <input type="checkbox" id="f-create-todo" style="margin-right:6px;" onchange="document.getElementById('todo-fields').style.display=this.checked?'':'none'" />
         Create a todo for this follow-up
       </label>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="todo-fields" style="display:none">
       <div class="form-group">
         <label>Todo Type</label>
         <select class="form-control" id="f-todo-type">
