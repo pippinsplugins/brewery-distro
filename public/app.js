@@ -2185,6 +2185,16 @@ function openDeliveryConfirmModal(orderId, order, onComplete) {
     return;
   }
 
+  const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
+  const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
+  const delivRow = (item, hidden) => `<tr data-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
+            <td class="fw-600">${esc(item.Name)}</td>
+            <td class="text-sm">${esc(item.Format) || '—'}</td>
+            <td class="text-sm">${esc(item.Units)}</td>
+            <td><input class="form-control" type="number" min="0" value="0"
+                 id="deliv-qty-${item.ID}" style="width:80px" /></td>
+          </tr>`;
+
   modal.open('Confirm Delivery', `
     <p class="text-muted text-sm" style="margin-bottom:16px">
       Confirming delivery for <strong>${esc(acctName)}</strong>${invLabel}.
@@ -2194,16 +2204,18 @@ function openDeliveryConfirmModal(orderId, order, onComplete) {
       <table>
         <thead><tr><th>Product</th><th>Format</th><th>In Stock</th><th>Qty Delivered</th></tr></thead>
         <tbody>
-          ${items.map(item => `<tr>
-            <td class="fw-600">${esc(item.Name)}</td>
-            <td class="text-sm">${esc(item.Format) || '—'}</td>
-            <td class="text-sm">${esc(item.Units)}</td>
-            <td><input class="form-control" type="number" min="0" value="0"
-                 id="deliv-qty-${item.ID}" style="width:80px" /></td>
-          </tr>`).join('')}
+          ${inStock.map(i => delivRow(i, false)).join('')}
+          ${outOfStock.map(i => delivRow(i, true)).join('')}
         </tbody>
       </table>
     </div>
+    ${outOfStock.length ? `<div class="form-group">
+      <label style="cursor:pointer">
+        <input type="checkbox" id="deliv-show-oos" style="margin-right:6px"
+          onchange="document.querySelectorAll('#modal-overlay tr[data-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
+        Show out-of-stock products (${outOfStock.length})
+      </label>
+    </div>` : ''}
     <div class="form-group">
       <label>Delivery Notes</label>
       <textarea class="form-control" id="deliv-notes" rows="2" placeholder="Optional notes..."></textarea>
