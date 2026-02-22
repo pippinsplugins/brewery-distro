@@ -1253,14 +1253,15 @@ function todoForm(todo = {}) {
 }
 
 let _todosCache = [];
+let _todoStatusFilter = 'active';
 
 async function loadTodos() {
   _paginationReset('todos');
-  const statusFilter = (document.getElementById('todo-status') || {}).value || 'active';
+  _todoStatusFilter = (document.getElementById('todo-status') || {}).value || _todoStatusFilter;
   showLoading();
 
   const [todos, accounts, staff] = await Promise.all([
-    api.get(`/api/reminders?status=${statusFilter}`),
+    api.get(`/api/reminders?status=${_todoStatusFilter}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
   ]);
@@ -1274,7 +1275,7 @@ async function loadTodos() {
 function renderTodos() {
   const todos = _todosCache;
   const _focused = document.activeElement?.id;
-  const statusFilter = (document.getElementById('todo-status') || {}).value || 'active';
+  const statusFilter = _todoStatusFilter;
   const search = (document.getElementById('todo-search') || {}).value || '';
   const staffFilter = state.navFilters?.staffId || '';
   const staffFilterName = state.navFilters?.staffName || '';
