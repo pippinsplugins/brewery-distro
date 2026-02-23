@@ -203,7 +203,7 @@ function typeBadge(type) {
 }
 
 function orderStatusBadge(status) {
-  const map = { Pending: 'badge-pending', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
+  const map = { 'Pre-Sale': 'badge-pre-sale', Pending: 'badge-pending', Paid: 'badge-paid', Cancelled: 'badge-cancelled' };
   return `<span class="badge ${map[status] || 'badge-pending'}">${esc(status || 'Pending')}</span>`;
 }
 

@@ -44,9 +44,9 @@ router.get('/', async (req, res) => {
       .slice(0, 8);
 
     const currentMonth = today.substring(0, 7); // 'YYYY-MM'
-    const monthlyOrders = orders.filter(s => (s.OrderDate || '').startsWith(currentMonth));
+    const monthlyOrders = orders.filter(s => (s.OrderDate || '').startsWith(currentMonth) && s.Status !== 'Pre-Sale');
     const monthlyOrdersTotal = monthlyOrders.reduce((sum, s) => sum + parseFloat(s.OrderAmount || 0), 0);
-    const pendingDeliveries = orders.filter(s => s.Delivered !== 'true' && s.Status !== 'Cancelled').length;
+    const pendingDeliveries = orders.filter(s => s.Delivered !== 'true' && s.Status !== 'Cancelled' && s.Status !== 'Pre-Sale').length;
 
     res.json({
       totalProducts: inventory.length,

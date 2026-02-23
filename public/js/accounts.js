@@ -296,21 +296,24 @@ async function loadAccountProfile(accountId) {
     ? `<tr><td colspan="9" class="empty-state">No orders recorded yet.</td></tr>`
     : acctOrders.map(s => {
         const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
+        const isPreSale = s.Status === 'Pre-Sale';
         return `<tr>
-          <td class="text-sm">${formatDate(s.OrderDate)}</td>
+          <td class="text-sm">${formatDate(s.OrderDate)}${s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
           <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
           <td class="text-sm">${esc(s.StaffName) || '—'}</td>
-          <td>${fmtMoney(s.OrderAmount)}</td>
+          <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
           <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
-          <td class="fw-600">${fmtMoney(total)}</td>
+          <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
           <td>${orderStatusBadge(s.Status)}</td>
-          <td class="text-center">${s.Delivered === 'true'
+          <td class="text-center">${isPreSale ? '—'
+            : s.Delivered === 'true'
             ? '<input type="checkbox" checked disabled />'
             : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
           <td class="td-actions">
-            ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
+            ${isPreSale ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
+            : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">Edit</button>
-            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>
+            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>`}
           </td>
         </tr>`;
       }).join('');
@@ -403,7 +406,10 @@ async function loadAccountProfile(accountId) {
     <div class="profile-section">
       <div class="profile-section-header">
         <h3>Order History <span class="text-muted text-sm">(${acctOrders.length})</span></h3>
-        <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
+        <div>
+          <button class="btn btn-ghost btn-sm" onclick="openAddPreSale('${esc(accountId)}')">+ Pre-Sale</button>
+          <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
