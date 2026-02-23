@@ -22,6 +22,7 @@ const webhooksRoutes       = require('./routes/webhooks');
 const stockMovementsRoutes = require('./routes/stock-movements');
 const settingsRoutes       = require('./routes/settings');
 const kegTrackingRoutes    = require('./routes/keg-tracking');
+const tapHandlesRoutes     = require('./routes/tap-handles');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +70,7 @@ app.use('/api/stock-movements', requireAuth, stockMovementsRoutes);
 app.use('/api/dashboard',       requireAuth, dashboardRoutes);
 app.use('/api/settings',        requireAuth, settingsRoutes);
 app.use('/api/keg-tracking',    requireAuth, kegTrackingRoutes);
+app.use('/api/tap-handles',     requireAuth, tapHandlesRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
