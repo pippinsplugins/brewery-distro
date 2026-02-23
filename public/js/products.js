@@ -179,9 +179,13 @@ function openEditProduct(id) {
 
 function deleteProduct(id, name) {
   modal.confirm('Delete Product', `Delete "${name}" from all locations? This cannot be undone. Products with stock remaining cannot be deleted.`, async () => {
-    await api.del(`/api/products/${id}`);
-    modal.close();
-    toast('Product deleted');
-    loadProducts();
+    try {
+      await api.del(`/api/products/${id}`);
+      modal.close();
+      toast('Product deleted');
+      loadProducts();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   });
 }
