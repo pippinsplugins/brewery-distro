@@ -143,7 +143,29 @@ function formatProductsSummary(products) {
   return `<br><span class="text-muted text-sm" title="${esc(products)}" style="cursor:default">${esc(summary)}</span>`;
 }
 
-function productPickerHtml(items) {
+function parseRequestedProducts(productsStr, inventoryItems) {
+  const quantities = {};
+  if (!productsStr) return quantities;
+  const parts = productsStr.split(',').map(s => s.trim()).filter(Boolean);
+  for (const part of parts) {
+    // Parse "2x Cascade IPA (1/6 Keg)" → qty=2, name="Cascade IPA", format="1/6 Keg"
+    const match = part.match(/^(\d+)x\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/);
+    if (!match) continue;
+    const qty = parseInt(match[1]);
+    const name = match[2].trim();
+    const format = match[3] ? match[3].trim() : null;
+    // Find matching inventory item by name and format
+    const item = inventoryItems.find(i => {
+      if (i.Name !== name) return false;
+      if (format && i.Format !== format) return false;
+      return true;
+    });
+    if (item) quantities[item.ID] = qty;
+  }
+  return quantities;
+}
+
+function productPickerHtml(items, quantities = {}) {
   if (!items || items.length === 0) {
     return `<p class="text-muted text-sm">No products available for this location.</p>`;
   }
@@ -152,12 +174,13 @@ function productPickerHtml(items) {
 
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
+    const qty = quantities[item.ID] || 0;
     return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
       <td class="fw-600">${esc(item.Name)}</td>
       <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm">${esc(item.Units)}</td>
-      <td><input class="form-control" type="number" min="0" value="0"
+      <td><input class="form-control" type="number" min="0" value="${qty}"
            id="op-qty-${item.ID}" style="width:80px"
            onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>
     </tr>`;
@@ -180,13 +203,15 @@ function productPickerHtml(items) {
     </label>` : ''}`;
 }
 
-async function refreshOrderProducts() {
+async function refreshOrderProducts(existingProducts = '') {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
   _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
+  const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
   const wrap = document.getElementById('order-products-wrap');
-  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory);
-  recalcOrderAmount();
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+  // Only auto-recalc if not restoring existing quantities (preserve manually set amount)
+  if (!existingProducts) recalcOrderAmount();
 }
 
 function recalcOrderAmount() {
@@ -443,7 +468,7 @@ async function openEditOrder(id) {
     toast('Order updated');
     loadOrders();
   });
-  await refreshOrderProducts();
+  await refreshOrderProducts(order.RequestedProducts);
 }
 
 async function deleteOrder(id) {
@@ -530,7 +555,7 @@ async function convertPreSale(id) {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
-  await refreshOrderProducts();
+  await refreshOrderProducts(ps.RequestedProducts);
 }
 
 async function cancelPreSale(id) {

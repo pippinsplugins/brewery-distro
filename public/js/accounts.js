@@ -571,7 +571,7 @@ function profileEditOrder(id) {
       toast('Order updated');
       loadAccountProfile(state.accountProfileId);
     });
-    await refreshOrderProducts();
+    await refreshOrderProducts(order.RequestedProducts);
   });
 }
 
