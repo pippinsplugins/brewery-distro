@@ -82,6 +82,9 @@ function renderKegs() {
         <h2>Keg Tracking</h2>
         <p class="subtitle">${totalOutstanding} outstanding keg${totalOutstanding !== 1 ? 's' : ''} &mdash; ${filtered.length} record${filtered.length !== 1 ? 's' : ''}</p>
       </div>
+      <div class="view-header-actions">
+        <button class="btn btn-primary" onclick="openAddKegs()">+ Add Kegs</button>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -105,4 +108,66 @@ function renderKegs() {
     ${pg.total > 0 ? paginationControls('kegs', pg, 'renderKegs') : ''}`);
 
   if (_focused === 'kegs-search') refocusSearch('kegs-search');
+}
+
+const KEG_FORMATS = ['1/2 Keg', '1/4 Keg', '1/6 Keg'];
+
+async function openAddKegs(presetAccountId = '') {
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  const formHtml = `
+    <div class="form-group">
+      <label>Account <span class="required">*</span></label>
+      <select class="form-control" id="f-account" ${presetAccountId ? 'disabled' : ''}>
+        <option value="">-- Select Account --</option>
+        ${accountOptions(presetAccountId)}
+      </select>
+      ${presetAccountId ? `<input type="hidden" id="f-account-hidden" value="${esc(presetAccountId)}" />` : ''}
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Product Name <span class="required">*</span></label>
+        <input class="form-control" id="f-product" placeholder="e.g. Cascade IPA" />
+      </div>
+      <div class="form-group">
+        <label>Format <span class="required">*</span></label>
+        <select class="form-control" id="f-format">
+          ${KEG_FORMATS.map(f => `<option value="${f}">${f}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Quantity <span class="required">*</span></label>
+        <input class="form-control" id="f-qty" type="number" min="1" value="1" />
+      </div>
+      <div class="form-group">
+        <label>Delivered Date</label>
+        <input class="form-control" id="f-date" type="date" value="${today()}" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input class="form-control" id="f-notes" type="text" placeholder="e.g. Migrated from previous system" />
+    </div>`;
+  modal.open('Add Kegs', formHtml, async () => {
+    const accountId = presetAccountId || val('f-account');
+    if (!accountId) { toast('Please select an account', 'error'); return; }
+    const productName = val('f-product');
+    if (!productName) { toast('Product name is required', 'error'); return; }
+    const format = val('f-format');
+    if (!format) { toast('Format is required', 'error'); return; }
+    const qty = parseInt(val('f-qty'));
+    if (!qty || qty < 1) { toast('Enter a valid quantity', 'error'); return; }
+    const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
+    await api.post('/api/keg-tracking', {
+      accountId, accountName, productName, format,
+      quantity: qty,
+      deliveredDate: val('f-date') || today(),
+      notes: val('f-notes') || '',
+    });
+    modal.close();
+    toast(`${qty} keg${qty > 1 ? 's' : ''} added`);
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadKegs();
+  });
 }

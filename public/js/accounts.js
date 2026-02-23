@@ -413,6 +413,7 @@ async function loadAccountProfile(accountId) {
     <div class="profile-section">
       <div class="profile-section-header">
         <h3>Keg Tracking <span class="text-muted text-sm">(${outstandingKegs} outstanding)</span></h3>
+        <button class="btn btn-ghost btn-sm" onclick="openAddKegs('${esc(accountId)}')">+ Add Kegs</button>
       </div>
       <div class="table-wrap">
         <table>
