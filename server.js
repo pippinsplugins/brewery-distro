@@ -77,8 +77,8 @@ app.use('/api/tap-handles',     requireAuth, tapHandlesRoutes);
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
   res.json({
-    configured:    !!(process.env.SPREADSHEET_ID && (process.env.GOOGLE_KEY_FILE || process.env.GOOGLE_SERVICE_ACCOUNT_KEY)),
-    spreadsheetId: process.env.SPREADSHEET_ID || null,
+    configured: true,
+    dataSource: 'sqlite',
   });
 });
 
@@ -93,10 +93,10 @@ app.get('*', requireAuth, (req, res) => {
 // ── Server startup ─────────────────────────────────────────────────────────
 async function start() {
   try {
-    console.log('Connecting to Google Sheets...');
+    console.log('Initializing database...');
     await initializeSheets();
     await migrateInventoryToProducts();
-    console.log('Google Sheets initialized successfully.');
+    console.log('Database initialized successfully.');
     app.listen(PORT, () => {
       console.log(`Brewery Distribution app running at http://localhost:${PORT}`);
     });
