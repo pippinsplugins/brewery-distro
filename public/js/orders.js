@@ -256,7 +256,7 @@ function renderOrders() {
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
-                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${isPreSale && s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
                 <td class="text-sm">${esc(s.StaffName) || '—'}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
@@ -415,6 +415,7 @@ async function convertPreSale(id) {
       InvoiceNumber: val('f-invoice'), Status: 'Pending',
       OrderAmount: amount, TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
+      RequestedProducts: ps.RequestedProducts || '',
     });
     modal.close();
     toast('Pre-sale converted to order');
