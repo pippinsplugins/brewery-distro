@@ -1,26 +1,26 @@
 'use strict';
 
 const VIEW_LOADERS = {
-  dashboard: loadDashboard,
-  inventory: loadInventory,
-  accounts:  loadAccounts,
-  outreach:  loadOutreach,
-  todos: loadTodos,
-  orders:    loadOrders,
+  dashboard:     loadDashboard,
+  products:      loadProducts,
+  inventory:     loadInventory,
+  accounts:      loadAccounts,
+  outreach:      loadOutreach,
+  todos:         loadTodos,
+  orders:        loadOrders,
   kegs:          loadKegs,
   'tap-handles': loadTapHandles,
   staff:         loadStaff,
   settings:      loadSettings,
-  kegs:      loadKegs,
-  staff:     loadStaff,
-  settings:  loadSettings,
-  map:       loadMap,
+  map:           loadMap,
 };
 
 // Maps child views to their parent nav-group name
 const SUBMENU_VIEWS = {
-  accounts: 'accounts',
-  map:      'accounts',
+  inventory: 'inventory',
+  products:  'inventory',
+  accounts:  'accounts',
+  map:       'accounts',
 };
 
 function navigate(view, filters = {}) {

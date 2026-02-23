@@ -6,36 +6,84 @@ const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
 
 const router = express.Router();
 
+// Helper: enrich inventory rows with product data so the response shape
+// matches what all existing consumers (orders product picker, delivery
+// confirmation, dashboard) expect.
+async function enrichInventory(items) {
+  const products = await getAllRows('PRODUCTS');
+  const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
+  return items.map(inv => {
+    const product = productMap[inv.ProductID] || {};
+    return {
+      ...inv,
+      Name: inv.ProductName || product.Name || inv.Name || '',
+      Style: product.Style || inv.Style || '',
+      ABV: product.ABV || inv.ABV || '',
+      Format: product.Format || inv.Format || '',
+      PricePerUnit: product.PricePerUnit || inv.PricePerUnit || '',
+    };
+  });
+}
+
 router.get('/', async (req, res) => {
   try {
     const { location } = req.query;
     let items = await getAllRows('INVENTORY');
     if (location) items = items.filter(i => i.Location === location);
+    items = await enrichInventory(items);
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// POST /api/inventory — add a product to a specific location
 router.post('/', async (req, res) => {
   try {
-    const { Name, Location, Style, ABV, Format, Units, PricePerUnit, LowStockThreshold, Notes } = req.body;
-    if (!Name) return res.status(400).json({ error: 'Name is required' });
+    const { ProductID, Location, Units, LowStockThreshold, Name, Style, ABV, Format, PricePerUnit, Notes } = req.body;
+
+    // Support legacy create (full product fields) for backward compatibility
+    if (!ProductID && Name) {
+      const item = {
+        ID: uuidv4(),
+        Name: Name.trim(),
+        Location: Location || '',
+        Style: Style || '',
+        ABV: ABV || '',
+        Format: Format || '',
+        Units: Units !== undefined ? String(Units) : '0',
+        PricePerUnit: PricePerUnit || '',
+        LowStockThreshold: LowStockThreshold !== undefined ? String(LowStockThreshold) : '5',
+        Notes: Notes || '',
+        LastUpdated: new Date().toISOString().split('T')[0],
+      };
+      await addRow('INVENTORY', item);
+      return res.status(201).json(item);
+    }
+
+    // New-style: add product to a location
+    if (!ProductID) return res.status(400).json({ error: 'ProductID is required' });
+    if (!Location) return res.status(400).json({ error: 'Location is required' });
+
+    // Verify product exists
+    const products = await getAllRows('PRODUCTS');
+    const product = products.find(p => p.ID === ProductID);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    // Check if already exists at this location
+    const inventory = await getAllRows('INVENTORY');
+    const existing = inventory.find(i => i.ProductID === ProductID && i.Location === Location);
+    if (existing) return res.status(400).json({ error: 'Product already exists at this location' });
 
     const item = {
       ID: uuidv4(),
-      Name: Name.trim(),
-      Location: Location || '',
-      Style: Style || '',
-      ABV: ABV || '',
-      Format: Format || '',
-      Units: Units !== undefined ? String(Units) : '0',
-      PricePerUnit: PricePerUnit || '',
+      ProductID,
+      ProductName: product.Name,
+      Location,
+      Units: '0',
       LowStockThreshold: LowStockThreshold !== undefined ? String(LowStockThreshold) : '5',
-      Notes: Notes || '',
       LastUpdated: new Date().toISOString().split('T')[0],
     };
-
     await addRow('INVENTORY', item);
     res.status(201).json(item);
   } catch (err) {

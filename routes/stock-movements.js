@@ -33,6 +33,8 @@ router.post('/bulk', async (req, res) => {
     const order = allOrders.find(o => o.ID === orderId);
 
     const inventory = await getAllRows('INVENTORY');
+    const products  = await getAllRows('PRODUCTS');
+    const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
     const movDate   = date || new Date().toISOString().split('T')[0];
     const createdAt = new Date().toISOString();
     const movements = [];
@@ -44,11 +46,14 @@ router.post('/bulk', async (req, res) => {
 
       const inv = inventory.find(i => i.ID === item.inventoryId);
       if (!inv) continue;
+      const product = productMap[inv.ProductID] || {};
+      const invName = inv.ProductName || product.Name || inv.Name || '';
+      const invFormat = product.Format || inv.Format || '';
 
       const movement = {
         ID:            uuidv4(),
         InventoryID:   item.inventoryId,
-        InventoryName: [inv.Name, inv.Format].filter(Boolean).join(' — '),
+        InventoryName: [invName, invFormat].filter(Boolean).join(' — '),
         OrderID:       orderId,
         Type:          'sale',
         Quantity:      String(-qty),
@@ -66,15 +71,15 @@ router.post('/bulk', async (req, res) => {
       });
 
       // Auto-create keg tracking record for keg-format products
-      if (inv.Format && inv.Format.toLowerCase().includes('keg') && order) {
+      if (invFormat && invFormat.toLowerCase().includes('keg') && order) {
         const kegRecord = {
           ID:               uuidv4(),
           AccountID:        order.AccountID || '',
           AccountName:      order.AccountName || '',
           OrderID:          orderId,
           InventoryID:      item.inventoryId,
-          ProductName:      inv.Name || '',
-          Format:           inv.Format || '',
+          ProductName:      invName,
+          Format:           invFormat,
           Quantity:         String(qty),
           DeliveredDate:    movDate,
           ReturnedDate:     '',
@@ -112,6 +117,12 @@ router.post('/', async (req, res) => {
     const inv = inventory.find(i => i.ID === inventoryId);
     if (!inv) return res.status(404).json({ error: 'Inventory item not found' });
 
+    const products  = await getAllRows('PRODUCTS');
+    const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
+    const product = productMap[inv.ProductID] || {};
+    const invName = inv.ProductName || product.Name || inv.Name || '';
+    const invFormat = product.Format || inv.Format || '';
+
     // received = add stock; write-off and adjustment = remove stock
     const delta     = type === 'received' ? qty : -qty;
     const movDate   = date || new Date().toISOString().split('T')[0];
@@ -120,7 +131,7 @@ router.post('/', async (req, res) => {
     const movement = {
       ID:            uuidv4(),
       InventoryID:   inventoryId,
-      InventoryName: [inv.Name, inv.Format].filter(Boolean).join(' — '),
+      InventoryName: [invName, invFormat].filter(Boolean).join(' — '),
       OrderID:       '',
       Type:          type,
       Quantity:      String(delta),
