@@ -664,15 +664,22 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     return;
   }
 
+  // Pre-fill delivery quantities from order's requested products
+  const orderQuantities = parseRequestedProducts(order.RequestedProducts, items);
+
   const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
   const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
-  const delivRow = (item, hidden) => `<tr data-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
+  const delivRow = (item, hidden) => {
+    const stock = parseInt(item.Units || '0');
+    const prefill = Math.min(orderQuantities[item.ID] || 0, stock);
+    return `<tr data-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
             <td class="fw-600">${esc(item.Name)}</td>
             <td class="text-sm">${esc(item.Format) || '—'}</td>
             <td class="text-sm">${esc(item.Units)}</td>
-            <td><input class="form-control" type="number" min="0" max="${parseInt(item.Units || '0')}" value="0"
+            <td><input class="form-control" type="number" min="0" max="${stock}" value="${prefill}"
                  id="deliv-qty-${item.ID}" style="width:80px" /></td>
           </tr>`;
+  };
 
   // Products section (only if inventory items exist)
   const productsSection = items.length ? `
