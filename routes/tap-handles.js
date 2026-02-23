@@ -43,14 +43,13 @@ router.get('/summary', async (req, res) => {
 // POST /api/tap-handles — create a tap handle record
 router.post('/', async (req, res) => {
   try {
-    const { accountId, accountName, productName, quantity, deployedDate, notes } = req.body;
+    const { accountId, accountName, quantity, deployedDate, notes } = req.body;
     if (!accountId || !quantity) return res.status(400).json({ error: 'accountId and quantity are required' });
 
     const record = {
       ID: uuidv4(),
       AccountID: accountId,
       AccountName: accountName || '',
-      ProductName: productName || '',
       Quantity: String(quantity),
       DeployedDate: deployedDate || new Date().toISOString().split('T')[0],
       CollectedDate: '',

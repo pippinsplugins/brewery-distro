@@ -30,8 +30,7 @@ function renderTapHandles() {
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(r =>
-      (r.AccountName || '').toLowerCase().includes(q) ||
-      (r.ProductName || '').toLowerCase().includes(q)
+      (r.AccountName || '').toLowerCase().includes(q)
     );
   }
 
@@ -53,7 +52,7 @@ function renderTapHandles() {
   const pg = paginate(filtered, 'tapHandles');
 
   const rows = pg.total === 0
-    ? `<tr><td colspan="7" class="empty-state">No tap handle records found.</td></tr>`
+    ? `<tr><td colspan="6" class="empty-state">No tap handle records found.</td></tr>`
     : pg.rows.map(h => {
         const qty = parseInt(h.Quantity) || 0;
         const collected = parseInt(h.CollectedQuantity) || 0;
@@ -61,14 +60,13 @@ function renderTapHandles() {
         const fullyCollected = outstanding === 0;
         return `<tr class="${fullyCollected ? 'row-completed' : ''}">
           <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(h.AccountID)}')">${esc(h.AccountName)}</span></td>
-          <td>${esc(h.ProductName)}</td>
           <td class="text-sm">${formatDate(h.DeployedDate)}</td>
           <td class="text-center">${qty}</td>
           <td class="text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', '${esc(h.ProductName)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
+              ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Collected</span>'}
             <button class="btn btn-ghost btn-sm text-danger" onclick="deleteTapHandle('${esc(h.ID)}')">Del</button>
           </td>
@@ -87,7 +85,7 @@ function renderTapHandles() {
     </div>
 
     <div class="filter-bar">
-      <input type="search" id="th-search" placeholder="Search accounts or products…" value="${esc(search)}"
+      <input type="search" id="th-search" placeholder="Search accounts…" value="${esc(search)}"
              oninput="_paginationReset('tapHandles'); renderTapHandles()" />
       <select id="th-status" onchange="_tapHandlesStatusFilter=this.value; _paginationReset('tapHandles'); renderTapHandles()">
         <option value="outstanding"${statusFilter === 'outstanding' ? ' selected' : ''}>Outstanding Only</option>
@@ -98,7 +96,7 @@ function renderTapHandles() {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Account</th><th>Product</th><th>Deployed</th>
+          <th>Account</th><th>Deployed</th>
           <th class="text-center">Qty</th><th class="text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -122,16 +120,11 @@ async function openDeployTapHandle(presetAccountId = '') {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Product / Handle Name <span class="required">*</span></label>
-        <input class="form-control" id="f-product" placeholder="e.g. Cascade IPA" />
-      </div>
-      <div class="form-group">
         <label>Quantity <span class="required">*</span></label>
         <input class="form-control" id="f-qty" type="number" min="1" value="1" />
       </div>
-    </div>
-    <div class="form-group">
-      <label>Deployed Date</label>
+      <div class="form-group">
+        <label>Deployed Date</label>
       <input class="form-control" id="f-date" type="date" value="${today()}" />
     </div>
     <div class="form-group">
@@ -141,13 +134,11 @@ async function openDeployTapHandle(presetAccountId = '') {
   modal.open('Deploy Tap Handle', formHtml, async () => {
     const accountId = presetAccountId || val('f-account');
     if (!accountId) { toast('Please select an account', 'error'); return; }
-    const productName = val('f-product');
-    if (!productName) { toast('Product name is required', 'error'); return; }
     const qty = parseInt(val('f-qty'));
     if (!qty || qty < 1) { toast('Enter a valid quantity', 'error'); return; }
     const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
     await api.post('/api/tap-handles', {
-      accountId, accountName, productName,
+      accountId, accountName,
       quantity: qty,
       deployedDate: val('f-date') || today(),
       notes: val('f-notes') || '',
@@ -159,7 +150,7 @@ async function openDeployTapHandle(presetAccountId = '') {
   });
 }
 
-function openCollectTapHandle(handleId, productName, totalQty, alreadyCollected, existingNotes) {
+function openCollectTapHandle(handleId, totalQty, alreadyCollected, existingNotes) {
   const outstanding = totalQty - alreadyCollected;
   const notesHistory = existingNotes
     ? `<div style="margin-bottom:16px;padding:10px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #e0e0e0">
@@ -169,7 +160,6 @@ function openCollectTapHandle(handleId, productName, totalQty, alreadyCollected,
     : '';
   const formHtml = `
     <p class="text-muted text-sm" style="margin-bottom:16px">
-      <strong>${esc(productName)}</strong><br>
       Deployed: <strong>${totalQty}</strong> &mdash;
       Collected: <strong>${alreadyCollected}</strong> &mdash;
       Outstanding: <strong class="text-danger">${outstanding}</strong>

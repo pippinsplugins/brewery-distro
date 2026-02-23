@@ -368,7 +368,7 @@ async function loadAccountProfile(accountId) {
       }).join('');
 
   const tapHandleRows = acctTapHandles.length === 0
-    ? `<tr><td colspan="6" class="empty-state">No tap handles deployed.</td></tr>`
+    ? `<tr><td colspan="5" class="empty-state">No tap handles deployed.</td></tr>`
     : acctTapHandles.map(h => {
         const qty = parseInt(h.Quantity) || 0;
         const collected = parseInt(h.CollectedQuantity) || 0;
@@ -376,13 +376,12 @@ async function loadAccountProfile(accountId) {
         const fullyCollected = outstanding === 0;
         return `<tr class="${fullyCollected ? 'row-completed' : ''}">
           <td class="text-sm">${formatDate(h.DeployedDate)}</td>
-          <td class="fw-600">${esc(h.ProductName)}</td>
           <td class="text-center">${qty}</td>
           <td class="text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', '${esc(h.ProductName)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
+              ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Collected</span>'}
           </td>
         </tr>`;
@@ -481,7 +480,7 @@ async function loadAccountProfile(accountId) {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Deployed</th><th>Product</th><th class="text-center">Qty</th><th class="text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Deployed</th><th class="text-center">Qty</th><th class="text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th></tr></thead>
           <tbody>${tapHandleRows}</tbody>
         </table>
       </div>
