@@ -298,7 +298,7 @@ async function loadAccountProfile(accountId) {
         const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
         const isPreSale = s.Status === 'Pre-Sale';
         return `<tr>
-          <td class="text-sm">${formatDate(s.OrderDate)}${s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
+          <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
           <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
           <td class="text-sm">${esc(s.StaffName) || '—'}</td>
           <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>

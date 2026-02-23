@@ -128,6 +128,21 @@ let _ordersDateFrom = '';
 let _ordersDateTo = '';
 let _orderFormInventory = [];
 
+function formatProductsSummary(products) {
+  if (!products) return '';
+  const items = products.split(',').map(s => s.trim()).filter(Boolean);
+  if (items.length === 0) return '';
+  // Extract just product names: "2x Cascade IPA (1/6 Keg)" → "Cascade IPA"
+  const names = items.map(p => p.replace(/^\d+x\s*/, '').replace(/\s*\([^)]*\)\s*$/, '').trim());
+  let summary;
+  if (names.length <= 2) {
+    summary = names.join(', ');
+  } else {
+    summary = `${names[0]}, ${names[1]} +${names.length - 2} more`;
+  }
+  return `<br><span class="text-muted text-sm" title="${esc(products)}" style="cursor:default">${esc(summary)}</span>`;
+}
+
 function productPickerHtml(items) {
   if (!items || items.length === 0) {
     return `<p class="text-muted text-sm">No products available for this location.</p>`;
@@ -342,7 +357,7 @@ function renderOrders() {
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
-                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
                 <td class="text-sm">${esc(s.StaffName) || '—'}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
