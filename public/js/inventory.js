@@ -75,6 +75,7 @@ async function loadInventory() {
 }
 
 let _invSort = { col: 'Name', dir: 'asc' };
+let _invStockFilter = 'in-stock';
 
 function sortInventory(col) {
   _paginationReset('inventory');
@@ -91,9 +92,15 @@ function renderInventory() {
   const items = state.inventory || [];
   const _focused = document.activeElement?.id;
   const search = (document.getElementById('inv-search') || {}).value || '';
+  const stockFilter = _invStockFilter;
 
-  let filtered = items.filter(i =>
-    !search || i.Name.toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
+  let filtered = items;
+  if (stockFilter === 'in-stock') filtered = filtered.filter(i => parseInt(i.Units || '0') > 0);
+  else if (stockFilter === 'low') filtered = filtered.filter(i => { const u = parseInt(i.Units || '0'); return u > 0 && u <= parseInt(i.LowStockThreshold || '5'); });
+  else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Units || '0') <= 0);
+
+  if (search) filtered = filtered.filter(i =>
+    i.Name.toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
   );
 
   // Sort
@@ -133,6 +140,12 @@ function renderInventory() {
     </div>
     <div class="filter-bar">
       <input type="search" id="inv-search" placeholder="Search products..." value="${esc(search)}" oninput="_paginationReset('inventory'); renderInventory()" />
+      <select id="inv-stock" onchange="_invStockFilter=this.value; _paginationReset('inventory'); renderInventory()">
+        <option value="in-stock"${stockFilter === 'in-stock' ? ' selected' : ''}>In-Stock Only</option>
+        <option value="all"${stockFilter === 'all' ? ' selected' : ''}>All Products</option>
+        <option value="low"${stockFilter === 'low' ? ' selected' : ''}>Low Stock</option>
+        <option value="out"${stockFilter === 'out' ? ' selected' : ''}>Out of Stock</option>
+      </select>
     </div>
     <div class="table-wrap">
       <table>
