@@ -298,7 +298,7 @@ async function loadAccountProfile(accountId) {
         const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
         const isPreSale = s.Status === 'Pre-Sale';
         return `<tr>
-          <td class="text-sm">${formatDate(s.OrderDate)}${s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
+          <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
           <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
           <td class="text-sm">${esc(s.StaffName) || '—'}</td>
           <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
@@ -552,23 +552,26 @@ function profileDeleteTodo(id) {
 }
 
 function profileEditOrder(id) {
-  api.get('/api/orders').then(items => {
+  api.get('/api/orders').then(async items => {
     const order = items.find(s => s.ID === id);
     if (!order) return;
     modal.open('Edit Order', orderForm(order), async () => {
       const staffId = val('f-staff');
       const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+      const products = collectOrderProducts();
       await api.put(`/api/orders/${id}`, {
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
         InvoiceNumber: val('f-invoice'), Status: val('f-status'),
         OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
         Notes: val('f-notes'),
+        RequestedProducts: products || order.RequestedProducts || '',
       });
       modal.close();
       toast('Order updated');
       loadAccountProfile(state.accountProfileId);
     });
+    await refreshOrderProducts(order.RequestedProducts);
   });
 }
 

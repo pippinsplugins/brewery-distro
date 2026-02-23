@@ -16,7 +16,7 @@ function orderForm(order = {}, presetAccountId = '') {
       </div>
       <div class="form-group">
         <label>Location <span class="required">*</span></label>
-        <select class="form-control" id="f-location">
+        <select class="form-control" id="f-location" onchange="refreshOrderProducts()">
           ${LOCATIONS.map(l => `<option value="${l}" ${(order.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
       </div>
@@ -52,6 +52,12 @@ function orderForm(order = {}, presetAccountId = '') {
         </select>
       </div>
     </div>
+    <hr class="form-divider" />
+    <div class="form-section-title">Products</div>
+    <div id="order-products-wrap">
+      <p class="text-muted text-sm">Loading products...</p>
+    </div>
+    <hr class="form-divider" />
     <div class="form-row">
       <div class="form-group">
         <label>Order Amount ($) <span class="required">*</span></label>
@@ -120,7 +126,129 @@ let _ordersCache = [];
 let _ordersDatePreset = '';
 let _ordersDateFrom = '';
 let _ordersDateTo = '';
+let _orderFormInventory = [];
 
+function formatProductsSummary(products) {
+  if (!products) return '';
+  const items = products.split(',').map(s => s.trim()).filter(Boolean);
+  if (items.length === 0) return '';
+  // Extract just product names: "2x Cascade IPA (1/6 Keg)" → "Cascade IPA"
+  const names = items.map(p => {
+    const stripped = p.replace(/^\d+x\s*/, '');
+    const parenIdx = stripped.indexOf('(');
+    return (parenIdx > 0 ? stripped.slice(0, parenIdx) : stripped).trim();
+  });
+  let summary;
+  if (names.length <= 2) {
+    summary = names.join(', ');
+  } else {
+    summary = `${names[0]}, ${names[1]} +${names.length - 2} more`;
+  }
+  return `<br><span class="text-muted text-sm" title="${esc(products)}" style="cursor:default">${esc(summary)}</span>`;
+}
+
+function parseRequestedProducts(productsStr, inventoryItems) {
+  const quantities = {};
+  if (!productsStr) return quantities;
+  const parts = productsStr.split(',').map(s => s.trim()).filter(Boolean);
+  for (const part of parts) {
+    // Extract quantity prefix: "2x Cascade IPA (1/6 Keg)" → qty=2, rest="Cascade IPA (1/6 Keg)"
+    const qtyMatch = part.match(/^(\d+)x\s+/);
+    if (!qtyMatch) continue;
+    const qty = parseInt(qtyMatch[1]);
+    const rest = part.slice(qtyMatch[0].length).trim();
+    // Match against inventory by reconstructing "Name (Format)" as collectOrderProducts does
+    const item = inventoryItems.find(i => {
+      const label = i.Format ? `${i.Name} (${i.Format})` : i.Name;
+      return rest === label || rest === i.Name;
+    });
+    if (item) quantities[item.ID] = qty;
+  }
+  return quantities;
+}
+
+function productPickerHtml(items, quantities = {}) {
+  if (!items || items.length === 0) {
+    return `<p class="text-muted text-sm">No products available for this location.</p>`;
+  }
+  const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
+  const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
+
+  const row = (item, hidden) => {
+    const price = parseFloat(item.PricePerUnit || 0);
+    const qty = quantities[item.ID] || 0;
+    return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
+      <td class="fw-600">${esc(item.Name)}</td>
+      <td class="text-sm">${esc(item.Format) || '—'}</td>
+      <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
+      <td class="text-sm">${esc(item.Units)}</td>
+      <td><input class="form-control" type="number" min="0" value="${qty}"
+           id="op-qty-${item.ID}" style="width:80px"
+           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>
+    </tr>`;
+  };
+
+  return `
+    <div class="table-wrap" style="margin-bottom:8px">
+      <table>
+        <thead><tr><th>Product</th><th>Format</th><th>Price</th><th>In Stock</th><th>Qty</th></tr></thead>
+        <tbody>
+          ${inStock.map(i => row(i, false)).join('')}
+          ${outOfStock.map(i => row(i, true)).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${outOfStock.length ? `<label style="cursor:pointer;font-size:0.85rem">
+      <input type="checkbox" id="op-show-oos" style="margin-right:6px"
+        onchange="document.querySelectorAll('#order-products-wrap tr[data-product-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
+      Show out-of-stock products (${outOfStock.length})
+    </label>` : ''}`;
+}
+
+async function refreshOrderProducts(existingProducts = '') {
+  const location = val('f-location');
+  const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
+  _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
+  const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
+  const wrap = document.getElementById('order-products-wrap');
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+  // Only auto-recalc if not restoring existing quantities (preserve manually set amount)
+  if (!existingProducts) recalcOrderAmount();
+}
+
+function recalcOrderAmount() {
+  let total = 0;
+  let hasProducts = false;
+  for (const item of _orderFormInventory) {
+    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
+    if (qtyEl) {
+      const qty = parseInt(qtyEl.value) || 0;
+      if (qty > 0) {
+        hasProducts = true;
+        total += qty * parseFloat(item.PricePerUnit || 0);
+      }
+    }
+  }
+  if (hasProducts) {
+    const amountEl = document.getElementById('f-amount');
+    if (amountEl) amountEl.value = total.toFixed(2);
+  }
+}
+
+function collectOrderProducts() {
+  const selected = [];
+  for (const item of _orderFormInventory) {
+    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
+    if (qtyEl) {
+      const qty = parseInt(qtyEl.value) || 0;
+      if (qty > 0) {
+        const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+        selected.push(`${qty}x ${label}`);
+      }
+    }
+  }
+  return selected.join(', ');
+}
 
 async function loadOrders() {
   _paginationReset('orders');
@@ -256,7 +384,7 @@ function renderOrders() {
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
-                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
                 <td class="text-sm">${esc(s.StaffName) || '—'}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
@@ -303,6 +431,7 @@ async function openAddOrder(presetAccountId = '') {
     const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    const products = collectOrderProducts();
     await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
@@ -311,20 +440,23 @@ async function openAddOrder(presetAccountId = '') {
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
+      RequestedProducts: products,
     });
     modal.close();
     toast('Order logged');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+  await refreshOrderProducts();
 }
 
-function openEditOrder(id) {
+async function openEditOrder(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
   modal.open('Edit Order', orderForm(order), async () => {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    const products = collectOrderProducts();
     await api.put(`/api/orders/${id}`, {
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -332,11 +464,13 @@ function openEditOrder(id) {
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
+      RequestedProducts: products || order.RequestedProducts || '',
     });
     modal.close();
     toast('Order updated');
     loadOrders();
   });
+  await refreshOrderProducts(order.RequestedProducts);
 }
 
 async function deleteOrder(id) {
@@ -408,6 +542,7 @@ async function convertPreSale(id) {
     if (!amount) { toast('Order amount is required', 'error'); return; }
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    const products = collectOrderProducts();
     await api.put(`/api/orders/${id}`, {
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -415,13 +550,14 @@ async function convertPreSale(id) {
       InvoiceNumber: val('f-invoice'), Status: 'Pending',
       OrderAmount: amount, TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
-      RequestedProducts: ps.RequestedProducts || '',
+      RequestedProducts: products || ps.RequestedProducts || '',
     });
     modal.close();
     toast('Pre-sale converted to order');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+  await refreshOrderProducts(ps.RequestedProducts);
 }
 
 async function cancelPreSale(id) {
