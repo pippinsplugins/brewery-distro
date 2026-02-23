@@ -11,20 +11,61 @@ const VIEW_LOADERS = {
   'tap-handles': loadTapHandles,
   staff:         loadStaff,
   settings:      loadSettings,
+  kegs:      loadKegs,
+  staff:     loadStaff,
+  settings:  loadSettings,
+  map:       loadMap,
+};
+
+// Maps child views to their parent nav-group name
+const SUBMENU_VIEWS = {
+  accounts: 'accounts',
+  map:      'accounts',
 };
 
 function navigate(view, filters = {}) {
   state.view = view;
   state.navFilters = filters;
+  // Update top-level nav active states
+  const groupName = SUBMENU_VIEWS[view];
   document.querySelectorAll('.nav-item').forEach(el => {
+    const isActive = groupName
+      ? el.dataset.view === groupName      // highlight parent for submenu views
+      : el.dataset.view === view;
+    el.classList.toggle('active', isActive);
+  });
+  // Update submenu active states and expand parent group
+  document.querySelectorAll('.nav-subitem').forEach(el => {
     el.classList.toggle('active', el.dataset.view === view);
   });
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const isParent = g.dataset.group === groupName;
+    g.classList.toggle('open', isParent);
+  });
   window.location.hash = view;
+  const newHash = '#' + view;
+  if (window.location.hash !== newHash) window.location.hash = view;
   const loader = VIEW_LOADERS[view];
   if (loader) loader().catch(err => {
     toast(err.message, 'error');
     setContent(`<div class="empty-state text-danger" style="padding:40px">Error: ${esc(err.message)}</div>`);
   });
+}
+
+function handleHashChange() {
+  const raw = window.location.hash.replace('#', '');
+  // Account profile: #account/<id>
+  const acctMatch = raw.match(/^account\/(.+)$/);
+  if (acctMatch) {
+    const id = decodeURIComponent(acctMatch[1]);
+    if (state.view === 'account-profile' && state.accountProfileId === id) return;
+    loadAccountProfile(id);
+    return;
+  }
+  // Main views
+  const view = VIEW_LOADERS[raw] ? raw : 'dashboard';
+  if (state.view === view) return;
+  navigate(view);
 }
 
 // ── Location ──────────────────────────────────────────────────────
@@ -124,6 +165,20 @@ async function init() {
   document.querySelectorAll('.nav-item').forEach(el => {
     el.addEventListener('click', e => {
       e.preventDefault();
+      if (el.classList.contains('has-submenu')) {
+        const group = el.closest('.nav-group');
+        if (group) group.classList.toggle('open');
+        return;                        // toggle only; let subitems handle navigation
+      }
+      navigate(el.dataset.view);
+      closeSidebar();
+    });
+  });
+
+  // Wire up submenu clicks
+  document.querySelectorAll('.nav-subitem').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
       navigate(el.dataset.view);
       closeSidebar();
     });
@@ -142,9 +197,17 @@ async function init() {
     document.getElementById('sidebar-status-text').textContent = 'Offline';
   }
 
+  // Handle browser back/forward navigation
+  window.addEventListener('hashchange', handleHashChange);
+
   // Load view from hash or default to dashboard
   const hash = window.location.hash.replace('#', '');
-  navigate(VIEW_LOADERS[hash] ? hash : 'dashboard');
+  const acctMatch = hash.match(/^account\/(.+)$/);
+  if (acctMatch) {
+    loadAccountProfile(decodeURIComponent(acctMatch[1]));
+  } else {
+    navigate(VIEW_LOADERS[hash] ? hash : 'dashboard');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

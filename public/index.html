@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Brewery Distribution Manager</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
   <div id="app">
@@ -44,9 +45,16 @@
           <a class="nav-item" data-view="inventory" href="#inventory">
             <span class="nav-icon">&#9632;</span> Inventory
           </a>
-          <a class="nav-item" data-view="accounts" href="#accounts">
-            <span class="nav-icon">&#9632;</span> Accounts
-          </a>
+          <div class="nav-group open" data-group="accounts">
+            <a class="nav-item has-submenu" data-view="accounts" href="#accounts">
+              <span class="nav-icon">&#9632;</span> Accounts
+              <span class="nav-arrow">&#9656;</span>
+            </a>
+            <div class="nav-submenu">
+              <a class="nav-subitem" data-view="accounts" href="#accounts">All Accounts</a>
+              <a class="nav-subitem" data-view="map" href="#map">Map</a>
+            </div>
+          </div>
           <a class="nav-item" data-view="outreach" href="#outreach">
             <span class="nav-icon">&#9632;</span> Outreach
           </a>
@@ -119,6 +127,7 @@
     <div id="toast-container" aria-live="polite"></div>
 
   </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Core: state, utilities, API, modal, pagination, form helpers -->
   <script src="js/core.js"></script>
 
@@ -133,6 +142,7 @@
   <script src="js/settings.js"></script>
   <script src="js/kegs.js"></script>
   <script src="js/tap-handles.js"></script>
+  <script src="js/map.js"></script>
 
   <!-- Init: must load last (VIEW_LOADERS references all load functions) -->
   <script src="js/init.js"></script>

@@ -373,12 +373,12 @@ function renderOrders() {
       <table>
         <thead>
           <tr>
-            <th>Order Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
+            <th>Order Date</th><th>Account</th><th>Invoice #</th>
             <th>Order Amt</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="10" class="empty-state">No orders found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No orders found.</td></tr>` :
             pg.rows.map(s => {
               const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
               const isPreSale = s.Status === 'Pre-Sale';
@@ -386,7 +386,6 @@ function renderOrders() {
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
-                <td class="text-sm">${esc(s.StaffName) || '—'}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -396,7 +395,7 @@ function renderOrders() {
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
                 <td class="td-actions">
-                  ${isPreSale ? `<button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
+                  ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>`}
@@ -407,7 +406,7 @@ function renderOrders() {
         ${pg.total > 1 ? `
         <tfoot>
           <tr class="table-totals">
-            <td colspan="4" class="text-muted text-sm">${pg.total} records</td>
+            <td colspan="3" class="text-muted text-sm">${pg.total} records</td>
             <td>${fmtMoney(totalOrder)}</td>
             <td>${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
@@ -510,6 +509,31 @@ async function openAddPreSale(presetAccountId = '') {
   });
 }
 
+async function openEditPreSale(id) {
+  const ps = _ordersCache.find(s => s.ID === id);
+  if (!ps) return;
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  modal.open('Edit Pre-Sale', preSaleForm(ps, ps.AccountID), async () => {
+    const requestedProducts = val('f-requested-products');
+    if (!requestedProducts) { toast('Requested products are required', 'error'); return; }
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    await api.put(`/api/orders/${id}`, {
+      Location: val('f-location') || state.location,
+      StaffID: staffId, StaffName: staffName,
+      DeliveryDate: val('f-expected-date'),
+      RequestedProducts: requestedProducts,
+      OrderAmount: val('f-amount') || '0',
+      Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Pre-sale updated');
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadOrders();
+  });
+}
+
 async function convertPreSale(id) {
   const ps = _ordersCache.find(s => s.ID === id);
   if (!ps) return;
@@ -595,6 +619,12 @@ async function profileToggleDelivered(id) {
   await openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
 }
 
+async function profileEditPreSale(id) {
+  const orders = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  _ordersCache = orders;
+  await openEditPreSale(id);
+}
+
 async function profileConvertPreSale(id) {
   // Load orders into _ordersCache so convertPreSale can find it
   const orders = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
@@ -608,11 +638,21 @@ async function profileCancelPreSale(id) {
 
 async function openDeliveryConfirmModal(orderId, order, onComplete) {
   const locQuery = order.Location ? `?location=${encodeURIComponent(order.Location)}` : '';
-  const items = await api.get(`/api/inventory${locQuery}`);
+  const [items, kegRecords] = await Promise.all([
+    api.get(`/api/inventory${locQuery}`),
+    api.get(`/api/keg-tracking?accountId=${encodeURIComponent(order.AccountID)}`),
+  ]);
   const acctName = order.AccountName || '';
   const invLabel = order.InvoiceNumber ? ` — Invoice #${esc(order.InvoiceNumber)}` : '';
 
-  if (!items.length) {
+  // Filter to outstanding kegs only
+  const outstandingKegs = kegRecords.filter(k => {
+    const qty = parseInt(k.Quantity) || 0;
+    const returned = parseInt(k.ReturnedQuantity) || 0;
+    return qty - returned > 0;
+  });
+
+  if (!items.length && !outstandingKegs.length) {
     modal.confirm('Confirm Delivery',
       `No inventory products are configured for ${order.Location || 'this location'}. Mark this order as delivered without recording stock movements?`,
       async () => {
@@ -634,11 +674,8 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
                  id="deliv-qty-${item.ID}" style="width:80px" /></td>
           </tr>`;
 
-  modal.open('Confirm Delivery', `
-    <p class="text-muted text-sm" style="margin-bottom:16px">
-      Confirming delivery for <strong>${esc(acctName)}</strong>${invLabel}.
-      Enter the quantity delivered for each product (leave at 0 to skip).
-    </p>
+  // Products section (only if inventory items exist)
+  const productsSection = items.length ? `
     <div class="table-wrap" style="margin-bottom:16px">
       <table>
         <thead><tr><th>Product</th><th>Format</th><th>In Stock</th><th>Qty Delivered</th></tr></thead>
@@ -654,11 +691,47 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
           onchange="document.querySelectorAll('#modal-overlay tr[data-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
         Show out-of-stock products (${outOfStock.length})
       </label>
-    </div>` : ''}
+    </div>` : ''}` : '';
+
+  // Keg returns section (only if outstanding kegs exist)
+  const totalOutstanding = outstandingKegs.reduce((sum, k) =>
+    sum + Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0)), 0);
+  const kegSection = outstandingKegs.length ? `
+    <hr class="form-divider" />
+    <div class="form-section-title">Keg Returns</div>
+    <p class="text-muted text-sm" style="margin-bottom:8px">
+      <strong>${totalOutstanding}</strong> keg${totalOutstanding !== 1 ? 's' : ''} outstanding for this account. Enter any returns collected during this delivery.
+    </p>
+    <div class="table-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>Product</th><th>Format</th><th>Outstanding</th><th>Returned</th></tr></thead>
+        <tbody>
+          ${outstandingKegs.map(k => {
+            const outstanding = Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0));
+            return `<tr>
+              <td class="fw-600">${esc(k.ProductName)}</td>
+              <td class="text-sm">${esc(k.Format) || '—'}</td>
+              <td class="text-sm">${outstanding}</td>
+              <td><input class="form-control" type="number" min="0" max="${outstanding}" value="0"
+                   id="keg-ret-${k.ID}" style="width:80px" /></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>` : '';
+
+  modal.open('Confirm Delivery', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      Confirming delivery for <strong>${esc(acctName)}</strong>${invLabel}.
+      ${items.length ? 'Enter the quantity delivered for each product (leave at 0 to skip).' : ''}
+    </p>
+    ${productsSection}
+    ${kegSection}
     <div class="form-group">
       <label>Delivery Notes</label>
       <textarea class="form-control" id="deliv-notes" rows="2" placeholder="Optional notes..."></textarea>
     </div>`, async () => {
+    // Validate stock movements
     const delivItems = items
       .map(item => ({
         inventoryId: item.ID,
@@ -669,15 +742,52 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
       .filter(i => i.quantity > 0);
     const overStock = delivItems.find(i => i.quantity > i.stock);
     if (overStock) { toast(`${overStock.name} only has ${overStock.stock} in stock`, 'error'); return; }
+
+    // Validate keg returns
+    const kegReturns = outstandingKegs
+      .map(k => {
+        const returnQty = parseInt(document.getElementById(`keg-ret-${k.ID}`)?.value || '0');
+        const outstanding = Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0));
+        return { keg: k, returnQty, outstanding };
+      })
+      .filter(r => r.returnQty > 0);
+    const overReturn = kegReturns.find(r => r.returnQty > r.outstanding);
+    if (overReturn) { toast(`${overReturn.keg.ProductName} only has ${overReturn.outstanding} kegs outstanding`, 'error'); return; }
+
     const notes = (document.getElementById('deliv-notes')?.value || '').trim();
-    await api.post('/api/stock-movements/bulk', {
-      orderId,
-      items: delivItems,
-      notes,
-      date: today(),
-    });
+
+    // Process stock movements (also marks order as delivered)
+    if (delivItems.length) {
+      await api.post('/api/stock-movements/bulk', {
+        orderId,
+        items: delivItems,
+        notes,
+        date: today(),
+      });
+    } else {
+      // No stock items selected — still mark order as delivered
+      await api.put(`/api/orders/${orderId}`, { Delivered: 'true' });
+    }
+
+    // Process keg returns
+    for (const r of kegReturns) {
+      const newReturnedTotal = (parseInt(r.keg.ReturnedQuantity) || 0) + r.returnQty;
+      const combinedNotes = [r.keg.Notes, notes].filter(Boolean).join(' | ');
+      await api.put(`/api/keg-tracking/${r.keg.ID}`, {
+        ReturnedQuantity: String(newReturnedTotal),
+        ReturnedDate: today(),
+        Notes: combinedNotes,
+      });
+    }
+
     modal.close();
-    toast('Delivery confirmed');
+    const parts = [];
+    if (delivItems.length) parts.push('Delivery confirmed');
+    if (kegReturns.length) {
+      const totalReturned = kegReturns.reduce((sum, r) => sum + r.returnQty, 0);
+      parts.push(`${totalReturned} keg${totalReturned !== 1 ? 's' : ''} returned`);
+    }
+    toast(parts.join(' · ') || 'Delivery confirmed');
     onComplete();
   }, 'Confirm Delivery');
 }
