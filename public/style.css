@@ -1115,6 +1115,26 @@ tr.row-completed button {
   display: none;
 }
 
+/* ── Bulk Actions Bar ──────────────────────────────────── */
+
+.bulk-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: var(--accent-light);
+  border: 1px solid #ffe0b2;
+  border-radius: var(--radius-sm);
+}
+
+.acct-select,
+th input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
 /* ── Responsive ───────────────────────────────────────── */
 
 @media (max-width: 900px) {

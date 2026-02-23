@@ -159,8 +159,13 @@ function renderAccounts() {
         <p class="subtitle">${accounts.length} account${accounts.length !== 1 ? 's' : ''} &mdash; ${accounts.filter(a => a.Status === 'Active').length} active</p>
       </div>
       <div class="view-header-actions">
+        ${state.emailConfigured ? '<button class="btn btn-ghost" onclick="openBulkEmail()">Email Selected</button>' : ''}
         <button class="btn btn-primary" onclick="openAddAccount()">+ Add Account</button>
       </div>
+    </div>
+    <div id="bulk-actions-bar" class="bulk-actions-bar" style="display:none">
+      <span id="bulk-selected-count" class="text-sm fw-600">0 selected</span>
+      <button class="btn btn-sm btn-ghost" onclick="openBulkEmail()">Email Selected</button>
     </div>
     <div class="filter-bar">
       <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="_paginationReset('accounts'); renderAccounts()" />
@@ -177,13 +182,15 @@ function renderAccounts() {
       <table>
         <thead>
           <tr>
+            ${state.emailConfigured ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
             <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Type</th><th>Contact</th><th>Email / Phone</th>
             <th>Preferred</th><th>Sales Rep</th><th>Status</th><th class="sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No accounts found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 10 : 9}" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
+              ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span></td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
@@ -400,6 +407,7 @@ async function loadAccountProfile(accountId) {
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
+        ${state.emailConfigured && acct.Email ? `<button class="btn btn-ghost btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
@@ -691,4 +699,137 @@ async function deleteAccount(id, name) {
       loadAccounts();
     }
   );
+}
+
+// ── Email Functions ──────────────────────────────────────────────
+
+function toggleAllAccounts(masterCheckbox) {
+  document.querySelectorAll('.acct-select').forEach(cb => { cb.checked = masterCheckbox.checked; });
+  updateBulkEmailBar();
+}
+
+function updateBulkEmailBar() {
+  const count = document.querySelectorAll('.acct-select:checked').length;
+  const bar = document.getElementById('bulk-actions-bar');
+  if (bar) {
+    bar.style.display = count > 0 ? 'flex' : 'none';
+    const label = document.getElementById('bulk-selected-count');
+    if (label) label.textContent = `${count} selected`;
+  }
+}
+
+function openEmailCompose(accountId) {
+  const acct = state.accounts.find(a => a.ID === accountId);
+  if (!acct) return;
+  if (!acct.Email) {
+    toast('This account has no email address on file', 'error');
+    return;
+  }
+
+  const formHtml = `
+    <div class="form-group">
+      <label>To</label>
+      <input class="form-control" value="${esc(acct.Email)}" readonly style="background:#f5f5f5;cursor:default" />
+    </div>
+    <div class="form-group">
+      <label>From</label>
+      <input class="form-control" value="${esc(state.userName || state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
+      <small class="text-muted">Replies will go to ${esc(state.userEmail || 'your email')}</small>
+    </div>
+    <div class="form-group">
+      <label>Subject <span class="required">*</span></label>
+      <input class="form-control" id="f-email-subject" placeholder="Email subject..." />
+    </div>
+    <div class="form-group">
+      <label>Message <span class="required">*</span></label>
+      <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message..."></textarea>
+    </div>`;
+
+  modal.open('Send Email', formHtml, async () => {
+    const subject = val('f-email-subject');
+    const body    = val('f-email-body');
+    if (!subject) { toast('Subject is required', 'error'); return; }
+    if (!body)    { toast('Message is required', 'error'); return; }
+
+    await api.post('/api/email/send', {
+      to:          acct.Email,
+      subject,
+      body,
+      accountId:   acct.ID,
+      accountName: acct.Name,
+    });
+    modal.close();
+    toast('Email sent successfully');
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+  }, 'Send');
+}
+
+function openBulkEmail() {
+  const checked = document.querySelectorAll('.acct-select:checked');
+  if (checked.length === 0) {
+    toast('Select at least one account first', 'error');
+    return;
+  }
+
+  const selectedIds = Array.from(checked).map(cb => cb.dataset.accountId);
+  const selectedAccounts = selectedIds.map(id => state.accounts.find(a => a.ID === id)).filter(Boolean);
+
+  const withEmail    = selectedAccounts.filter(a => a.Email);
+  const withoutEmail = selectedAccounts.filter(a => !a.Email);
+
+  if (withEmail.length === 0) {
+    toast('None of the selected accounts have email addresses', 'error');
+    return;
+  }
+
+  const recipientList = withEmail.map(a => `<li>${esc(a.Name)} &lt;${esc(a.Email)}&gt;</li>`).join('');
+  const warningHtml = withoutEmail.length > 0
+    ? `<div style="margin-bottom:12px;padding:8px 12px;background:#fff3e0;border-radius:6px;border:1px solid #ffe0b2">
+        <strong class="text-sm">Note:</strong>
+        <span class="text-sm">${withoutEmail.length} account${withoutEmail.length > 1 ? 's' : ''} skipped (no email):
+          ${withoutEmail.map(a => esc(a.Name)).join(', ')}
+        </span>
+      </div>`
+    : '';
+
+  const formHtml = `
+    ${warningHtml}
+    <div class="form-group">
+      <label>BCC Recipients (${withEmail.length})</label>
+      <ul class="text-sm" style="max-height:120px;overflow-y:auto;margin:4px 0;padding-left:20px;color:var(--text-secondary)">
+        ${recipientList}
+      </ul>
+    </div>
+    <div class="form-group">
+      <label>From</label>
+      <input class="form-control" value="${esc(state.userName || state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
+      <small class="text-muted">Replies will go to ${esc(state.userEmail || 'your email')}</small>
+    </div>
+    <div class="form-group">
+      <label>Subject <span class="required">*</span></label>
+      <input class="form-control" id="f-email-subject" placeholder="Email subject..." />
+    </div>
+    <div class="form-group">
+      <label>Message <span class="required">*</span></label>
+      <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message..."></textarea>
+    </div>`;
+
+  modal.open('Send Bulk Email', formHtml, async () => {
+    const subject = val('f-email-subject');
+    const body    = val('f-email-body');
+    if (!subject) { toast('Subject is required', 'error'); return; }
+    if (!body)    { toast('Message is required', 'error'); return; }
+
+    const recipients = withEmail.map(a => ({
+      email:       a.Email,
+      accountId:   a.ID,
+      accountName: a.Name,
+    }));
+
+    const result = await api.post('/api/email/bulk', { recipients, subject, body });
+    modal.close();
+    toast(`Email sent to ${result.sent} account${result.sent !== 1 ? 's' : ''}`);
+    document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
+    updateBulkEmailBar();
+  }, 'Send');
 }

@@ -13,6 +13,8 @@ const state = {
   inventory: [],
   staff: [],         // cached for staff dropdowns
   settings: {},
+  emailConfigured: false,
+  userName: '',
 };
 
 // ── Pagination ──────────────────────────────────────────────────

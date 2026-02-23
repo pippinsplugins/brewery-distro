@@ -21,6 +21,7 @@ const SHEETS = {
   SETTINGS:        'Settings',
   KEG_TRACKING:    'KegTracking',
   TAP_HANDLES:     'TapHandles',
+  EMAIL_LOG:       'EmailLog',
 };
 
 // HEADERS defines every column each table should have.
@@ -37,6 +38,7 @@ const HEADERS = {
   SETTINGS:        ['ID', 'Key', 'Value', 'UpdatedAt'],
   KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
+  EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────

@@ -112,6 +112,7 @@ async function init() {
     const { user } = await api.get('/auth/me');
     if (user) {
       state.userEmail = user.email || '';
+      state.userName  = user.name  || '';
       const panel = document.getElementById('sidebar-user');
       if (panel) {
         document.getElementById('sidebar-user-name').textContent  = user.name  || '';
@@ -141,6 +142,14 @@ async function init() {
   } catch (e) {
     console.warn('Failed to load settings, using defaults:', e.message);
     renderLocationSwitcher();
+  }
+
+  // Check email configuration
+  try {
+    const emailStatus = await api.get('/api/email/status');
+    state.emailConfigured = emailStatus.configured;
+  } catch (e) {
+    state.emailConfigured = false;
   }
 
   // Mobile sidebar toggle
