@@ -84,6 +84,19 @@ function accountForm(acct = {}) {
     </div>`;
 }
 
+let _acctSort = { col: '', dir: 'asc' };
+
+function sortAccounts(col) {
+  _paginationReset('accounts');
+  if (_acctSort.col === col) {
+    _acctSort.dir = _acctSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _acctSort.col = col;
+    _acctSort.dir = 'asc';
+  }
+  renderAccounts();
+}
+
 async function loadAccounts() {
   _paginationReset('accounts');
   showLoading();
@@ -120,6 +133,19 @@ function renderAccounts() {
     );
   }
 
+  // Sort
+  if (_acctSort.col) {
+    const { col, dir } = _acctSort;
+    filtered = [...filtered].sort((a, b) => {
+      let av, bv;
+      if (col === 'LastContacted') { av = a.LastContacted || ''; bv = b.LastContacted || ''; }
+      else if (col === 'Name')     { av = (a.Name || '').toLowerCase(); bv = (b.Name || '').toLowerCase(); }
+      if (av < bv) return dir === 'asc' ? -1 : 1;
+      if (av > bv) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
   const pg = paginate(filtered, 'accounts');
 
   setContent(`
@@ -147,8 +173,8 @@ function renderAccounts() {
       <table>
         <thead>
           <tr>
-            <th>Name</th><th>Type</th><th>Contact</th><th>Email / Phone</th>
-            <th>Preferred</th><th>Sales Rep</th><th>Status</th><th>Last Contact</th><th>Actions</th>
+            <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Type</th><th>Contact</th><th>Email / Phone</th>
+            <th>Preferred</th><th>Sales Rep</th><th>Status</th><th class="sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
