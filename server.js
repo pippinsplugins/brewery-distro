@@ -10,7 +10,8 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const requireAuth = require('./middleware/requireAuth');
 
-const { initializeSheets } = require('./sheets');
+const { initializeSheets, migrateInventoryToProducts } = require('./sheets');
+const productsRoutes  = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
 const accountsRoutes  = require('./routes/accounts');
 const outreachRoutes  = require('./routes/outreach');
@@ -60,6 +61,7 @@ app.get('/login', (req, res) => {
 });
 
 // ── Protected API routes ──────────────────────────────────────────────────
+app.use('/api/products',  requireAuth, productsRoutes);
 app.use('/api/inventory', requireAuth, inventoryRoutes);
 app.use('/api/accounts',  requireAuth, accountsRoutes);
 app.use('/api/outreach',  requireAuth, outreachRoutes);
@@ -93,6 +95,7 @@ async function start() {
   try {
     console.log('Connecting to Google Sheets...');
     await initializeSheets();
+    await migrateInventoryToProducts();
     console.log('Google Sheets initialized successfully.');
     app.listen(PORT, () => {
       console.log(`Brewery Distribution app running at http://localhost:${PORT}`);

@@ -8,17 +8,29 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const { location } = req.query;
-    let [inventory, accounts, outreach, reminders, orders] = await Promise.all([
+    let [inventory, accounts, outreach, reminders, orders, products] = await Promise.all([
       getAllRows('INVENTORY'),
       getAllRows('ACCOUNTS'),
       getAllRows('OUTREACH'),
       getAllRows('REMINDERS'),
       getAllRows('ORDERS'),
+      getAllRows('PRODUCTS'),
     ]);
     if (location) {
       inventory = inventory.filter(i => i.Location === location);
       orders    = orders.filter(o => o.Location === location);
     }
+
+    // Enrich inventory with product data for display
+    const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
+    inventory = inventory.map(inv => {
+      const product = productMap[inv.ProductID] || {};
+      return {
+        ...inv,
+        Name: inv.ProductName || product.Name || inv.Name || '',
+        Format: product.Format || inv.Format || '',
+      };
+    });
 
     const today = new Date().toISOString().split('T')[0];
     const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];

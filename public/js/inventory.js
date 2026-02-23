@@ -1,69 +1,6 @@
 'use strict';
 
-// ── Inventory View ────────────────────────────────────────────────
-
-const FORMATS = ['1/6 Keg', '1/4 Keg', '1/2 Keg', '12oz Can (case/24)', '16oz Can (case/24)', '22oz Bottle (case/12)', '750ml Bottle (case/12)', 'Other'];
-const STYLES  = ['IPA', 'Double IPA', 'Pale Ale', 'Lager', 'Pilsner', 'Wheat', 'Hefeweizen', 'Stout', 'Porter', 'Sour', 'Saison', 'Amber', 'Brown Ale', 'Barleywine', 'Scottish', 'English Mild', 'Kölsch', 'Golden Ale', 'Other'];
-
-function inventoryForm(item = {}) {
-  const isEdit = !!item.ID;
-  const unitsField = isEdit
-    ? `<input class="form-control" id="f-units" value="${esc(item.Units || '0')}" readonly style="background:#f5f5f5;cursor:default;color:var(--text-muted)" title="Use the Adjust button to change stock levels" />`
-    : `<input class="form-control" id="f-units" type="number" min="0" value="0" />`;
-  return `
-    <div class="form-row">
-      <div class="form-group">
-        <label>Name <span class="required">*</span></label>
-        <input class="form-control" id="f-name" value="${esc(item.Name)}" placeholder="e.g. Cascade IPA" />
-      </div>
-      <div class="form-group">
-        <label>Location <span class="required">*</span></label>
-        <select class="form-control" id="f-location">
-          ${LOCATIONS.map(l => `<option value="${l}" ${(item.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Style</label>
-        <select class="form-control" id="f-style">
-          <option value="">-- Select --</option>
-          ${STYLES.map(s => `<option value="${s}" ${item.Style === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>ABV (%)</label>
-        <input class="form-control" id="f-abv" type="number" step="0.1" min="0" max="20" value="${esc(item.ABV)}" placeholder="e.g. 6.5" />
-      </div>
-      <div class="form-group">
-        <label>Format / Package</label>
-        <select class="form-control" id="f-format">
-          <option value="">-- Select --</option>
-          ${FORMATS.map(f => `<option value="${f}" ${item.Format === f ? 'selected' : ''}>${f}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Units in Stock${isEdit ? ' <span class="text-muted text-sm">(adjust via Adjust button)</span>' : ' <span class="required">*</span>'}</label>
-        ${unitsField}
-      </div>
-      <div class="form-group">
-        <label>Price per Unit ($)</label>
-        <input class="form-control" id="f-price" type="number" step="0.01" min="0" value="${esc(item.PricePerUnit)}" placeholder="0.00" />
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Low-Stock Alert Threshold</label>
-      <input class="form-control" id="f-threshold" type="number" min="0" value="${esc(item.LowStockThreshold || '5')}" />
-    </div>
-    <div class="form-group">
-      <label>Notes</label>
-      <textarea class="form-control" id="f-notes" rows="2">${esc(item.Notes)}</textarea>
-    </div>`;
-}
+// ── Stock Levels View ────────────────────────────────────────────
 
 async function loadInventory() {
   _paginationReset('inventory');
@@ -100,7 +37,7 @@ function renderInventory() {
   else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Units || '0') <= 0);
 
   if (search) filtered = filtered.filter(i =>
-    i.Name.toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
+    (i.Name || '').toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
   );
 
   // Sort
@@ -131,11 +68,12 @@ function renderInventory() {
   setContent(`
     <div class="view-header">
       <div>
-        <h2>Inventory</h2>
+        <h2>Stock Levels</h2>
         <p class="subtitle">${items.length} product${items.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
-        <button class="btn btn-primary" onclick="openAddInventory()">+ Add Product</button>
+        <button class="btn btn-secondary" onclick="openAddInventory()">+ Add to Location</button>
+        <button class="btn btn-primary" onclick="navigate('products')">Manage Products</button>
       </div>
     </div>
     <div class="filter-bar">
@@ -156,13 +94,13 @@ function renderInventory() {
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No products found. Add your first product!</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No products found at this location.</td></tr>` :
             pg.rows.map(item => {
               const units = parseInt(item.Units || '0');
               const low = units <= parseInt(item.LowStockThreshold || '5');
               const out = units <= 0;
               return `<tr>
-                <td class="fw-600"><span class="td-link" onclick="openEditInventory('${esc(item.ID)}')">${esc(item.Name)}</span></td>
+                <td class="fw-600">${esc(item.Name)}</td>
                 <td>${esc(item.Style)}</td>
                 <td>${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
                 <td>${esc(item.Format) || '—'}</td>
@@ -170,10 +108,10 @@ function renderInventory() {
                 <td>${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
-                  <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Threshold</button>
                   <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
                   <button class="btn btn-ghost btn-sm" onclick="openInventoryHistory('${esc(item.ID)}')">History</button>
-                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteInventory('${esc(item.ID)}', '${esc(item.Name)}')">Delete</button>
+                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteInventory('${esc(item.ID)}', '${esc(item.Name)}')">Remove</button>
                 </td>
               </tr>`;
             }).join('')}
@@ -184,18 +122,50 @@ function renderInventory() {
   if (_focused === 'inv-search') refocusSearch('inv-search');
 }
 
-function openAddInventory() {
-  modal.open('Add Product', inventoryForm(), async () => {
-    const name = val('f-name');
-    if (!name) { toast('Name is required', 'error'); return; }
+async function openAddInventory() {
+  // Show products not yet at this location
+  const [allProducts, locationInventory] = await Promise.all([
+    api.get('/api/products'),
+    api.get(`/api/inventory?location=${encodeURIComponent(state.location)}`),
+  ]);
+  const existingProductIds = new Set(locationInventory.map(i => i.ProductID).filter(Boolean));
+  const available = allProducts.filter(p => !existingProductIds.has(p.ID));
+
+  if (available.length === 0) {
+    modal.open('Add Product to Location', `
+      <p class="text-muted">All products are already available at ${esc(state.location)}.</p>
+      <p class="text-muted text-sm" style="margin-top:8px">To create a new product, go to <a href="#products" onclick="modal.close(); navigate('products')">Manage Products</a>.</p>
+    `, () => { modal.close(); }, 'Close');
+    return;
+  }
+
+  modal.open('Add Product to Location', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      Adding product to <strong>${esc(state.location)}</strong>
+    </p>
+    <div class="form-group">
+      <label>Product <span class="required">*</span></label>
+      <select class="form-control" id="f-product">
+        <option value="">-- Select Product --</option>
+        ${available.sort((a, b) => a.Name.localeCompare(b.Name)).map(p => {
+          const label = p.Format ? `${p.Name} (${p.Format})` : p.Name;
+          return `<option value="${esc(p.ID)}">${esc(label)}</option>`;
+        }).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Low-Stock Alert Threshold</label>
+      <input class="form-control" id="f-threshold" type="number" min="0" value="5" />
+    </div>`, async () => {
+    const productId = val('f-product');
+    if (!productId) { toast('Please select a product', 'error'); return; }
     await api.post('/api/inventory', {
-      Name: name, Location: val('f-location'), Style: val('f-style'), ABV: val('f-abv'),
-      Format: val('f-format'), Units: val('f-units'),
-      PricePerUnit: val('f-price'), LowStockThreshold: val('f-threshold'),
-      Notes: val('f-notes'),
+      ProductID: productId,
+      Location: state.location,
+      LowStockThreshold: val('f-threshold'),
     });
     modal.close();
-    toast('Product added');
+    toast('Product added to location');
     loadInventory();
   });
 }
@@ -203,26 +173,33 @@ function openAddInventory() {
 function openEditInventory(id) {
   const item = state.inventory.find(i => i.ID === id);
   if (!item) return;
-  modal.open('Edit Product', inventoryForm(item), async () => {
-    const name = val('f-name');
-    if (!name) { toast('Name is required', 'error'); return; }
+  const label = item.Format ? `${item.Name} — ${item.Format}` : item.Name;
+  modal.open('Edit Stock Threshold', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      <strong>${esc(label)}</strong> at ${esc(state.location)}
+    </p>
+    <div class="form-group">
+      <label>Current Stock</label>
+      <input class="form-control" value="${esc(item.Units || '0')} units" readonly style="background:#f5f5f5;cursor:default;color:var(--text-muted)" />
+    </div>
+    <div class="form-group">
+      <label>Low-Stock Alert Threshold</label>
+      <input class="form-control" id="f-threshold" type="number" min="0" value="${esc(item.LowStockThreshold || '5')}" />
+    </div>`, async () => {
     await api.put(`/api/inventory/${id}`, {
-      Name: name, Style: val('f-style'), ABV: val('f-abv'),
-      Format: val('f-format'),
-      PricePerUnit: val('f-price'), LowStockThreshold: val('f-threshold'),
-      Notes: val('f-notes'),
+      LowStockThreshold: val('f-threshold'),
     });
     modal.close();
-    toast('Product updated');
+    toast('Threshold updated');
     loadInventory();
   });
 }
 
 async function deleteInventory(id, name) {
-  modal.confirm('Delete Product', `Delete "${name}"? This cannot be undone.`, async () => {
+  modal.confirm('Remove from Location', `Remove "${name}" from ${state.location}? This removes the stock record for this location only, not the product itself.`, async () => {
     await api.del(`/api/inventory/${id}`);
     modal.close();
-    toast('Product deleted');
+    toast('Product removed from location');
     loadInventory();
   });
 }
@@ -299,4 +276,3 @@ async function openInventoryHistory(id) {
       </table>
     </div>`, () => { modal.close(); }, 'Close');
 }
-

@@ -42,9 +42,16 @@
           <a class="nav-item active" data-view="dashboard" href="#dashboard">
             <span class="nav-icon">&#9632;</span> Dashboard
           </a>
-          <a class="nav-item" data-view="inventory" href="#inventory">
-            <span class="nav-icon">&#9632;</span> Inventory
-          </a>
+          <div class="nav-group" data-group="inventory">
+            <a class="nav-item has-submenu" data-view="inventory" href="#inventory">
+              <span class="nav-icon">&#9632;</span> Inventory
+              <span class="nav-arrow">&#9656;</span>
+            </a>
+            <div class="nav-submenu">
+              <a class="nav-subitem" data-view="inventory" href="#inventory">Stock Levels</a>
+              <a class="nav-subitem" data-view="products" href="#products">Products</a>
+            </div>
+          </div>
           <div class="nav-group open" data-group="accounts">
             <a class="nav-item has-submenu" data-view="accounts" href="#accounts">
               <span class="nav-icon">&#9632;</span> Accounts
@@ -132,6 +139,7 @@
   <script src="js/core.js"></script>
 
   <!-- Views -->
+  <script src="js/products.js"></script>
   <script src="js/inventory.js"></script>
   <script src="js/outreach.js"></script>
   <script src="js/todos.js"></script>

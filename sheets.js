@@ -6,6 +6,7 @@ require('dotenv').config();
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 
 const SHEETS = {
+  PRODUCTS:        'Products',
   INVENTORY:       'Inventory',
   ACCOUNTS:        'Accounts',
   OUTREACH:        'Outreach',
@@ -21,7 +22,8 @@ const SHEETS = {
 // HEADERS defines every column each sheet should have.
 // On startup, any missing columns are automatically appended (migration-safe).
 const HEADERS = {
-  INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated'],
+  PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'CreatedAt'],
+  INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated', 'ProductID', 'ProductName'],
   ACCOUNTS:  ['ID', 'Name', 'Type', 'ContactName', 'Email', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
@@ -254,4 +256,56 @@ async function deleteRow(sheetKey, id) {
   return true;
 }
 
-module.exports = { initializeSheets, getAllRows, addRow, updateRow, deleteRow, SHEETS, HEADERS };
+// One-time migration: split old INVENTORY rows into PRODUCTS + per-location inventory
+async function migrateInventoryToProducts() {
+  const { v4: uuidv4 } = require('uuid');
+  const inventoryRows = await getAllRows('INVENTORY');
+  if (inventoryRows.length === 0) return;
+
+  // Detect old format: has Style data but no ProductID
+  const needsMigration = inventoryRows.some(r => r.Style && !r.ProductID);
+  if (!needsMigration) return;
+
+  console.log('Migrating INVENTORY to PRODUCTS + per-location inventory...');
+
+  // Extract unique products by compound key
+  const productMap = new Map();
+  for (const row of inventoryRows) {
+    if (row.ProductID) continue; // already migrated
+    const key = [row.Name || '', row.Style || '', row.ABV || '', row.Format || '', row.PricePerUnit || ''].join('|||');
+    if (!productMap.has(key)) {
+      productMap.set(key, {
+        ID: uuidv4(),
+        Name: row.Name || '',
+        Style: row.Style || '',
+        ABV: row.ABV || '',
+        Format: row.Format || '',
+        PricePerUnit: row.PricePerUnit || '',
+        Notes: row.Notes || '',
+        CreatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Write products
+  for (const product of productMap.values()) {
+    await addRow('PRODUCTS', product);
+  }
+  console.log(`  Created ${productMap.size} products`);
+
+  // Update inventory rows with ProductID reference
+  for (const row of inventoryRows) {
+    if (row.ProductID) continue;
+    const key = [row.Name || '', row.Style || '', row.ABV || '', row.Format || '', row.PricePerUnit || ''].join('|||');
+    const product = productMap.get(key);
+    if (product) {
+      await updateRow('INVENTORY', row.ID, {
+        ProductID: product.ID,
+        ProductName: product.Name,
+      });
+    }
+  }
+  console.log('  Updated inventory rows with ProductID references');
+}
+
+module.exports = { initializeSheets, migrateInventoryToProducts, getAllRows, addRow, updateRow, deleteRow, SHEETS, HEADERS };
