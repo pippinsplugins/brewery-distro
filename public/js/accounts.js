@@ -64,13 +64,17 @@ function accountForm(acct = {}) {
       <input class="form-control" id="f-address" value="${esc(acct.Address)}" placeholder="123 Main St" />
     </div>
     <div class="form-row">
-      <div class="form-group">
+      <div class="form-group" style="flex:2">
         <label>City</label>
         <input class="form-control" id="f-city" value="${esc(acct.City)}" />
       </div>
-      <div class="form-group">
+      <div class="form-group" style="flex:1">
         <label>State</label>
         <input class="form-control" id="f-state" value="${esc(acct.State)}" placeholder="e.g. CA" maxlength="2" />
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Zip</label>
+        <input class="form-control" id="f-zip" value="${esc(acct.Zip)}" placeholder="e.g. 90210" maxlength="10" />
       </div>
     </div>
     <div class="form-group">
@@ -180,7 +184,7 @@ function renderAccounts() {
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
-              <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && a.State ? ', ' : ''}${esc(a.State)}</span></td>
+              <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span></td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
               <td class="text-sm">${a.Email ? esc(a.Email) + '<br>' : ''}${esc(formatPhone(a.Phone))}</td>
@@ -251,7 +255,7 @@ async function loadAccountProfile(accountId) {
     acct.Email        ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email)}</span></div>` : '',
     acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(formatPhone(acct.Phone))}</span></div>` : '',
     acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
-    (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${[acct.Address, acct.City, acct.State].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
+    (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${esc(acct.Address || '')}${acct.Address && (acct.City || acct.State || acct.Zip) ? ', ' : ''}${[acct.City, (acct.State && acct.Zip ? acct.State + ' ' + acct.Zip : acct.State || acct.Zip)].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
     acct.ABCLicense   ? `<div class="profile-info-item"><span class="profile-info-label">ABC License</span><span>${esc(acct.ABCLicense)}</span></div>` : '',
     acct.StaffName    ? `<div class="profile-info-item"><span class="profile-info-label">Sales Rep</span><span>${esc(acct.StaffName)}</span></div>` : '',
     acct.LastContacted ? `<div class="profile-info-item"><span class="profile-info-label">Last Contact</span><span>${formatDate(acct.LastContacted)}</span></div>` : '',
@@ -581,7 +585,7 @@ function openAddAccount() {
       Name: name, Type: val('f-type'), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), Phone: val('f-phone'),
-      Address: val('f-address'), City: val('f-city'), State: val('f-state'),
+      Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
@@ -603,7 +607,7 @@ function openEditAccount(id) {
       Name: name, Type: val('f-type'), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), Phone: val('f-phone'),
-      Address: val('f-address'), City: val('f-city'), State: val('f-state'),
+      Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
