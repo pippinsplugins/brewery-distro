@@ -396,7 +396,7 @@ function renderOrders() {
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
                 <td class="td-actions">
-                  ${isPreSale ? `<button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
+                  ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>`}
@@ -510,6 +510,31 @@ async function openAddPreSale(presetAccountId = '') {
   });
 }
 
+async function openEditPreSale(id) {
+  const ps = _ordersCache.find(s => s.ID === id);
+  if (!ps) return;
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  modal.open('Edit Pre-Sale', preSaleForm(ps, ps.AccountID), async () => {
+    const requestedProducts = val('f-requested-products');
+    if (!requestedProducts) { toast('Requested products are required', 'error'); return; }
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    await api.put(`/api/orders/${id}`, {
+      Location: val('f-location') || state.location,
+      StaffID: staffId, StaffName: staffName,
+      DeliveryDate: val('f-expected-date'),
+      RequestedProducts: requestedProducts,
+      OrderAmount: val('f-amount') || '0',
+      Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Pre-sale updated');
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadOrders();
+  });
+}
+
 async function convertPreSale(id) {
   const ps = _ordersCache.find(s => s.ID === id);
   if (!ps) return;
@@ -593,6 +618,12 @@ async function profileToggleDelivered(id) {
   const order = orders.find(s => s.ID === id);
   if (!order) return;
   await openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
+}
+
+async function profileEditPreSale(id) {
+  const orders = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  _ordersCache = orders;
+  await openEditPreSale(id);
 }
 
 async function profileConvertPreSale(id) {
