@@ -211,6 +211,9 @@ function renderAccounts() {
 async function loadAccountProfile(accountId) {
   state.view = 'account-profile';
   state.accountProfileId = accountId;
+  // Update hash for back/forward navigation and deep-linking
+  const profileHash = '#account/' + encodeURIComponent(accountId);
+  if (window.location.hash !== profileHash) window.location.hash = profileHash;
   // Keep 'accounts' nav item highlighted
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === 'accounts');
