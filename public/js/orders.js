@@ -127,6 +127,18 @@ let _ordersDatePreset = '';
 let _ordersDateFrom = '';
 let _ordersDateTo = '';
 let _orderFormInventory = [];
+let _ordersSort = { col: 'OrderDate', dir: 'desc' };
+
+function sortOrders(col) {
+  _paginationReset('orders');
+  if (_ordersSort.col === col) {
+    _ordersSort.dir = _ordersSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _ordersSort.col = col;
+    _ordersSort.dir = col === 'OrderDate' ? 'desc' : 'asc';
+  }
+  renderOrders();
+}
 
 function formatProductsSummary(products) {
   if (!products) return '';
@@ -314,6 +326,20 @@ function renderOrders() {
     );
   }
 
+  // Sort
+  const { col: sortCol, dir: sortDir } = _ordersSort;
+  filtered = [...filtered].sort((a, b) => {
+    let av, bv;
+    if (sortCol === 'OrderDate')   { av = a.OrderDate || '';             bv = b.OrderDate || ''; }
+    else if (sortCol === 'Account'){ av = (a.AccountName||'').toLowerCase(); bv = (b.AccountName||'').toLowerCase(); }
+    else if (sortCol === 'Amount') { av = parseFloat(a.OrderAmount||0);  bv = parseFloat(b.OrderAmount||0); }
+    else if (sortCol === 'Total')  { av = parseFloat(a.OrderAmount||0)+parseFloat(a.TaxAmount||0); bv = parseFloat(b.OrderAmount||0)+parseFloat(b.TaxAmount||0); }
+    else if (sortCol === 'Status') { av = (a.Status||'').toLowerCase();  bv = (b.Status||'').toLowerCase(); }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const totalOrder = filtered.reduce((sum, s) => sum + parseFloat(s.OrderAmount || 0), 0);
   const totalTax   = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount   || 0), 0);
   const pg = paginate(filtered, 'orders');
@@ -329,6 +355,12 @@ function renderOrders() {
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([id, name]) => `<option value="${esc(id)}" ${staffFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
       .join('');
+
+  const ordTh = (label, colKey) => {
+    const active = _ordersSort.col === colKey;
+    const arrow = active ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable-th${active ? ' sorted' : ''}" onclick="sortOrders('${colKey}')">${label}${arrow}</th>`;
+  };
 
   setContent(`
     <div class="view-header">
@@ -373,8 +405,8 @@ function renderOrders() {
       <table>
         <thead>
           <tr>
-            <th>Order Date</th><th>Account</th><th>Invoice #</th>
-            <th>Order Amt</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th>
+            ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th>Invoice #</th>
+            ${ordTh('Order Amt','Amount')}<th>Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th>Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
