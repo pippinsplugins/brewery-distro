@@ -145,7 +145,9 @@ function renderInventory() {
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No products found. Add your first product!</td></tr>` :
             pg.rows.map(item => {
-              const low = parseInt(item.Units || '0') <= parseInt(item.LowStockThreshold || '5');
+              const units = parseInt(item.Units || '0');
+              const low = units <= parseInt(item.LowStockThreshold || '5');
+              const out = units <= 0;
               return `<tr>
                 <td class="fw-600"><span class="td-link" onclick="openEditInventory('${esc(item.ID)}')">${esc(item.Name)}</span></td>
                 <td>${esc(item.Style)}</td>
@@ -153,7 +155,7 @@ function renderInventory() {
                 <td>${esc(item.Format) || '—'}</td>
                 <td>${esc(item.Units)}</td>
                 <td>${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
-                <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${low ? 'Low' : 'OK'}</span></td>
+                <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
                   <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Edit</button>
                   <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
