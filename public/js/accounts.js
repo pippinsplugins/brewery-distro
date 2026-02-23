@@ -552,23 +552,26 @@ function profileDeleteTodo(id) {
 }
 
 function profileEditOrder(id) {
-  api.get('/api/orders').then(items => {
+  api.get('/api/orders').then(async items => {
     const order = items.find(s => s.ID === id);
     if (!order) return;
     modal.open('Edit Order', orderForm(order), async () => {
       const staffId = val('f-staff');
       const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+      const products = collectOrderProducts();
       await api.put(`/api/orders/${id}`, {
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
         InvoiceNumber: val('f-invoice'), Status: val('f-status'),
         OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
         Notes: val('f-notes'),
+        RequestedProducts: products || order.RequestedProducts || '',
       });
       modal.close();
       toast('Order updated');
       loadAccountProfile(state.accountProfileId);
     });
+    await refreshOrderProducts();
   });
 }
 
