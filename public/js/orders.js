@@ -608,11 +608,21 @@ async function profileCancelPreSale(id) {
 
 async function openDeliveryConfirmModal(orderId, order, onComplete) {
   const locQuery = order.Location ? `?location=${encodeURIComponent(order.Location)}` : '';
-  const items = await api.get(`/api/inventory${locQuery}`);
+  const [items, kegRecords] = await Promise.all([
+    api.get(`/api/inventory${locQuery}`),
+    api.get(`/api/keg-tracking?accountId=${encodeURIComponent(order.AccountID)}`),
+  ]);
   const acctName = order.AccountName || '';
   const invLabel = order.InvoiceNumber ? ` — Invoice #${esc(order.InvoiceNumber)}` : '';
 
-  if (!items.length) {
+  // Filter to outstanding kegs only
+  const outstandingKegs = kegRecords.filter(k => {
+    const qty = parseInt(k.Quantity) || 0;
+    const returned = parseInt(k.ReturnedQuantity) || 0;
+    return qty - returned > 0;
+  });
+
+  if (!items.length && !outstandingKegs.length) {
     modal.confirm('Confirm Delivery',
       `No inventory products are configured for ${order.Location || 'this location'}. Mark this order as delivered without recording stock movements?`,
       async () => {
@@ -634,11 +644,8 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
                  id="deliv-qty-${item.ID}" style="width:80px" /></td>
           </tr>`;
 
-  modal.open('Confirm Delivery', `
-    <p class="text-muted text-sm" style="margin-bottom:16px">
-      Confirming delivery for <strong>${esc(acctName)}</strong>${invLabel}.
-      Enter the quantity delivered for each product (leave at 0 to skip).
-    </p>
+  // Products section (only if inventory items exist)
+  const productsSection = items.length ? `
     <div class="table-wrap" style="margin-bottom:16px">
       <table>
         <thead><tr><th>Product</th><th>Format</th><th>In Stock</th><th>Qty Delivered</th></tr></thead>
@@ -654,11 +661,47 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
           onchange="document.querySelectorAll('#modal-overlay tr[data-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
         Show out-of-stock products (${outOfStock.length})
       </label>
-    </div>` : ''}
+    </div>` : ''}` : '';
+
+  // Keg returns section (only if outstanding kegs exist)
+  const totalOutstanding = outstandingKegs.reduce((sum, k) =>
+    sum + Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0)), 0);
+  const kegSection = outstandingKegs.length ? `
+    <hr class="form-divider" />
+    <div class="form-section-title">Keg Returns</div>
+    <p class="text-muted text-sm" style="margin-bottom:8px">
+      <strong>${totalOutstanding}</strong> keg${totalOutstanding !== 1 ? 's' : ''} outstanding for this account. Enter any returns collected during this delivery.
+    </p>
+    <div class="table-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>Product</th><th>Format</th><th>Outstanding</th><th>Returned</th></tr></thead>
+        <tbody>
+          ${outstandingKegs.map(k => {
+            const outstanding = Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0));
+            return `<tr>
+              <td class="fw-600">${esc(k.ProductName)}</td>
+              <td class="text-sm">${esc(k.Format) || '—'}</td>
+              <td class="text-sm">${outstanding}</td>
+              <td><input class="form-control" type="number" min="0" max="${outstanding}" value="0"
+                   id="keg-ret-${k.ID}" style="width:80px" /></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>` : '';
+
+  modal.open('Confirm Delivery', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      Confirming delivery for <strong>${esc(acctName)}</strong>${invLabel}.
+      ${items.length ? 'Enter the quantity delivered for each product (leave at 0 to skip).' : ''}
+    </p>
+    ${productsSection}
+    ${kegSection}
     <div class="form-group">
       <label>Delivery Notes</label>
       <textarea class="form-control" id="deliv-notes" rows="2" placeholder="Optional notes..."></textarea>
     </div>`, async () => {
+    // Validate stock movements
     const delivItems = items
       .map(item => ({
         inventoryId: item.ID,
@@ -669,15 +712,52 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
       .filter(i => i.quantity > 0);
     const overStock = delivItems.find(i => i.quantity > i.stock);
     if (overStock) { toast(`${overStock.name} only has ${overStock.stock} in stock`, 'error'); return; }
+
+    // Validate keg returns
+    const kegReturns = outstandingKegs
+      .map(k => {
+        const returnQty = parseInt(document.getElementById(`keg-ret-${k.ID}`)?.value || '0');
+        const outstanding = Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0));
+        return { keg: k, returnQty, outstanding };
+      })
+      .filter(r => r.returnQty > 0);
+    const overReturn = kegReturns.find(r => r.returnQty > r.outstanding);
+    if (overReturn) { toast(`${overReturn.keg.ProductName} only has ${overReturn.outstanding} kegs outstanding`, 'error'); return; }
+
     const notes = (document.getElementById('deliv-notes')?.value || '').trim();
-    await api.post('/api/stock-movements/bulk', {
-      orderId,
-      items: delivItems,
-      notes,
-      date: today(),
-    });
+
+    // Process stock movements (also marks order as delivered)
+    if (delivItems.length) {
+      await api.post('/api/stock-movements/bulk', {
+        orderId,
+        items: delivItems,
+        notes,
+        date: today(),
+      });
+    } else {
+      // No stock items selected — still mark order as delivered
+      await api.put(`/api/orders/${orderId}`, { Delivered: 'true' });
+    }
+
+    // Process keg returns
+    for (const r of kegReturns) {
+      const newReturnedTotal = (parseInt(r.keg.ReturnedQuantity) || 0) + r.returnQty;
+      const combinedNotes = [r.keg.Notes, notes].filter(Boolean).join(' | ');
+      await api.put(`/api/keg-tracking/${r.keg.ID}`, {
+        ReturnedQuantity: String(newReturnedTotal),
+        ReturnedDate: today(),
+        Notes: combinedNotes,
+      });
+    }
+
     modal.close();
-    toast('Delivery confirmed');
+    const parts = [];
+    if (delivItems.length) parts.push('Delivery confirmed');
+    if (kegReturns.length) {
+      const totalReturned = kegReturns.reduce((sum, r) => sum + r.returnQty, 0);
+      parts.push(`${totalReturned} keg${totalReturned !== 1 ? 's' : ''} returned`);
+    }
+    toast(parts.join(' · ') || 'Delivery confirmed');
     onComplete();
   }, 'Confirm Delivery');
 }
