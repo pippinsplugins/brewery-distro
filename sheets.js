@@ -15,6 +15,7 @@ const SHEETS = {
   STOCK_MOVEMENTS: 'StockMovements',
   SETTINGS:        'Settings',
   KEG_TRACKING:    'KegTracking',
+  TAP_HANDLES:     'TapHandles',
 };
 
 // HEADERS defines every column each sheet should have.
@@ -29,6 +30,7 @@ const HEADERS = {
   STOCK_MOVEMENTS: ['ID', 'InventoryID', 'InventoryName', 'OrderID', 'Type', 'Quantity', 'Notes', 'Date', 'CreatedAt'],
   SETTINGS:        ['ID', 'Key', 'Value', 'UpdatedAt'],
   KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
+  TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'ProductName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
 };
 
 // Cached sheet header rows — avoids an extra API call on every write

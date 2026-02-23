@@ -101,6 +101,14 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
+    // Cascade delete: remove associated tap handle records
+    const tapHandles = await getAllRows('TAP_HANDLES');
+    for (const handle of tapHandles) {
+      if (handle.AccountID === id) {
+        await deleteRow('TAP_HANDLES', handle.ID);
+      }
+    }
+
     await deleteRow('ACCOUNTS', id);
     res.json({ success: true });
   } catch (err) {

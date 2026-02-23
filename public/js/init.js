@@ -7,9 +7,10 @@ const VIEW_LOADERS = {
   outreach:  loadOutreach,
   todos: loadTodos,
   orders:    loadOrders,
-  kegs:      loadKegs,
-  staff:     loadStaff,
-  settings:  loadSettings,
+  kegs:          loadKegs,
+  'tap-handles': loadTapHandles,
+  staff:         loadStaff,
+  settings:      loadSettings,
 };
 
 function navigate(view, filters = {}) {
