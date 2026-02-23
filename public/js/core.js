@@ -110,9 +110,14 @@ function truncateNote(text, limit = 100) {
   return `<span class="note-text"><span id="${id}_short">${esc(text.substring(0, limit))}… <a href="#" class="note-toggle" onclick="event.preventDefault();document.getElementById('${id}_short').style.display='none';document.getElementById('${id}_full').style.display='inline'">more</a></span><span id="${id}_full" style="display:none">${safe} <a href="#" class="note-toggle" onclick="event.preventDefault();document.getElementById('${id}_full').style.display='none';document.getElementById('${id}_short').style.display='inline'">less</a></span></span>`;
 }
 
+function dateOnly(d) {
+  return d ? d.substring(0, 10) : '';
+}
+
 function formatDate(d) {
   if (!d) return '—';
-  const [y, m, day] = d.split('-');
+  const ds = dateOnly(d);
+  const [y, m, day] = ds.split('-');
   if (!y || !m || !day) return d;
   return `${m}/${day}/${y}`;
 }

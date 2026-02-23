@@ -117,9 +117,11 @@ router.post('/zapier/order', requireWebhookSecret, async (req, res) => {
       resolvedAccountName = match.Name;
     }
 
-    // Date defaults
-    const today     = new Date().toISOString().split('T')[0];
-    const orderDate = f.orderDate || today;
+    // Date defaults — include timestamp so same-day orders sort by creation time
+    const now       = new Date().toISOString();
+    const today     = now.split('T')[0];
+    const rawDate   = f.orderDate || today;
+    const orderDate = rawDate.includes('T') ? rawDate : rawDate + 'T' + now.split('T')[1];
 
     // Status validation
     let status = f.status || 'Pending';
