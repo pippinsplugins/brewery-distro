@@ -1,9 +1,13 @@
 'use strict';
 
-const { google } = require('googleapis');
+const Database = require('better-sqlite3');
+const path     = require('path');
+const fs       = require('fs');
 require('dotenv').config();
 
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'brewery.db');
+
+// ── Sheet / table definitions ─────────────────────────────────────────
 
 const SHEETS = {
   PRODUCTS:        'Products',
@@ -19,8 +23,8 @@ const SHEETS = {
   TAP_HANDLES:     'TapHandles',
 };
 
-// HEADERS defines every column each sheet should have.
-// On startup, any missing columns are automatically appended (migration-safe).
+// HEADERS defines every column each table should have.
+// On startup, any missing columns are automatically added (migration-safe).
 const HEADERS = {
   PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'CreatedAt'],
   INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated', 'ProductID', 'ProductName'],
@@ -35,231 +39,129 @@ const HEADERS = {
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
 };
 
-// Cached sheet header rows — avoids an extra API call on every write
-const headerCache = {};
+// ── Database connection ───────────────────────────────────────────────
 
-// Cached numeric sheet IDs needed for row deletion batchUpdate
-const sheetIdCache = {};
+let _db;
 
-// Convert 0-based column index to spreadsheet letter (0→A, 25→Z, 26→AA…)
-function indexToCol(i) {
-  let col = '';
-  let n = i + 1;
-  while (n > 0) {
-    const r = (n - 1) % 26;
-    col = String.fromCharCode(65 + r) + col;
-    n = Math.floor((n - 1) / 26);
+function getDb() {
+  if (!_db) {
+    const dir = path.dirname(DB_PATH);
+    fs.mkdirSync(dir, { recursive: true });
+    _db = new Database(DB_PATH);
+    _db.pragma('journal_mode = WAL');
+    _db.pragma('foreign_keys = OFF');
   }
-  return col;
+  return _db;
 }
 
-async function getSheetHeaders(sheetName, forceRefresh = false) {
-  if (!forceRefresh && headerCache[sheetName]) return headerCache[sheetName];
-  const client = await getClient();
-  const res = await client.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${sheetName}!A1:1`,
-  });
-  const headers = (res.data.values || [[]])[0] || [];
-  headerCache[sheetName] = headers;
-  return headers;
-}
+// ── Initialization ────────────────────────────────────────────────────
 
-async function getAuth() {
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
-    return new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-  }
-  return new google.auth.GoogleAuth({
-    keyFile: process.env.GOOGLE_KEY_FILE || 'credentials.json',
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-}
+function initializeSheets() {
+  const db = getDb();
 
-async function getClient() {
-  const auth = await getAuth();
-  return google.sheets({ version: 'v4', auth });
-}
+  for (const [key, tableName] of Object.entries(SHEETS)) {
+    const columns = HEADERS[key];
 
-async function getSpreadsheetSheets() {
-  const client = await getClient();
-  const res = await client.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-  for (const sheet of res.data.sheets) {
-    sheetIdCache[sheet.properties.title] = sheet.properties.sheetId;
-  }
-  return res.data.sheets.map(s => s.properties.title);
-}
+    // Build column definitions — all TEXT, ID is PRIMARY KEY
+    const colDefs = columns.map(col =>
+      col === 'ID'
+        ? '"ID" TEXT PRIMARY KEY'
+        : `"${col}" TEXT DEFAULT ''`
+    ).join(', ');
 
-async function initializeSheets() {
-  if (!SPREADSHEET_ID) {
-    throw new Error('SPREADSHEET_ID is not set in environment variables.');
-  }
+    db.exec(`CREATE TABLE IF NOT EXISTS "${tableName}" (${colDefs})`);
 
-  const client = await getClient();
-  const existingSheets = await getSpreadsheetSheets();
-  const toCreate = Object.values(SHEETS).filter(name => !existingSheets.includes(name));
-
-  if (toCreate.length > 0) {
-    await client.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: {
-        requests: toCreate.map(title => ({ addSheet: { properties: { title } } })),
-      },
-    });
-    // Refresh cache after creating new sheets
-    await getSpreadsheetSheets();
-  }
-
-  // Write or migrate headers for every sheet
-  for (const [key, sheetName] of Object.entries(SHEETS)) {
-    const existing = await getSheetHeaders(sheetName, true);
-    const expected = HEADERS[key];
-
-    if (existing.length === 0) {
-      // Brand-new or empty sheet — write full header row
-      await client.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${sheetName}!A1`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [expected] },
-      });
-      headerCache[sheetName] = expected;
-    } else {
-      // Existing sheet — append any new columns that aren't present yet
-      const missing = expected.filter(h => !existing.includes(h));
-      if (missing.length > 0) {
-        const startCol = indexToCol(existing.length);
-        await client.spreadsheets.values.update({
-          spreadsheetId: SPREADSHEET_ID,
-          range: `${sheetName}!${startCol}1`,
-          valueInputOption: 'RAW',
-          requestBody: { values: [missing] },
-        });
-        headerCache[sheetName] = [...existing, ...missing];
-        console.log(`  Migrated ${sheetName}: added columns [${missing.join(', ')}]`);
+    // Migration-safe: add any new columns that don't exist yet
+    const existingCols = db.pragma(`table_info("${tableName}")`).map(c => c.name);
+    for (const col of columns) {
+      if (!existingCols.includes(col)) {
+        db.exec(`ALTER TABLE "${tableName}" ADD COLUMN "${col}" TEXT DEFAULT ''`);
+        console.log(`  Migrated ${tableName}: added column ${col}`);
       }
     }
   }
 }
 
-async function getRawRows(sheetName) {
-  const client = await getClient();
-  const res = await client.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${sheetName}!A:Z`,
+// ── CRUD operations ───────────────────────────────────────────────────
+
+function getAllRows(sheetKey) {
+  const db = getDb();
+  const tableName = SHEETS[sheetKey];
+  const columns = HEADERS[sheetKey];
+
+  const rows = db.prepare(`SELECT * FROM "${tableName}"`).all();
+
+  // Convert all values to strings to match previous Google Sheets behavior
+  return rows.map(row => {
+    const obj = {};
+    for (const col of columns) {
+      obj[col] = row[col] != null ? String(row[col]) : '';
+    }
+    return obj;
   });
-  return res.data.values || [];
 }
 
-function rowsToObjects(rows) {
-  if (!rows || rows.length < 2) return [];
-  const headers = rows[0];
-  return rows.slice(1)
-    .filter(row => row.some(cell => cell !== '' && cell !== undefined))
-    .map(row => {
-      const obj = {};
-      headers.forEach((h, i) => {
-        obj[h] = row[i] !== undefined ? String(row[i]) : '';
-      });
-      return obj;
-    });
-}
+function addRow(sheetKey, data) {
+  const db = getDb();
+  const tableName = SHEETS[sheetKey];
+  const columns = HEADERS[sheetKey];
 
-function objectToRow(obj, headers) {
-  return headers.map(h => (obj[h] !== undefined && obj[h] !== null) ? String(obj[h]) : '');
-}
+  const presentCols = columns.filter(col => data[col] != null);
+  const colNames    = presentCols.map(c => `"${c}"`).join(', ');
+  const placeholders = presentCols.map(() => '?').join(', ');
+  const values       = presentCols.map(col => String(data[col]));
 
-async function getAllRows(sheetKey) {
-  const rows = await getRawRows(SHEETS[sheetKey]);
-  return rowsToObjects(rows);
-}
-
-async function addRow(sheetKey, data) {
-  const client = await getClient();
-  const sheetName = SHEETS[sheetKey];
-  // Always use the actual sheet header order so columns align correctly
-  const headers = await getSheetHeaders(sheetName);
-  const row = headers.map(h => (data[h] != null) ? String(data[h]) : '');
-
-  await client.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${sheetName}!A:A`,
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [row] },
-  });
+  db.prepare(`INSERT INTO "${tableName}" (${colNames}) VALUES (${placeholders})`).run(...values);
 
   return data;
 }
 
-async function updateRow(sheetKey, id, updates) {
-  const client = await getClient();
-  const sheetName = SHEETS[sheetKey];
-  const rows = await getRawRows(sheetName);
+function updateRow(sheetKey, id, updates) {
+  const db = getDb();
+  const tableName = SHEETS[sheetKey];
+  const columns = HEADERS[sheetKey];
 
-  if (rows.length < 2) throw new Error('Record not found');
+  // Fetch existing row
+  const existing = db.prepare(`SELECT * FROM "${tableName}" WHERE "ID" = ?`).get(id);
+  if (!existing) throw new Error(`Record with ID ${id} not found`);
 
-  // Use the sheet's own first row as the authoritative column order
-  const sheetHeaders = rows[0];
-  const dataIndex = rows.findIndex((row, i) => i > 0 && row[0] === id);
-  if (dataIndex === -1) throw new Error(`Record with ID ${id} not found`);
+  // Merge updates into existing (all values as strings)
+  const merged = {};
+  for (const col of columns) {
+    merged[col] = existing[col] != null ? String(existing[col]) : '';
+  }
+  for (const [key, val] of Object.entries(updates)) {
+    if (columns.includes(key)) {
+      merged[key] = val != null ? String(val) : '';
+    }
+  }
 
-  const existing = {};
-  sheetHeaders.forEach((h, i) => { existing[h] = rows[dataIndex][i] || ''; });
-  const updated = { ...existing, ...updates };
-  const newRow = sheetHeaders.map(h => (updated[h] != null) ? String(updated[h]) : '');
+  // Build SET clause for all non-ID columns
+  const setCols   = columns.filter(c => c !== 'ID');
+  const setClause = setCols.map(c => `"${c}" = ?`).join(', ');
+  const setValues = setCols.map(c => merged[c]);
 
-  const sheetRow = dataIndex + 1; // 1-indexed sheet row
-  await client.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${sheetName}!A${sheetRow}`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [newRow] },
-  });
+  db.prepare(`UPDATE "${tableName}" SET ${setClause} WHERE "ID" = ?`).run(...setValues, id);
 
-  return updated;
+  return merged;
 }
 
-async function deleteRow(sheetKey, id) {
-  const client = await getClient();
-  const sheetName = SHEETS[sheetKey];
-  const rows = await getRawRows(sheetName);
+function deleteRow(sheetKey, id) {
+  const db = getDb();
+  const tableName = SHEETS[sheetKey];
 
-  const dataIndex = rows.findIndex((row, i) => i > 0 && row[0] === id);
-  if (dataIndex === -1) throw new Error(`Record with ID ${id} not found`);
+  const existing = db.prepare(`SELECT "ID" FROM "${tableName}" WHERE "ID" = ?`).get(id);
+  if (!existing) throw new Error(`Record with ID ${id} not found`);
 
-  // Get numeric sheet ID from cache or fetch it
-  if (!sheetIdCache[sheetName]) {
-    await getSpreadsheetSheets();
-  }
-  const sheetId = sheetIdCache[sheetName];
-
-  await client.spreadsheets.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
-    requestBody: {
-      requests: [{
-        deleteDimension: {
-          range: {
-            sheetId,
-            dimension: 'ROWS',
-            startIndex: dataIndex,     // 0-indexed
-            endIndex: dataIndex + 1,
-          },
-        },
-      }],
-    },
-  });
-
+  db.prepare(`DELETE FROM "${tableName}" WHERE "ID" = ?`).run(id);
   return true;
 }
 
-// One-time migration: split old INVENTORY rows into PRODUCTS + per-location inventory
-async function migrateInventoryToProducts() {
+// ── Inventory → Products migration (one-time, idempotent) ─────────────
+
+function migrateInventoryToProducts() {
   const { v4: uuidv4 } = require('uuid');
-  const inventoryRows = await getAllRows('INVENTORY');
+  const inventoryRows = getAllRows('INVENTORY');
   if (inventoryRows.length === 0) return;
 
   // Detect old format: has Style data but no ProductID
@@ -289,7 +191,7 @@ async function migrateInventoryToProducts() {
 
   // Write products
   for (const product of productMap.values()) {
-    await addRow('PRODUCTS', product);
+    addRow('PRODUCTS', product);
   }
   console.log(`  Created ${productMap.size} products`);
 
@@ -299,7 +201,7 @@ async function migrateInventoryToProducts() {
     const key = [row.Name || '', row.Style || '', row.ABV || '', row.Format || '', row.PricePerUnit || ''].join('|||');
     const product = productMap.get(key);
     if (product) {
-      await updateRow('INVENTORY', row.ID, {
+      updateRow('INVENTORY', row.ID, {
         ProductID: product.ID,
         ProductName: product.Name,
       });
