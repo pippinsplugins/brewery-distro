@@ -733,8 +733,7 @@ function openEmailCompose(accountId) {
     </div>
     <div class="form-group">
       <label>From</label>
-      <input class="form-control" value="${esc(state.userName || state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
-      <small class="text-muted">Replies will go to ${esc(state.userEmail || 'your email')}</small>
+      <input class="form-control" value="${esc(state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
     </div>
     <div class="form-group">
       <label>Subject <span class="required">*</span></label>
@@ -802,8 +801,7 @@ function openBulkEmail() {
     </div>
     <div class="form-group">
       <label>From</label>
-      <input class="form-control" value="${esc(state.userName || state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
-      <small class="text-muted">Replies will go to ${esc(state.userEmail || 'your email')}</small>
+      <input class="form-control" value="${esc(state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
     </div>
     <div class="form-group">
       <label>Subject <span class="required">*</span></label>

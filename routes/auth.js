@@ -34,10 +34,12 @@ if (oauthConfigured) {
 
       // Store only the fields we actually need in the session.
       const user = {
-        id:     profile.id,
-        name:   profile.displayName,
-        email:  (profile.emails && profile.emails[0] && profile.emails[0].value) || '',
-        photo:  (profile.photos && profile.photos[0] && profile.photos[0].value) || '',
+        id:           profile.id,
+        name:         profile.displayName,
+        email:        (profile.emails && profile.emails[0] && profile.emails[0].value) || '',
+        photo:        (profile.photos && profile.photos[0] && profile.photos[0].value) || '',
+        accessToken:  accessToken  || '',
+        refreshToken: refreshToken || '',
       };
 
       return done(null, user);
@@ -64,8 +66,9 @@ function requireOAuthConfig(req, res, next) {
 
 // Kick off OAuth flow – sends the user to Google.
 router.get('/google', requireOAuthConfig, passport.authenticate('google', {
-  scope: ['profile', 'email'],
-  prompt: 'select_account',
+  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
+  accessType: 'offline',
+  prompt: 'consent',
 }));
 
 // Google redirects here after the user grants (or denies) access.

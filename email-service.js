@@ -3,55 +3,51 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-const GMAIL_USER         = process.env.GMAIL_USER || '';
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
+const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '';
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 
 /**
- * Returns true if the Gmail SMTP credentials are configured.
+ * Returns true if OAuth credentials are configured (email feature available).
  */
 function isEmailConfigured() {
-  return !!(GMAIL_USER && GMAIL_APP_PASSWORD);
+  return !!(CLIENT_ID && CLIENT_SECRET);
 }
 
 /**
- * Lazily-initialised reusable transporter (nodemailer recommends reuse).
- */
-let _transporter;
-function getTransporter() {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD,
-      },
-    });
-  }
-  return _transporter;
-}
-
-/**
- * Send a single email.
+ * Send a single email using the authenticated user's Gmail via OAuth2.
  *
  * @param {object} opts
- * @param {string} opts.senderName   - Display name (staff member's name)
- * @param {string} opts.replyTo      - Staff member's email address
+ * @param {object} opts.user         - req.user (must include email, accessToken, refreshToken)
  * @param {string} [opts.to]         - Single recipient (individual send)
  * @param {string[]} [opts.bcc]      - BCC recipients (bulk send)
  * @param {string} opts.subject
  * @param {string} opts.body         - Plain-text body
  * @returns {Promise<object>}        - nodemailer info object
  */
-async function sendEmail({ senderName, replyTo, to, bcc, subject, body }) {
+async function sendEmail({ user, to, bcc, subject, body }) {
   if (!isEmailConfigured()) {
-    throw new Error('Email is not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in .env');
+    throw new Error('Email is not configured. Google OAuth credentials are missing.');
+  }
+  if (!user || !user.accessToken) {
+    throw new Error('No OAuth tokens available. Please log out and log back in.');
   }
 
-  const transporter = getTransporter();
+  // Create a per-send transporter with the user's OAuth2 tokens.
+  // Nodemailer handles token refresh automatically via the refresh token.
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type:         'OAuth2',
+      user:         user.email,
+      clientId:     CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      refreshToken: user.refreshToken,
+      accessToken:  user.accessToken,
+    },
+  });
 
   const mailOptions = {
-    from:    `"${senderName}" <${GMAIL_USER}>`,
-    replyTo: replyTo,
+    from:    user.email,
     subject: subject,
     text:    body,
   };
@@ -60,8 +56,8 @@ async function sendEmail({ senderName, replyTo, to, bcc, subject, body }) {
 
   if (bcc && bcc.length > 0) {
     mailOptions.bcc = bcc.join(', ');
-    // For bulk: put the shared Gmail in "to" so the To header isn't empty
-    if (!mailOptions.to) mailOptions.to = GMAIL_USER;
+    // For bulk: put the sender in "to" so the To header isn't empty
+    if (!mailOptions.to) mailOptions.to = user.email;
   }
 
   return transporter.sendMail(mailOptions);

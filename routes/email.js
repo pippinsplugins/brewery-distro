@@ -47,7 +47,7 @@ router.get('/status', (req, res) => {
 router.post('/send', async (req, res) => {
   try {
     if (!isEmailConfigured()) {
-      return res.status(503).json({ error: 'Email is not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in .env' });
+      return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
     }
 
     const { to, subject, body, accountId, accountName } = req.body;
@@ -63,7 +63,7 @@ router.post('/send', async (req, res) => {
     let error  = '';
 
     try {
-      await sendEmail({ senderName, replyTo: senderEmail, to, subject, body });
+      await sendEmail({ user: req.user, to, subject, body });
     } catch (err) {
       status = 'failed';
       error  = err.message;
@@ -104,7 +104,7 @@ router.post('/send', async (req, res) => {
 router.post('/bulk', async (req, res) => {
   try {
     if (!isEmailConfigured()) {
-      return res.status(503).json({ error: 'Email is not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in .env' });
+      return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
     }
 
     const { recipients, subject, body } = req.body;
@@ -128,7 +128,7 @@ router.post('/bulk', async (req, res) => {
     let error  = '';
 
     try {
-      await sendEmail({ senderName, replyTo: senderEmail, bcc: bccEmails, subject, body });
+      await sendEmail({ user: req.user, bcc: bccEmails, subject, body });
     } catch (err) {
       status = 'failed';
       error  = err.message;
