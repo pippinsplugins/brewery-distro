@@ -373,12 +373,12 @@ function renderOrders() {
       <table>
         <thead>
           <tr>
-            <th>Order Date</th><th>Account</th><th>Invoice #</th><th>Sales Rep</th>
+            <th>Order Date</th><th>Account</th><th>Invoice #</th>
             <th>Order Amt</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="10" class="empty-state">No orders found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No orders found.</td></tr>` :
             pg.rows.map(s => {
               const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
               const isPreSale = s.Status === 'Pre-Sale';
@@ -386,7 +386,6 @@ function renderOrders() {
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
-                <td class="text-sm">${esc(s.StaffName) || '—'}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -407,7 +406,7 @@ function renderOrders() {
         ${pg.total > 1 ? `
         <tfoot>
           <tr class="table-totals">
-            <td colspan="4" class="text-muted text-sm">${pg.total} records</td>
+            <td colspan="3" class="text-muted text-sm">${pg.total} records</td>
             <td>${fmtMoney(totalOrder)}</td>
             <td>${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
