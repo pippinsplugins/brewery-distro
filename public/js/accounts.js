@@ -211,12 +211,19 @@ function renderAccounts() {
 async function loadAccountProfile(accountId) {
   state.view = 'account-profile';
   state.accountProfileId = accountId;
+  // Keep 'accounts' nav item highlighted and submenu open
   // Update hash for back/forward navigation and deep-linking
   const profileHash = '#account/' + encodeURIComponent(accountId);
   if (window.location.hash !== profileHash) window.location.hash = profileHash;
   // Keep 'accounts' nav item highlighted
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === 'accounts');
+  });
+  document.querySelectorAll('.nav-subitem').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === 'accounts');
+  });
+  document.querySelectorAll('.nav-group').forEach(g => {
+    g.classList.toggle('open', g.dataset.group === 'accounts');
   });
   showLoading();
 

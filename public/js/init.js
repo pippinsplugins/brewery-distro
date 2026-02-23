@@ -10,14 +10,35 @@ const VIEW_LOADERS = {
   kegs:      loadKegs,
   staff:     loadStaff,
   settings:  loadSettings,
+  map:       loadMap,
+};
+
+// Maps child views to their parent nav-group name
+const SUBMENU_VIEWS = {
+  accounts: 'accounts',
+  map:      'accounts',
 };
 
 function navigate(view, filters = {}) {
   state.view = view;
   state.navFilters = filters;
+  // Update top-level nav active states
+  const groupName = SUBMENU_VIEWS[view];
   document.querySelectorAll('.nav-item').forEach(el => {
+    const isActive = groupName
+      ? el.dataset.view === groupName      // highlight parent for submenu views
+      : el.dataset.view === view;
+    el.classList.toggle('active', isActive);
+  });
+  // Update submenu active states and expand parent group
+  document.querySelectorAll('.nav-subitem').forEach(el => {
     el.classList.toggle('active', el.dataset.view === view);
   });
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const isParent = g.dataset.group === groupName;
+    g.classList.toggle('open', isParent);
+  });
+  window.location.hash = view;
   const newHash = '#' + view;
   if (window.location.hash !== newHash) window.location.hash = view;
   const loader = VIEW_LOADERS[view];
@@ -138,6 +159,20 @@ async function init() {
 
   // Wire up nav clicks
   document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      if (el.classList.contains('has-submenu')) {
+        const group = el.closest('.nav-group');
+        if (group) group.classList.toggle('open');
+        return;                        // toggle only; let subitems handle navigation
+      }
+      navigate(el.dataset.view);
+      closeSidebar();
+    });
+  });
+
+  // Wire up submenu clicks
+  document.querySelectorAll('.nav-subitem').forEach(el => {
     el.addEventListener('click', e => {
       e.preventDefault();
       navigate(el.dataset.view);
