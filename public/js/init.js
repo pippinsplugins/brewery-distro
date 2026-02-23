@@ -39,11 +39,29 @@ function navigate(view, filters = {}) {
     g.classList.toggle('open', isParent);
   });
   window.location.hash = view;
+  const newHash = '#' + view;
+  if (window.location.hash !== newHash) window.location.hash = view;
   const loader = VIEW_LOADERS[view];
   if (loader) loader().catch(err => {
     toast(err.message, 'error');
     setContent(`<div class="empty-state text-danger" style="padding:40px">Error: ${esc(err.message)}</div>`);
   });
+}
+
+function handleHashChange() {
+  const raw = window.location.hash.replace('#', '');
+  // Account profile: #account/<id>
+  const acctMatch = raw.match(/^account\/(.+)$/);
+  if (acctMatch) {
+    const id = decodeURIComponent(acctMatch[1]);
+    if (state.view === 'account-profile' && state.accountProfileId === id) return;
+    loadAccountProfile(id);
+    return;
+  }
+  // Main views
+  const view = VIEW_LOADERS[raw] ? raw : 'dashboard';
+  if (state.view === view) return;
+  navigate(view);
 }
 
 // ── Location ──────────────────────────────────────────────────────
@@ -175,9 +193,17 @@ async function init() {
     document.getElementById('sidebar-status-text').textContent = 'Offline';
   }
 
+  // Handle browser back/forward navigation
+  window.addEventListener('hashchange', handleHashChange);
+
   // Load view from hash or default to dashboard
   const hash = window.location.hash.replace('#', '');
-  navigate(VIEW_LOADERS[hash] ? hash : 'dashboard');
+  const acctMatch = hash.match(/^account\/(.+)$/);
+  if (acctMatch) {
+    loadAccountProfile(decodeURIComponent(acctMatch[1]));
+  } else {
+    navigate(VIEW_LOADERS[hash] ? hash : 'dashboard');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

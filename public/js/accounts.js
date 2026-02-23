@@ -212,6 +212,10 @@ async function loadAccountProfile(accountId) {
   state.view = 'account-profile';
   state.accountProfileId = accountId;
   // Keep 'accounts' nav item highlighted and submenu open
+  // Update hash for back/forward navigation and deep-linking
+  const profileHash = '#account/' + encodeURIComponent(accountId);
+  if (window.location.hash !== profileHash) window.location.hash = profileHash;
+  // Keep 'accounts' nav item highlighted
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === 'accounts');
   });
@@ -316,7 +320,7 @@ async function loadAccountProfile(accountId) {
             ? '<input type="checkbox" checked disabled />'
             : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
           <td class="td-actions">
-            ${isPreSale ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
+            ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="profileEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
             : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">Edit</button>
             <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>`}
