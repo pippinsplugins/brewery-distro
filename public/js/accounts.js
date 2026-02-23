@@ -319,7 +319,7 @@ async function loadAccountProfile(accountId) {
         return `<tr>
           <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
           <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
-          <td class="text-sm">${esc(s.StaffName) || '—'}</td>
+          <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
           <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
           <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
           <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -453,7 +453,7 @@ async function loadAccountProfile(accountId) {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Order Date</th><th>Invoice #</th><th>Sales Rep</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Order Date</th><th>Invoice #</th><th>Delivery Date</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
           <tbody>${orderRows}</tbody>
           ${orderFooter}
         </table>
