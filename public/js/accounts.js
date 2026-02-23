@@ -211,9 +211,15 @@ function renderAccounts() {
 async function loadAccountProfile(accountId) {
   state.view = 'account-profile';
   state.accountProfileId = accountId;
-  // Keep 'accounts' nav item highlighted
+  // Keep 'accounts' nav item highlighted and submenu open
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === 'accounts');
+  });
+  document.querySelectorAll('.nav-subitem').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === 'accounts');
+  });
+  document.querySelectorAll('.nav-group').forEach(g => {
+    g.classList.toggle('open', g.dataset.group === 'accounts');
   });
   showLoading();
 
