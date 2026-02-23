@@ -85,6 +85,13 @@ function normalise(body) {
 
 const VALID_STATUSES = new Set(['Pending', 'Paid', 'Cancelled']);
 
+// Append current time to a date-only string so same-day orders sort by creation time.
+function withTimestamp(dateStr) {
+  if (!dateStr) return dateStr;
+  if (dateStr.includes('T')) return dateStr;
+  return dateStr + 'T' + new Date().toISOString().split('T')[1];
+}
+
 // ── POST /webhooks/zapier/order ───────────────────────────────────
 
 router.post('/zapier/order', requireWebhookSecret, async (req, res) => {
@@ -119,7 +126,7 @@ router.post('/zapier/order', requireWebhookSecret, async (req, res) => {
 
     // Date defaults
     const today     = new Date().toISOString().split('T')[0];
-    const orderDate = f.orderDate || today;
+    const orderDate = withTimestamp(f.orderDate || today);
 
     // Status validation
     let status = f.status || 'Pending';
@@ -140,7 +147,7 @@ router.post('/zapier/order', requireWebhookSecret, async (req, res) => {
       TaxAmount:     f.taxAmount    || '0',
       Notes:         f.notes        || '',
       Status:        status,
-      CreatedAt:     today,
+      CreatedAt:     new Date().toISOString(),
     };
 
     await addRow('ORDERS', order);

@@ -33,7 +33,7 @@ function orderForm(order = {}, presetAccountId = '') {
     <div class="form-row">
       <div class="form-group">
         <label>Order Date <span class="required">*</span></label>
-        <input class="form-control" id="f-order-date" type="date" value="${esc(order.OrderDate || today())}" />
+        <input class="form-control" id="f-order-date" type="date" value="${esc(dateOnly(order.OrderDate) || today())}" />
       </div>
       <div class="form-group">
         <label>Delivery Date</label>
@@ -314,8 +314,8 @@ function renderOrders() {
   if (accountFilter) filtered = filtered.filter(s => s.AccountID === accountFilter);
   if (staffFilter)   filtered = filtered.filter(s => s.StaffID === staffFilter);
   if (statusFilter)  filtered = filtered.filter(s => s.Status === statusFilter);
-  if (dateFrom) filtered = filtered.filter(s => (s.OrderDate || '') >= dateFrom);
-  if (dateTo)   filtered = filtered.filter(s => (s.OrderDate || '') <= dateTo);
+  if (dateFrom) filtered = filtered.filter(s => dateOnly(s.OrderDate || '') >= dateFrom);
+  if (dateTo)   filtered = filtered.filter(s => dateOnly(s.OrderDate || '') <= dateTo);
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(s =>

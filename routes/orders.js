@@ -6,6 +6,14 @@ const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
 
 const router = express.Router();
 
+// Append current time to a date-only string so same-day orders sort by creation time.
+// "2026-02-23" → "2026-02-23T14:30:05.123Z"; already-timestamped values pass through.
+function withTimestamp(dateStr) {
+  if (!dateStr) return dateStr;
+  if (dateStr.includes('T')) return dateStr; // already has time
+  return dateStr + 'T' + new Date().toISOString().split('T')[1];
+}
+
 router.get('/', async (req, res) => {
   try {
     const { accountId, staffId, location } = req.query;
@@ -39,7 +47,7 @@ router.post('/', async (req, res) => {
       Location:    Location || '',
       StaffID:     StaffID || '',
       StaffName:   StaffName || '',
-      OrderDate,
+      OrderDate: withTimestamp(OrderDate),
       DeliveryDate: DeliveryDate || '',
       InvoiceNumber: InvoiceNumber || '',
       OrderAmount: OrderAmount || '0',
@@ -71,6 +79,7 @@ router.put('/:id', async (req, res) => {
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
+    if (updates.OrderDate) updates.OrderDate = withTimestamp(updates.OrderDate);
     const updated = await updateRow('ORDERS', req.params.id, updates);
     res.json(updated);
   } catch (err) {
