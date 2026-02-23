@@ -133,7 +133,11 @@ function formatProductsSummary(products) {
   const items = products.split(',').map(s => s.trim()).filter(Boolean);
   if (items.length === 0) return '';
   // Extract just product names: "2x Cascade IPA (1/6 Keg)" → "Cascade IPA"
-  const names = items.map(p => p.replace(/^\d+x\s*/, '').replace(/\s*\([^)]*\)\s*$/, '').trim());
+  const names = items.map(p => {
+    const stripped = p.replace(/^\d+x\s*/, '');
+    const parenIdx = stripped.indexOf('(');
+    return (parenIdx > 0 ? stripped.slice(0, parenIdx) : stripped).trim();
+  });
   let summary;
   if (names.length <= 2) {
     summary = names.join(', ');
@@ -148,17 +152,15 @@ function parseRequestedProducts(productsStr, inventoryItems) {
   if (!productsStr) return quantities;
   const parts = productsStr.split(',').map(s => s.trim()).filter(Boolean);
   for (const part of parts) {
-    // Parse "2x Cascade IPA (1/6 Keg)" → qty=2, name="Cascade IPA", format="1/6 Keg"
-    const match = part.match(/^(\d+)x\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/);
-    if (!match) continue;
-    const qty = parseInt(match[1]);
-    const name = match[2].trim();
-    const format = match[3] ? match[3].trim() : null;
-    // Find matching inventory item by name and format
+    // Extract quantity prefix: "2x Cascade IPA (1/6 Keg)" → qty=2, rest="Cascade IPA (1/6 Keg)"
+    const qtyMatch = part.match(/^(\d+)x\s+/);
+    if (!qtyMatch) continue;
+    const qty = parseInt(qtyMatch[1]);
+    const rest = part.slice(qtyMatch[0].length).trim();
+    // Match against inventory by reconstructing "Name (Format)" as collectOrderProducts does
     const item = inventoryItems.find(i => {
-      if (i.Name !== name) return false;
-      if (format && i.Format !== format) return false;
-      return true;
+      const label = i.Format ? `${i.Name} (${i.Format})` : i.Name;
+      return rest === label || rest === i.Name;
     });
     if (item) quantities[item.ID] = qty;
   }
