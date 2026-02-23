@@ -1,6 +1,6 @@
 'use strict';
 
-const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled'];
+const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
 function orderForm(order = {}, presetAccountId = '') {
   const selAcctId = order.AccountID || presetAccountId;
@@ -65,6 +65,54 @@ function orderForm(order = {}, presetAccountId = '') {
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
+    </div>`;
+}
+
+function preSaleForm(ps = {}, presetAccountId = '') {
+  const selAcctId = ps.AccountID || presetAccountId;
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Account <span class="required">*</span></label>
+        <select class="form-control" id="f-account" ${presetAccountId ? 'disabled' : ''}>
+          <option value="">-- Select Account --</option>
+          ${accountOptions(selAcctId)}
+        </select>
+        ${presetAccountId ? `<input type="hidden" id="f-account-hidden" value="${esc(presetAccountId)}" />` : ''}
+      </div>
+      <div class="form-group">
+        <label>Location <span class="required">*</span></label>
+        <select class="form-control" id="f-location">
+          ${LOCATIONS.map(l => `<option value="${l}" ${(ps.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sales Rep</label>
+        <select class="form-control" id="f-staff">
+          <option value="">-- Unassigned --</option>
+          ${staffOptions(ps.StaffID)}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Expected Date</label>
+        <input class="form-control" id="f-expected-date" type="date" value="${esc(ps.DeliveryDate)}" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Requested Products <span class="required">*</span></label>
+      <textarea class="form-control" id="f-requested-products" rows="3" placeholder="List the products being requested, e.g.:\n2x Cascade IPA (1/6 keg)\n1x Porter (1/4 keg)">${esc(ps.RequestedProducts)}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Estimated Amount ($)</label>
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(ps.OrderAmount || '')}" placeholder="0.00" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-control" id="f-notes" rows="2">${esc(ps.Notes)}</textarea>
     </div>`;
 }
 
@@ -133,7 +181,8 @@ function renderOrders() {
     filtered = filtered.filter(s =>
       (s.AccountName || '').toLowerCase().includes(q) ||
       (s.InvoiceNumber || '').toLowerCase().includes(q) ||
-      (s.Notes || '').toLowerCase().includes(q)
+      (s.Notes || '').toLowerCase().includes(q) ||
+      (s.RequestedProducts || '').toLowerCase().includes(q)
     );
   }
 
@@ -160,6 +209,7 @@ function renderOrders() {
         <p class="subtitle">${orders.length} order${orders.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
+        <button class="btn btn-secondary" onclick="openAddPreSale()">+ Pre-Sale</button>
         <button class="btn btn-primary" onclick="openAddOrder()">+ Log Order</button>
       </div>
     </div>
@@ -203,22 +253,25 @@ function renderOrders() {
           ${pg.total === 0 ? `<tr><td colspan="10" class="empty-state">No orders found.</td></tr>` :
             pg.rows.map(s => {
               const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
+              const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
-                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span></td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${isPreSale && s.RequestedProducts ? `<br><span class="text-muted text-sm">${truncateNote(s.RequestedProducts)}</span>` : ''}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
                 <td class="text-sm">${esc(s.StaffName) || '—'}</td>
-                <td>${fmtMoney(s.OrderAmount)}</td>
+                <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
-                <td class="fw-600">${fmtMoney(total)}</td>
+                <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
                 <td>${orderStatusBadge(s.Status)}</td>
-                <td class="text-center">${s.Delivered === 'true'
+                <td class="text-center">${isPreSale ? '—'
+                  : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
                 <td class="td-actions">
-                  ${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
+                  ${isPreSale ? `<button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
+                  : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
-                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
+                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>`}
                 </td>
               </tr>`;
             }).join('')}
@@ -295,6 +348,91 @@ async function deleteOrder(id) {
   });
 }
 
+async function openAddPreSale(presetAccountId = '') {
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  modal.open('Add Pre-Sale', preSaleForm({}, presetAccountId), async () => {
+    const accountId = presetAccountId || val('f-account');
+    if (!accountId) { toast('Please select an account', 'error'); return; }
+    const requestedProducts = val('f-requested-products');
+    if (!requestedProducts) { toast('Requested products are required', 'error'); return; }
+    const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    await api.post('/api/orders', {
+      AccountID: accountId, AccountName: accountName,
+      Location: val('f-location') || state.location,
+      StaffID: staffId, StaffName: staffName,
+      OrderDate: today(), DeliveryDate: val('f-expected-date'),
+      RequestedProducts: requestedProducts,
+      OrderAmount: val('f-amount') || '0', TaxAmount: '0',
+      Notes: val('f-notes'),
+      Status: 'Pre-Sale',
+    });
+    modal.close();
+    toast('Pre-sale created');
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadOrders();
+  });
+}
+
+async function convertPreSale(id) {
+  const ps = _ordersCache.find(s => s.ID === id);
+  if (!ps) return;
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+
+  // Build notes that include requested products for reference
+  const noteParts = [];
+  if (ps.RequestedProducts) noteParts.push('Requested products: ' + ps.RequestedProducts);
+  if (ps.Notes) noteParts.push(ps.Notes);
+  const combinedNotes = noteParts.join('\n');
+
+  const prefilledOrder = {
+    AccountID: ps.AccountID,
+    Location: ps.Location,
+    StaffID: ps.StaffID,
+    OrderDate: today(),
+    DeliveryDate: ps.DeliveryDate || '',
+    InvoiceNumber: '',
+    Status: 'Pending',
+    OrderAmount: ps.OrderAmount && parseFloat(ps.OrderAmount) > 0 ? ps.OrderAmount : '',
+    TaxAmount: '',
+    Notes: combinedNotes,
+  };
+
+  modal.open('Convert Pre-Sale to Order', orderForm(prefilledOrder, ps.AccountID), async () => {
+    const orderDate = val('f-order-date');
+    if (!orderDate) { toast('Order date is required', 'error'); return; }
+    const amount = val('f-amount');
+    if (!amount) { toast('Order amount is required', 'error'); return; }
+    const staffId = val('f-staff');
+    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+    await api.put(`/api/orders/${id}`, {
+      Location: val('f-location') || state.location,
+      StaffID: staffId, StaffName: staffName,
+      OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
+      InvoiceNumber: val('f-invoice'), Status: 'Pending',
+      OrderAmount: amount, TaxAmount: val('f-tax'),
+      Notes: val('f-notes'),
+    });
+    modal.close();
+    toast('Pre-sale converted to order');
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadOrders();
+  });
+}
+
+async function cancelPreSale(id) {
+  modal.confirm('Cancel Pre-Sale', 'Cancel this pre-sale? It will be marked as cancelled.', async () => {
+    await api.put(`/api/orders/${id}`, { Status: 'Cancelled' });
+    modal.close();
+    toast('Pre-sale cancelled');
+    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    else loadOrders();
+  });
+}
+
 async function markOrderPaid(id) {
   await api.put(`/api/orders/${id}`, { Status: 'Paid' });
   toast('Order marked as paid');
@@ -318,6 +456,17 @@ async function profileToggleDelivered(id) {
   const order = orders.find(s => s.ID === id);
   if (!order) return;
   await openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
+}
+
+async function profileConvertPreSale(id) {
+  // Load orders into _ordersCache so convertPreSale can find it
+  const orders = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  _ordersCache = orders;
+  await convertPreSale(id);
+}
+
+async function profileCancelPreSale(id) {
+  await cancelPreSale(id);
 }
 
 async function openDeliveryConfirmModal(orderId, order, onComplete) {

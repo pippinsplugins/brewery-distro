@@ -622,6 +622,7 @@ tbody td {
 .badge-ok-stock  { background: var(--success-bg); color: var(--success-text); }
 
 /* Order status badges */
+.badge-pre-sale  { background: #f3e5f5; color: #7b1fa2; }
 .badge-pending   { background: #e3f2fd; color: #1565c0; }
 .badge-paid      { background: var(--success-bg); color: var(--success-text); }
 .badge-cancelled { background: var(--neutral-bg); color: var(--neutral-text); }
