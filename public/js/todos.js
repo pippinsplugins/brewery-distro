@@ -91,7 +91,7 @@ function renderTodos() {
   const _focused = document.activeElement?.id;
   const statusFilter = _todoStatusFilter;
   const search = (document.getElementById('todo-search') || {}).value || '';
-  const staffFilter = state.navFilters?.staffId || '';
+  const staffFilter = (document.getElementById('todo-staff') || {}).value || state.navFilters?.staffId || '';
   const staffFilterName = state.navFilters?.staffName || '';
 
   let filtered = todos;
@@ -100,11 +100,18 @@ function renderTodos() {
     const q = search.toLowerCase();
     filtered = filtered.filter(r =>
       r.Title.toLowerCase().includes(q) ||
-      (r.AccountName || '').toLowerCase().includes(q)
+      (r.AccountName || '').toLowerCase().includes(q) ||
+      (r.StaffName || '').toLowerCase().includes(q)
     );
   }
 
   const pg = paginate(filtered, 'todos');
+
+  const staffOpts = `<option value="">All Staff</option>` +
+    [...new Map(todos.filter(r => r.StaffID).map(r => [r.StaffID, r.StaffName])).entries()]
+      .sort((a, b) => (a[1] || '').localeCompare(b[1] || ''))
+      .map(([id, name]) => `<option value="${esc(id)}" ${staffFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
+      .join('');
 
   setContent(`
     <div class="view-header">
@@ -113,12 +120,13 @@ function renderTodos() {
         <p class="subtitle">${filtered.filter(r => r.Completed !== 'true').length} active todo${filtered.length !== 1 ? 's' : ''}${staffFilterName ? ` assigned to ${esc(staffFilterName)}` : ''}</p>
       </div>
       <div class="view-header-actions">
-        ${staffFilter ? `<button class="btn btn-ghost" onclick="state.navFilters={}; renderTodos()">Clear Filter</button>` : ''}
+        ${staffFilterName ? `<button class="btn btn-ghost" onclick="state.navFilters={}; renderTodos()">Clear Filter</button>` : ''}
         <button class="btn btn-primary" onclick="openAddTodo()">+ Add Todo</button>
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="todo-search" placeholder="Search todos..." value="${esc(search)}" oninput="_paginationReset('todos'); renderTodos()" />
+      <input type="search" id="todo-search" placeholder="Search title, account, staff..." value="${esc(search)}" oninput="_paginationReset('todos'); renderTodos()" />
+      <select id="todo-staff" onchange="state.navFilters={}; _paginationReset('todos'); renderTodos()">${staffOpts}</select>
       <select id="todo-status" onchange="_paginationReset('todos'); loadTodos()">
         <option value="active" ${statusFilter === 'active' ? 'selected' : ''}>Active</option>
         <option value="completed" ${statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
