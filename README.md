@@ -1,61 +1,69 @@
 # Brewery Distribution Manager
 
-A web app for managing self-distribution accounts for a small microbrewery. Tracks inventory, customer accounts, outreach history, and reminders — backed by Google Sheets so no database is required.
+A web app for managing self-distribution operations for a small microbrewery. Tracks products, inventory across multiple locations, customer accounts, orders, outreach history, reminders, keg tracking, tap handles, and email — all backed by a local SQLite database.
 
 ## Features
 
-- **Inventory** — Track products (name, style, ABV, format, stock level, price). Low-stock alerts.
-- **Accounts** — Manage bars, restaurants, bottle shops, and retailers. Store preferred contact method (email, phone, SMS, in-person), contact info, and status (Active / Prospect / Inactive).
-- **Outreach Log** — Log every customer contact with date, method used, notes, and follow-up date. Automatically updates the account's "Last Contacted" date.
-- **Reminders** — Deadline tracker for follow-ups, deliveries, payments, orders, and events. Color-coded urgency (overdue / today / upcoming). One click to mark done.
-- **Dashboard** — At-a-glance stats, overdue alerts, upcoming reminders, recent outreach, and low-stock warnings.
+- **Dashboard** — At-a-glance KPIs: active accounts, monthly orders & revenue, overdue reminders, low-stock alerts, recent outreach, and pending deliveries.
+- **Products** — Master product catalog (name, style, ABV, format, price). Adding a product auto-creates inventory rows at every configured location.
+- **Inventory** — Per-location stock levels with low-stock thresholds and alerts. Stock is adjusted through stock movements (sales, received, write-offs, adjustments) for a full audit trail.
+- **Accounts** — Manage bars, restaurants, retail stores, grocery stores, hotels, event venues, and individuals. Store contact info, preferred contact method, address, ABC license, and assigned sales rep. Detailed profile view with outreach history, orders, kegs, and tap handles in one place.
+- **Orders & Sales** — Create and manage orders with invoice numbers, delivery dates, and payment status (Pending / Paid / Cancelled / Pre-Sale). Confirm deliveries with product selection, which auto-decrements inventory and creates keg tracking records.
+- **Outreach Log** — Log every customer contact (phone, email, in-person) with notes and follow-up dates. Automatically updates the account's "Last Contacted" date.
+- **Reminders / Todos** — Task management with due dates, priorities, account/staff assignment, and recurring schedules (daily, weekly, biweekly, monthly, quarterly, yearly). Completing a recurring reminder auto-creates the next occurrence.
+- **Keg Tracking** — Track kegs deployed to accounts and mark returns. Auto-created when delivering keg-format products. Outstanding keg counts shown on account profiles and a dedicated kegs view.
+- **Tap Handles** — Track promotional tap handles deployed to venues and mark collections.
+- **Email** — Send individual or bulk emails directly from the app using each staff member's own Gmail account via OAuth2. Bulk emails use BCC for recipient privacy. Sends are auto-logged as outreach entries.
+- **Staff** — Manage sales reps with assignment to accounts and orders.
+- **Multi-Location** — Configure multiple warehouse/taproom locations. Inventory, orders, and the dashboard filter by location.
+- **Map** — Visual map of account locations.
+- **Zapier Webhook** — Accept incoming orders from external systems (POS, accounting) via a webhook endpoint.
 
 ## Setup
 
-### 1. Google Cloud — create a service account
+### 1. Google Cloud project
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com/) and create (or select) a project.
-2. Enable the **Google Sheets API** for that project.
-3. Go to **IAM & Admin → Service Accounts** and create a new service account.
-4. On the service account, go to **Keys → Add Key → Create new key → JSON**. Download the JSON file.
-5. Rename the downloaded file to `credentials.json` and place it in the project root.
+2. Enable the **Gmail API** (required for the email feature).
+3. Go to **APIs & Services > Credentials** and create an **OAuth 2.0 Client ID** (Web application type).
+4. Under **Authorised JavaScript origins**, add your domain (for local dev: `http://localhost:3000`).
+5. Under **Authorised redirect URIs**, add `http://localhost:3000/auth/google/callback` (or your production equivalent).
+6. Copy the **Client ID** and **Client Secret** for the next step.
 
-### 2. Google Sheets — create and share the spreadsheet
-
-1. Create a new Google Sheet at [sheets.google.com](https://sheets.google.com).
-2. Copy the spreadsheet ID from the URL:
-   `https://docs.google.com/spreadsheets/d/**[SPREADSHEET_ID]**/edit`
-3. Share the spreadsheet with the **client_email** from your `credentials.json`, granting **Editor** access.
-
-### 3. Configure environment
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and fill in your `SPREADSHEET_ID`. The app will use `credentials.json` by default.
+Edit `.env` and fill in the required values:
 
-### 4. Install and run
+```
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+SESSION_SECRET=a_long_random_string
+```
+
+Optional settings:
+
+```
+PORT=3000                          # Server port (default: 3000)
+DB_PATH=./data/brewery.db         # SQLite database path (default: ./data/brewery.db)
+GOOGLE_ALLOWED_DOMAIN=company.com  # Restrict login to a Google Workspace domain
+GOOGLE_CALLBACK_URL=https://...    # Full OAuth callback URL for production
+WEBHOOK_SECRET=a_long_random_string  # Enables the Zapier webhook endpoint
+```
+
+### 3. Install and run
 
 ```bash
 npm install
 npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). You'll be prompted to sign in with Google. On first login, Google will ask you to grant permission to send email on your behalf (Gmail send scope).
 
-On first run the app automatically creates four sheets inside your spreadsheet: `Inventory`, `Accounts`, `Outreach`, and `Reminders`.
-
-## Data structure
-
-All data lives in your Google Sheet with these tabs:
-
-| Sheet | Columns |
-|---|---|
-| Inventory | ID, Name, Style, ABV, Format, Units, PricePerUnit, LowStockThreshold, Notes, LastUpdated |
-| Accounts | ID, Name, Type, ContactName, Email, Phone, PreferredMethod, Address, City, State, Status, Notes, LastContacted, CreatedAt |
-| Outreach | ID, AccountID, AccountName, Date, Method, Notes, FollowUpDate, FollowUpStatus, CreatedAt |
-| Reminders | ID, Type, AccountID, AccountName, Title, DueDate, Priority, Notes, Completed, CreatedAt |
+The SQLite database is created automatically on first run.
 
 ## Development
 
@@ -65,9 +73,55 @@ npm run dev   # uses nodemon for auto-reload
 
 ## Environment variables
 
-| Variable | Description |
+| Variable | Required | Description |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | Yes | OAuth 2.0 Client ID from Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | Yes | OAuth 2.0 Client Secret |
+| `SESSION_SECRET` | Yes | Secret used to sign session cookies |
+| `PORT` | No | Server port (default: `3000`) |
+| `DB_PATH` | No | Path to SQLite database file (default: `./data/brewery.db`) |
+| `GOOGLE_ALLOWED_DOMAIN` | No | Restrict sign-in to a single Google Workspace domain |
+| `GOOGLE_CALLBACK_URL` | No | Full OAuth callback URL for production deployments |
+| `WEBHOOK_SECRET` | No | Bearer token for authenticating Zapier webhook calls |
+
+## Zapier webhook
+
+When `WEBHOOK_SECRET` is set, the app exposes a `POST /webhooks/zapier/order` endpoint that accepts orders from external systems. Include the secret as a Bearer token in the Authorization header.
+
+The endpoint accepts flexible field names to accommodate different source systems:
+
+- **Account:** `AccountID`, `account_id`, `AccountName`, `account_name`, `customer_name`, or `client_name`
+- **Order date:** `OrderDate`, `order_date`, `sale_date`, `SaleDate`, or `invoice_date` (defaults to today)
+- **Amount:** `OrderAmount`, `order_amount`, `SaleAmount`, `sale_amount`, `amount`, or `subtotal`
+- **Tax:** `TaxAmount`, `tax_amount`, or `tax`
+- **Invoice:** `InvoiceNumber` or `invoice_number`
+- **Status:** `Status` or `status` (Pending, Paid, or Cancelled)
+
+## Data structure
+
+All data is stored in a local SQLite database with these tables:
+
+| Table | Key columns |
 |---|---|
-| `SPREADSHEET_ID` | ID of your Google Sheet (required) |
-| `GOOGLE_KEY_FILE` | Path to service account JSON key file (default: `credentials.json`) |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Inline JSON credentials (alternative to key file, useful for cloud deployments) |
-| `PORT` | Server port (default: 3000) |
+| Products | ID, Name, Style, ABV, Format, PricePerUnit |
+| Inventory | ID, ProductID, ProductName, Location, Units, LowStockThreshold |
+| Accounts | ID, Name, Type, ContactName, Email, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, StaffID, LastContacted |
+| Orders | ID, AccountID, Location, StaffID, OrderDate, DeliveryDate, InvoiceNumber, OrderAmount, TaxAmount, Status, Delivered, RequestedProducts |
+| StockMovements | ID, InventoryID, OrderID, Type (sale/received/write-off/adjustment), Quantity, Date |
+| Outreach | ID, AccountID, Date, Method, Notes, FollowUpDate, FollowUpStatus |
+| Reminders | ID, AccountID, StaffID, Title, Type, DueDate, Priority, Completed, Recurrence |
+| KegTracking | ID, AccountID, OrderID, ProductName, Format, Quantity, DeliveredDate, ReturnedDate, ReturnedQuantity |
+| TapHandles | ID, AccountID, Quantity, DeployedDate, CollectedDate, CollectedQuantity |
+| Staff | ID, Name, Email, Phone, Role, Active |
+| EmailLog | ID, SenderName, SenderEmail, Recipients, Subject, Body, Type, Status |
+| Settings | ID, Key, Value |
+
+## Migrating from Google Sheets
+
+If you previously used the Google Sheets-backed version, run the migration script to move your data to SQLite:
+
+```bash
+node migrate-to-sqlite.js
+```
+
+This requires the legacy `SPREADSHEET_ID` and Google service account credentials to be configured in `.env`. The script will create a new SQLite database and import all existing data. A backup of any existing database is created before migration.
