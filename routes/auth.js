@@ -8,7 +8,8 @@ const router = express.Router();
 
 // ── Passport configuration ─────────────────────────────────────────────────
 
-const ALLOWED_DOMAIN = process.env.GOOGLE_ALLOWED_DOMAIN || '';
+const ALLOWED_DOMAINS = (process.env.GOOGLE_ALLOWED_DOMAIN || '')
+  .split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
 const oauthConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
 if (oauthConfigured) {
@@ -17,17 +18,18 @@ if (oauthConfigured) {
       clientID:     process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:  process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
-      // hd restricts the Google sign-in picker to the workspace domain,
-      // but we also verify it server-side in the verify callback below.
-      hd: ALLOWED_DOMAIN || undefined,
+      // hd restricts the Google sign-in picker to the workspace domain.
+      // Only works with a single domain; when multiple are configured we
+      // omit it and rely on server-side verification below.
+      hd: ALLOWED_DOMAINS.length === 1 ? ALLOWED_DOMAINS[0] : undefined,
     },
     function verify(accessToken, refreshToken, profile, done) {
       // Enforce Google Workspace domain restriction.
-      if (ALLOWED_DOMAIN) {
-        const hostedDomain = profile._json && profile._json.hd;
-        if (hostedDomain !== ALLOWED_DOMAIN) {
+      if (ALLOWED_DOMAINS.length > 0) {
+        const hostedDomain = ((profile._json && profile._json.hd) || '').toLowerCase();
+        if (!ALLOWED_DOMAINS.includes(hostedDomain)) {
           return done(null, false, {
-            message: `Access restricted to @${ALLOWED_DOMAIN} accounts.`,
+            message: `Access restricted to @${ALLOWED_DOMAINS.join(', @')} accounts.`,
           });
         }
       }
