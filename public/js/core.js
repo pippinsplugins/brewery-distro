@@ -263,22 +263,46 @@ const api = {
 
 const modal = {
   _onSubmit: null,
+  _trapFocus: null,
 
   open(title, bodyHtml, onSubmit, submitLabel = 'Save') {
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-body').innerHTML = bodyHtml;
     document.getElementById('modal-submit-btn').textContent = submitLabel;
+    document.getElementById('modal-submit-btn').className = 'btn btn-primary';
     document.getElementById('modal-overlay').classList.remove('hidden');
     modal._onSubmit = onSubmit;
 
+    // Trap focus within the modal
+    if (modal._trapFocus) document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);
+    modal._trapFocus = function(e) {
+      if (e.key !== 'Tab') return;
+      const focusable = document.querySelectorAll('#modal-box button, #modal-box input:not([type="hidden"]), #modal-box select, #modal-box textarea');
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last  = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.getElementById('modal-overlay').addEventListener('keydown', modal._trapFocus);
+
     // Focus first input
-    const first = document.querySelector('#modal-body input, #modal-body select, #modal-body textarea');
+    const first = document.querySelector('#modal-body input:not([type="hidden"]), #modal-body select, #modal-body textarea');
     if (first) first.focus();
   },
 
   close() {
     document.getElementById('modal-overlay').classList.add('hidden');
     modal._onSubmit = null;
+    if (modal._trapFocus) {
+      document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);
+      modal._trapFocus = null;
+    }
   },
 
   confirm(title, msg, onConfirm) {
