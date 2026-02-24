@@ -1,8 +1,20 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
+const { extractInvoiceData } = require('../lib/pdf-parser');
+
+// Multer setup: memory storage, PDF only, 10MB limit, max 50 files
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Only PDF files are accepted'));
+  },
+});
 
 const router = express.Router();
 
@@ -93,6 +105,167 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+  }
+});
+
+// ── Import endpoints ────────────────────────────────────────────────
+
+// POST /import — upload PDF(s), extract + parse, return preview data
+router.post('/import', upload.array('invoices', 50), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No PDF files uploaded' });
+    }
+
+    const [accounts, inventory, existingOrders] = await Promise.all([
+      getAllRows('ACCOUNTS'),
+      getAllRows('INVENTORY'),
+      getAllRows('ORDERS'),
+    ]);
+
+    const existingInvoiceNums = new Set(
+      existingOrders.filter(o => o.InvoiceNumber).map(o => o.InvoiceNumber.toLowerCase().trim())
+    );
+
+    const results = [];
+    for (const file of req.files) {
+      try {
+        const { parsed, confidence } = await extractInvoiceData(file.buffer, accounts, inventory);
+        const duplicate = parsed.invoiceNumber
+          ? existingInvoiceNums.has(parsed.invoiceNumber.toLowerCase().trim())
+          : false;
+        const duplicateOrderId = duplicate
+          ? (existingOrders.find(o => o.InvoiceNumber && o.InvoiceNumber.toLowerCase().trim() === parsed.invoiceNumber.toLowerCase().trim()) || {}).ID || ''
+          : '';
+
+        results.push({
+          filename: file.originalname,
+          parsed,
+          confidence,
+          duplicate,
+          duplicateOrderId,
+        });
+      } catch (parseErr) {
+        results.push({
+          filename: file.originalname,
+          parsed: {
+            invoiceNumber: '', orderDate: '', accountId: '', accountName: '',
+            accountMatch: 'none', orderAmount: '', taxAmount: '', lineItems: [],
+          },
+          confidence: 'error',
+          error: parseErr.message,
+          duplicate: false,
+          duplicateOrderId: '',
+        });
+      }
+    }
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /import/confirm — bulk create orders + line items + optional new inventory
+router.post('/import/confirm', async (req, res) => {
+  try {
+    const { orders: orderDefs } = req.body;
+    if (!Array.isArray(orderDefs) || orderDefs.length === 0) {
+      return res.status(400).json({ error: 'orders array is required' });
+    }
+
+    const created = [];
+    const errors = [];
+    let newProductsCreated = 0;
+
+    for (const def of orderDefs) {
+      try {
+        // 1. Create any new inventory items for unmatched products
+        const productIdMap = {}; // maps temp key → new inventory ID
+        if (Array.isArray(def.newProducts)) {
+          for (const np of def.newProducts) {
+            const invItem = {
+              ID: uuidv4(),
+              Name: np.productName || '',
+              Location: def.Location || '',
+              Style: '',
+              ABV: '',
+              Format: '',
+              Units: '0',
+              PricePerUnit: np.unitPrice || '0',
+              LowStockThreshold: '',
+              Notes: 'Created from invoice import',
+              LastUpdated: new Date().toISOString(),
+              ProductID: '',
+              ProductName: np.productName || '',
+            };
+            await addRow('INVENTORY', invItem);
+            productIdMap[np.productName] = invItem.ID;
+            newProductsCreated++;
+          }
+        }
+
+        // 2. Create the order
+        const order = {
+          ID: uuidv4(),
+          AccountID: def.AccountID || '',
+          AccountName: def.AccountName || '',
+          Location: def.Location || '',
+          StaffID: def.StaffID || '',
+          StaffName: def.StaffName || '',
+          OrderDate: withTimestamp(def.OrderDate || new Date().toISOString().split('T')[0]),
+          DeliveryDate: def.DeliveryDate || '',
+          InvoiceNumber: def.InvoiceNumber || '',
+          OrderAmount: def.OrderAmount || '0',
+          TaxAmount: def.TaxAmount || '0',
+          Notes: def.Notes || 'Imported from invoice',
+          RequestedProducts: '',
+          Status: def.Status || 'Paid',
+          Delivered: def.Delivered || 'false',
+          CreatedAt: new Date().toISOString(),
+        };
+        await addRow('ORDERS', order);
+
+        // 3. Create order items (line items)
+        if (Array.isArray(def.lineItems)) {
+          for (const li of def.lineItems) {
+            // Resolve inventory ID — could be from existing match or newly created
+            let inventoryId = li.inventoryId || '';
+            if (!inventoryId && productIdMap[li.productName]) {
+              inventoryId = productIdMap[li.productName];
+            }
+            const item = {
+              ID: uuidv4(),
+              OrderID: order.ID,
+              InventoryID: inventoryId,
+              ProductName: li.productName || '',
+              Quantity: String(li.quantity || '0'),
+              UnitPrice: String(li.unitPrice || '0'),
+              LineTotal: String(li.lineTotal || '0'),
+              CreatedAt: new Date().toISOString(),
+            };
+            await addRow('ORDER_ITEMS', item);
+          }
+
+          // Build RequestedProducts string from line items
+          const rpParts = def.lineItems
+            .filter(li => li.productName && li.quantity)
+            .map(li => `${li.quantity}x ${li.productName}`);
+          if (rpParts.length) {
+            await updateRow('ORDERS', order.ID, { RequestedProducts: rpParts.join(', ') });
+            order.RequestedProducts = rpParts.join(', ');
+          }
+        }
+
+        created.push(order);
+      } catch (orderErr) {
+        errors.push({ filename: def.filename || 'unknown', error: orderErr.message });
+      }
+    }
+
+    res.json({ created, errors, newProductsCreated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

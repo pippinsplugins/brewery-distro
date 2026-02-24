@@ -128,6 +128,7 @@ let _ordersDateFrom = '';
 let _ordersDateTo = '';
 let _orderFormInventory = [];
 let _ordersSort = { col: 'OrderDate', dir: 'desc' };
+let _orderItemCounts = {}; // { orderId: count } for item count badges
 
 function sortOrders(col) {
   _paginationReset('orders');
@@ -269,14 +270,16 @@ async function loadOrders() {
   _ordersDateTo = '';
   showLoading();
   const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
-  const [orders, accounts, staff] = await Promise.all([
+  const [orders, accounts, staff, itemCounts] = await Promise.all([
     api.get(`/api/orders${locParam}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
+    api.get('/api/order-items/counts'),
   ]);
   state.accounts = accounts;
   state.staff = staff;
   _ordersCache = orders;
+  _orderItemCounts = itemCounts || {};
   renderOrders();
 }
 
@@ -369,6 +372,7 @@ function renderOrders() {
         <p class="subtitle">${orders.length} order${orders.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
+        <button class="btn btn-secondary" onclick="openImportInvoices()">Import Invoices</button>
         <button class="btn btn-secondary" onclick="openAddPreSale()">+ Pre-Sale</button>
         <button class="btn btn-primary" onclick="openAddOrder()">+ Log Order</button>
       </div>
@@ -417,7 +421,7 @@ function renderOrders() {
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
+                <td class="text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -829,4 +833,282 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     toast(parts.join(' · ') || 'Delivery confirmed');
     onComplete();
   }, 'Confirm Delivery');
+}
+
+// ── Invoice Import ──────────────────────────────────────────────────
+
+let _importParsedInvoices = [];
+
+function openImportInvoices() {
+  _importParsedInvoices = [];
+  const body = `
+    <div id="import-upload-step">
+      <p class="text-muted text-sm" style="margin-bottom:12px">
+        Upload one or more PDF invoices to extract order data. You'll be able to review and edit before creating orders.
+      </p>
+      <div class="form-group">
+        <label>PDF Invoices</label>
+        <input class="form-control" type="file" id="import-files" accept=".pdf,application/pdf" multiple />
+      </div>
+      <p class="text-muted text-sm">Accepted: PDF files up to 10MB each, max 50 files.</p>
+    </div>`;
+  modal.open('Import Invoices', body, processImportFiles, 'Upload & Parse');
+  // Widen modal for import
+  const modalEl = document.getElementById('modal-box');
+  if (modalEl) modalEl.classList.add('modal-wide');
+}
+
+async function processImportFiles() {
+  const fileInput = document.getElementById('import-files');
+  if (!fileInput || !fileInput.files.length) {
+    toast('Please select at least one PDF file', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  for (const file of fileInput.files) {
+    formData.append('invoices', file);
+  }
+
+  // Show loading state
+  document.getElementById('modal-body').innerHTML = `
+    <div class="loading-state" style="padding:40px 20px">
+      <div class="spinner"></div>
+      <p>Parsing ${fileInput.files.length} invoice${fileInput.files.length > 1 ? 's' : ''}...</p>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/orders/import', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Upload failed');
+    }
+    _importParsedInvoices = await res.json();
+    renderImportPreview();
+  } catch (err) {
+    toast('Import error: ' + err.message, 'error');
+    modal.close();
+  }
+}
+
+function renderImportPreview() {
+  if (!_importParsedInvoices.length) {
+    modal.close();
+    return;
+  }
+
+  // Make sure accounts are loaded for the dropdown
+  const acctOptions = state.accounts
+    .filter(a => a.Status !== 'Inactive')
+    .sort((a, b) => a.Name.localeCompare(b.Name))
+    .map(a => `<option value="${esc(a.ID)}">${esc(a.Name)}</option>`)
+    .join('');
+
+  let html = `
+    <p class="text-muted text-sm" style="margin-bottom:12px">
+      Review the extracted data below. Edit any fields as needed, then click "Create Orders" to import.
+    </p>`;
+
+  _importParsedInvoices.forEach((inv, idx) => {
+    const p = inv.parsed;
+    const dupBadge = inv.duplicate ? ' <span class="badge badge-import-duplicate">Duplicate</span>' : '';
+    const confBadge = inv.confidence === 'high' ? '<span class="badge badge-paid">High</span>'
+      : inv.confidence === 'medium' ? '<span class="badge badge-pending">Medium</span>'
+      : inv.confidence === 'error' ? '<span class="badge badge-high">Error</span>'
+      : '<span class="badge badge-inactive">Low</span>';
+    const errMsg = inv.error ? `<p class="text-danger text-sm">${esc(inv.error)}</p>` : '';
+
+    // Build account select with best match pre-selected
+    let acctSelect = `<select class="form-control form-control-sm" id="imp-acct-${idx}">
+      <option value="">-- Select Account --</option>
+      ${acctOptions}
+    </select>`;
+
+    // Match indicator
+    const matchLabel = p.accountMatch === 'exact' ? '<span class="match-exact">exact match</span>'
+      : p.accountMatch === 'fuzzy' ? '<span class="match-fuzzy">fuzzy match</span>'
+      : p.accountName ? '<span class="match-none">no match</span>' : '';
+    const acctHint = p.accountName && p.accountMatch !== 'exact'
+      ? `<span class="text-muted text-sm">Extracted: "${esc(p.accountName)}" ${matchLabel}</span>` : matchLabel;
+
+    // Line items table
+    let lineItemsHtml = '';
+    if (p.lineItems && p.lineItems.length > 0) {
+      lineItemsHtml = `
+        <div class="import-line-items">
+          <div class="table-wrap" style="margin-top:8px">
+            <table>
+              <thead><tr><th>Product</th><th>Match</th><th>Qty</th><th>Unit Price</th><th>Total</th>${p.lineItems.some(li => li.inventoryMatch === 'none') ? '<th>Create</th>' : ''}</tr></thead>
+              <tbody>
+                ${p.lineItems.map((li, liIdx) => {
+                  const matchBadge = li.inventoryMatch === 'exact' ? '<span class="match-exact">exact</span>'
+                    : li.inventoryMatch === 'fuzzy' ? '<span class="match-fuzzy">fuzzy</span>'
+                    : '<span class="match-none">none</span>';
+                  const createCheck = li.inventoryMatch === 'none'
+                    ? `<td><label class="checkbox-label"><input type="checkbox" id="imp-create-${idx}-${liIdx}" checked /> New</label></td>` : '';
+                  return `<tr>
+                    <td><input class="form-control form-control-sm" id="imp-li-name-${idx}-${liIdx}" value="${esc(li.productName)}" /></td>
+                    <td class="text-sm">${matchBadge}</td>
+                    <td><input class="form-control form-control-sm" id="imp-li-qty-${idx}-${liIdx}" type="number" min="0" step="1" value="${esc(li.quantity)}" style="width:70px" /></td>
+                    <td><input class="form-control form-control-sm" id="imp-li-price-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.unitPrice)}" style="width:90px" /></td>
+                    <td><input class="form-control form-control-sm" id="imp-li-total-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.lineTotal)}" style="width:90px" /></td>
+                    ${p.lineItems.some(l => l.inventoryMatch === 'none') ? (li.inventoryMatch === 'none' ? createCheck : '<td></td>') : ''}
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    html += `
+      <div class="import-invoice-section${inv.duplicate ? ' import-row-duplicate' : ''}" id="imp-section-${idx}">
+        <div class="import-invoice-header">
+          <label class="checkbox-label">
+            <input type="checkbox" id="imp-include-${idx}" checked />
+            <strong>${esc(inv.filename)}</strong>
+          </label>
+          <span class="text-sm">Confidence: ${confBadge}${dupBadge}</span>
+        </div>
+        ${errMsg}
+        <div class="import-invoice-fields">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Account</label>
+              ${acctSelect}
+              ${acctHint ? `<div style="margin-top:3px">${acctHint}</div>` : ''}
+            </div>
+            <div class="form-group">
+              <label>Invoice #</label>
+              <input class="form-control form-control-sm" id="imp-inv-${idx}" value="${esc(p.invoiceNumber)}" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Order Date</label>
+              <input class="form-control form-control-sm" id="imp-date-${idx}" type="date" value="${esc(p.orderDate)}" />
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select class="form-control form-control-sm" id="imp-status-${idx}">
+                ${ORDER_STATUSES.map(s => `<option value="${s}" ${s === 'Paid' ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Order Amount ($)</label>
+              <input class="form-control form-control-sm" id="imp-amount-${idx}" type="number" step="0.01" min="0" value="${esc(p.orderAmount)}" />
+            </div>
+            <div class="form-group">
+              <label>Tax Amount ($)</label>
+              <input class="form-control form-control-sm" id="imp-tax-${idx}" type="number" step="0.01" min="0" value="${esc(p.taxAmount)}" />
+            </div>
+          </div>
+          ${lineItemsHtml}
+        </div>
+      </div>`;
+  });
+
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-submit-btn').textContent = 'Create Orders';
+
+  // Set pre-selected account values after DOM is rendered
+  _importParsedInvoices.forEach((inv, idx) => {
+    if (inv.parsed.accountId) {
+      const sel = document.getElementById(`imp-acct-${idx}`);
+      if (sel) sel.value = inv.parsed.accountId;
+    }
+  });
+
+  // Swap the submit handler
+  modal._onSubmit = confirmImport;
+}
+
+async function confirmImport() {
+  const orderDefs = [];
+
+  for (let idx = 0; idx < _importParsedInvoices.length; idx++) {
+    const includeEl = document.getElementById(`imp-include-${idx}`);
+    if (includeEl && !includeEl.checked) continue;
+
+    const inv = _importParsedInvoices[idx];
+    const p = inv.parsed;
+    const accountId = val(`imp-acct-${idx}`);
+    const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
+
+    const lineItems = [];
+    const newProducts = [];
+    if (p.lineItems) {
+      p.lineItems.forEach((li, liIdx) => {
+        const productName = val(`imp-li-name-${idx}-${liIdx}`) || li.productName;
+        const quantity = val(`imp-li-qty-${idx}-${liIdx}`) || li.quantity;
+        const unitPrice = val(`imp-li-price-${idx}-${liIdx}`) || li.unitPrice;
+        const lineTotal = val(`imp-li-total-${idx}-${liIdx}`) || li.lineTotal;
+        lineItems.push({
+          productName,
+          quantity,
+          unitPrice,
+          lineTotal,
+          inventoryId: li.inventoryId || '',
+          inventoryMatch: li.inventoryMatch,
+        });
+        // Check if user wants to create this as new inventory
+        const createEl = document.getElementById(`imp-create-${idx}-${liIdx}`);
+        if (createEl && createEl.checked && li.inventoryMatch === 'none') {
+          newProducts.push({ productName, unitPrice });
+        }
+      });
+    }
+
+    orderDefs.push({
+      filename: inv.filename,
+      AccountID: accountId,
+      AccountName: accountName,
+      Location: state.location || '',
+      OrderDate: val(`imp-date-${idx}`) || p.orderDate || today(),
+      InvoiceNumber: val(`imp-inv-${idx}`) || '',
+      OrderAmount: val(`imp-amount-${idx}`) || '0',
+      TaxAmount: val(`imp-tax-${idx}`) || '0',
+      Status: val(`imp-status-${idx}`) || 'Paid',
+      Notes: 'Imported from invoice',
+      lineItems,
+      newProducts,
+    });
+  }
+
+  if (orderDefs.length === 0) {
+    toast('No invoices selected for import', 'error');
+    return;
+  }
+
+  // Show loading
+  document.getElementById('modal-body').innerHTML = `
+    <div class="loading-state" style="padding:40px 20px">
+      <div class="spinner"></div>
+      <p>Creating ${orderDefs.length} order${orderDefs.length > 1 ? 's' : ''}...</p>
+    </div>`;
+
+  try {
+    const result = await api.post('/api/orders/import/confirm', { orders: orderDefs });
+    modal.close();
+    // Remove modal-wide class
+    const modalEl = document.getElementById('modal-box');
+    if (modalEl) modalEl.classList.remove('modal-wide');
+
+    const msgs = [];
+    if (result.created.length) msgs.push(`${result.created.length} order${result.created.length > 1 ? 's' : ''} created`);
+    if (result.newProductsCreated) msgs.push(`${result.newProductsCreated} new product${result.newProductsCreated > 1 ? 's' : ''} added to inventory`);
+    if (result.errors.length) msgs.push(`${result.errors.length} error${result.errors.length > 1 ? 's' : ''}`);
+    toast(msgs.join(' · ') || 'Import complete');
+    if (result.errors.length) {
+      console.warn('Import errors:', result.errors);
+    }
+    loadOrders();
+  } catch (err) {
+    toast('Import error: ' + err.message, 'error');
+    modal.close();
+    const modalEl = document.getElementById('modal-box');
+    if (modalEl) modalEl.classList.remove('modal-wide');
+  }
 }
