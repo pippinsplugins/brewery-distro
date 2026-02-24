@@ -31,7 +31,7 @@ async function loadDashboard() {
     }));
 
   // Identify current staff member by matching email
-  const currentStaff = staff.find(s => s.Email && s.Email === state.userEmail);
+  const currentStaff = staff.find(s => s.Email && s.Email.split(',').map(e => e.trim().toLowerCase()).includes((state.userEmail || '').toLowerCase()));
   const currentStaffId = currentStaff ? currentStaff.ID : null;
 
   // Split pending deliveries into overdue vs upcoming

@@ -20,7 +20,7 @@ function staffForm(member = {}) {
     <div class="form-row">
       <div class="form-group">
         <label>Email</label>
-        <input class="form-control" id="f-email" type="email" value="${esc(member.Email)}" placeholder="alex@brewery.com" />
+        <input class="form-control" id="f-email" type="text" value="${esc(member.Email)}" placeholder="alex@brewery.com, alex@gmail.com" />
       </div>
       <div class="form-group">
         <label>Phone</label>
