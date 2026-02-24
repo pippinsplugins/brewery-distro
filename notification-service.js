@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
-const { getAllRows, addRow, updateRow } = require('./sheets');
+const { getAllRows, addRow, updateRow, deleteRow } = require('./sheets');
 const { isEmailConfigured, sendEmail } = require('./email-service');
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -20,8 +20,8 @@ function hoursAgo(isoStr, hours) {
 
 function createNotification({ type, title, body, severity, staffId, referenceType, referenceId, dedupKey }) {
   const existing = getAllRows('NOTIFICATIONS');
-  const duplicate = existing.find(n => n.DedupKey === dedupKey && !n.ReadAt);
-  if (duplicate) return null; // already has an unread notification for this condition
+  const duplicate = existing.find(n => n.DedupKey === dedupKey);
+  if (duplicate) return null; // already has a notification for this condition
 
   const notification = {
     ID:            crypto.randomUUID(),
@@ -34,7 +34,6 @@ function createNotification({ type, title, body, severity, staffId, referenceTyp
     ReferenceID:   referenceId || '',
     ReadAt:        '',
     EmailSent:     'false',
-    WebhookSent:   'false',
     DedupKey:      dedupKey,
     CreatedAt:     new Date().toISOString(),
   };
@@ -148,10 +147,7 @@ function notifyTodoAssigned(reminder) {
 
 function expireResolvedNotifications() {
   const notifications = getAllRows('NOTIFICATIONS');
-  const unread = notifications.filter(n => !n.ReadAt);
-  if (unread.length === 0) return;
-
-  const now = new Date().toISOString();
+  if (notifications.length === 0) return;
 
   // Gather source data
   const inventory = getAllRows('INVENTORY');
@@ -162,7 +158,7 @@ function expireResolvedNotifications() {
   const ordMap  = Object.fromEntries(orders.map(o => [o.ID, o]));
   const remMap  = Object.fromEntries(reminders.map(r => [r.ID, r]));
 
-  for (const n of unread) {
+  for (const n of notifications) {
     let resolved = false;
 
     if ((n.Type === 'low_stock' || n.Type === 'out_of_stock') && n.ReferenceType === 'inventory') {
@@ -191,8 +187,9 @@ function expireResolvedNotifications() {
       if (!rem || rem.Completed === 'true') resolved = true;
     }
 
+    // Delete resolved notifications so they don't block dedup if the condition recurs
     if (resolved) {
-      updateRow('NOTIFICATIONS', n.ID, { ReadAt: now });
+      deleteRow('NOTIFICATIONS', n.ID);
     }
   }
 }
