@@ -300,56 +300,6 @@ async function sendPendingEmails(user) {
   }
 }
 
-// ── Webhook delivery ─────────────────────────────────────────────────────
-
-async function sendPendingWebhooks() {
-  const settings = getAllRows('SETTINGS');
-  const webhookSetting = settings.find(s => s.Key === 'notificationWebhookUrl');
-  const webhookUrl = webhookSetting ? webhookSetting.Value : '';
-  if (!webhookUrl) return;
-
-  const webhookSecret = process.env.WEBHOOK_SECRET || '';
-
-  const notifications = getAllRows('NOTIFICATIONS');
-  const pending = notifications.filter(n => n.WebhookSent === 'false' && !n.ReadAt);
-  if (pending.length === 0) return;
-
-  for (const n of pending) {
-    const payload = {
-      event:         'notification',
-      type:          n.Type,
-      severity:      n.Severity,
-      title:         n.Title,
-      body:          n.Body,
-      referenceType: n.ReferenceType,
-      referenceId:   n.ReferenceID,
-      staffId:       n.StaffID,
-      createdAt:     n.CreatedAt,
-    };
-
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (webhookSecret) {
-        headers['Authorization'] = `Bearer ${webhookSecret}`;
-      }
-      const resp = await fetch(webhookUrl, {
-        method:  'POST',
-        headers,
-        body:    JSON.stringify(payload),
-        signal:  AbortSignal.timeout(10000),
-      });
-      if (resp.ok) {
-        updateRow('NOTIFICATIONS', n.ID, { WebhookSent: 'true' });
-      } else {
-        console.error(`Webhook failed (${resp.status}):`, await resp.text().catch(() => ''));
-      }
-    } catch (err) {
-      console.error('Webhook delivery error:', err.message);
-      // Leave WebhookSent as 'false' to retry next time
-    }
-  }
-}
-
 // ── Exports ──────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -357,5 +307,4 @@ module.exports = {
   notifyTodoAssigned,
   runAllChecks,
   sendPendingEmails,
-  sendPendingWebhooks,
 };

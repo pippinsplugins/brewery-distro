@@ -5,7 +5,6 @@ const { getAllRows, updateRow } = require('../sheets');
 const {
   runAllChecks,
   sendPendingEmails,
-  sendPendingWebhooks,
 } = require('../notification-service');
 const { isEmailConfigured } = require('../email-service');
 
@@ -105,13 +104,6 @@ router.post('/check', async (req, res) => {
   try {
     // Generate new notifications from current data
     runAllChecks();
-
-    // Send webhooks (no session dependency)
-    try {
-      await sendPendingWebhooks();
-    } catch (err) {
-      console.error('Webhook delivery error:', err.message);
-    }
 
     // Send emails (requires user session with OAuth tokens)
     if (isEmailConfigured() && req.user && req.user.accessToken) {

@@ -56,28 +56,7 @@ function renderSettings() {
           }
         </div>
       </div>
-      <div class="card">
-        <div class="card-header"><h3>Notification Webhook</h3></div>
-        <div style="padding:0 18px 18px">
-          <p class="text-sm text-muted" style="margin-bottom:12px">
-            Send notification alerts to an external service (e.g. Zapier, Slack). Notifications are POSTed as JSON.
-          </p>
-          <div class="form-group">
-            <label>Webhook URL</label>
-            <input class="form-control" id="settings-webhook-url" value="${esc(s.notificationWebhookUrl || '')}" placeholder="https://hooks.zapier.com/hooks/catch/..." />
-          </div>
-          <button class="btn btn-primary" onclick="saveWebhookUrl()">Save</button>
-        </div>
-      </div>
     </div>`);
-}
-
-function saveWebhookUrl() {
-  const url = val('settings-webhook-url');
-  api.put('/api/settings', { notificationWebhookUrl: url }).then(updated => {
-    state.settings = updated;
-    toast(url ? 'Webhook URL saved' : 'Webhook URL removed');
-  }).catch(err => toast(err.message, 'error'));
 }
 
 function saveCompanyName() {
