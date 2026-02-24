@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
     // Read locations from settings
     const settings = await getAllRows('SETTINGS');
     const locRow = settings.find(s => s.Key === 'locations');
-    let locations = ['Hutchinson', 'Mission']; // defaults
+    let locations = []; // populated from settings
     if (locRow) {
       try { locations = JSON.parse(locRow.Value); } catch (e) { /* use defaults */ }
     }
