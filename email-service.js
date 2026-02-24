@@ -34,8 +34,11 @@ async function sendEmail({ user, to, bcc, subject, body }) {
 
   // Create a per-send transporter with the user's OAuth2 tokens.
   // Nodemailer handles token refresh automatically via the refresh token.
+  // Using explicit SMTP config instead of service shortcut for reliable OAuth2.
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
       type:         'OAuth2',
       user:         user.email,

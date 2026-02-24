@@ -750,16 +750,20 @@ function openEmailCompose(accountId) {
     if (!subject) { toast('Subject is required', 'error'); return; }
     if (!body)    { toast('Message is required', 'error'); return; }
 
-    await api.post('/api/email/send', {
-      to:          acct.Email,
-      subject,
-      body,
-      accountId:   acct.ID,
-      accountName: acct.Name,
-    });
-    modal.close();
-    toast('Email sent successfully');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    try {
+      await api.post('/api/email/send', {
+        to:          acct.Email,
+        subject,
+        body,
+        accountId:   acct.ID,
+        accountName: acct.Name,
+      });
+      modal.close();
+      toast('Email sent successfully');
+      if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    } catch (err) {
+      toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
+    }
   }, 'Send');
 }
 
@@ -824,10 +828,14 @@ function openBulkEmail() {
       accountName: a.Name,
     }));
 
-    const result = await api.post('/api/email/bulk', { recipients, subject, body });
-    modal.close();
-    toast(`Email sent to ${result.sent} account${result.sent !== 1 ? 's' : ''}`);
-    document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
-    updateBulkEmailBar();
+    try {
+      const result = await api.post('/api/email/bulk', { recipients, subject, body });
+      modal.close();
+      toast(`Email sent to ${result.sent} account${result.sent !== 1 ? 's' : ''}`);
+      document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
+      updateBulkEmailBar();
+    } catch (err) {
+      toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
+    }
   }, 'Send');
 }
