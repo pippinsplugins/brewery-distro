@@ -29,6 +29,11 @@ const emailRoutes          = require('./routes/email');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust first proxy (DigitalOcean App Platform, Heroku, etc.)
+// Required so Express correctly sees HTTPS behind a load-balancer,
+// which in turn makes secure cookies and OAuth callback URLs work.
+app.set('trust proxy', 1);
+
 // ── Body parsing ──────────────────────────────────────────────────────────
 app.use(express.json());
 
