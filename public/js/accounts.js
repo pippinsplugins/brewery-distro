@@ -4,6 +4,11 @@ const ACCOUNT_TYPES = ['Bar', 'Restaurant', 'Retail Store', 'Grocery Store', 'Ho
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
+function collectSelectedTags() {
+  const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
+  return JSON.stringify(Array.from(checkboxes).map(cb => cb.value));
+}
+
 function parseAdditionalEmails(acct) {
   try { return JSON.parse(acct.AdditionalEmails || '[]').filter(Boolean); }
   catch (e) { return []; }
@@ -28,6 +33,8 @@ function collectAdditionalEmails() {
 }
 
 function accountForm(acct = {}) {
+  let acctTags = [];
+  try { acctTags = JSON.parse(acct.Tags || '[]'); } catch (e) { acctTags = []; }
   return `
     ${acct.ID ? `<div class="form-group">
       <label>Account ID</label>
@@ -51,6 +58,15 @@ function accountForm(acct = {}) {
         </select>
       </div>
     </div>
+    ${ACCOUNT_TAGS.length > 0 ? `<div class="form-group">
+      <label>Tags</label>
+      <div id="f-tags" class="checkbox-group">
+        ${ACCOUNT_TAGS.map(t => {
+          const checked = acctTags.includes(t) ? 'checked' : '';
+          return '<label class="checkbox-label"><input type="checkbox" value="' + esc(t) + '" ' + checked + ' /> ' + esc(t) + '</label>';
+        }).join('')}
+      </div>
+    </div>` : ''}
     <div class="form-group">
       <label>Assigned Sales Rep</label>
       <select class="form-control" id="f-staff">
@@ -145,6 +161,7 @@ function renderAccounts() {
   state.navFilters = {};
   const typeFilter   = (document.getElementById('acct-type')   || {}).value ?? nav.type   ?? '';
   const statusFilter = (document.getElementById('acct-status') || {}).value ?? nav.status ?? '';
+  const tagFilter    = (document.getElementById('acct-tag')    || {}).value ?? nav.tag    ?? '';
   const search       = (document.getElementById('acct-search') || {}).value ?? nav.search ?? '';
 
   let filtered = accounts;
@@ -155,6 +172,13 @@ function renderAccounts() {
     filtered = filtered.filter(a => a.Status === statusFilter);
   } else {
     filtered = filtered.filter(a => a.Status !== 'Inactive');
+  }
+  if (tagFilter) {
+    filtered = filtered.filter(a => {
+      let tags = [];
+      try { tags = JSON.parse(a.Tags || '[]'); } catch (e) { tags = []; }
+      return tags.includes(tagFilter);
+    });
   }
   if (search) {
     const q = search.toLowerCase();
@@ -205,6 +229,10 @@ function renderAccounts() {
         <option value="">All (excl. Inactive)</option>
         ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
+      ${ACCOUNT_TAGS.length > 0 ? `<select id="acct-tag" onchange="_paginationReset('accounts'); renderAccounts()">
+        <option value="">All Tags</option>
+        ${ACCOUNT_TAGS.map(t => '<option value="' + esc(t) + '"' + (tagFilter === t ? ' selected' : '') + '>' + esc(t) + '</option>').join('')}
+      </select>` : ''}
     </div>
     <div class="table-wrap">
       <table>
@@ -219,7 +247,7 @@ function renderAccounts() {
           ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 9 : 8}" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
               ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
-              <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span></td>
+              <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span>${(() => { let t = []; try { t = JSON.parse(a.Tags || '[]'); } catch(e) {} return t.length > 0 ? '<div class="tag-badges">' + t.map(x => '<span class="badge badge-tag">' + esc(x) + '</span>').join(' ') + '</div>' : ''; })()}</td>
               <td>${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
               <td>${methodBadge(a.PreferredMethod)}</td>
@@ -310,6 +338,7 @@ async function loadAccountProfile(accountId) {
     acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
     (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${esc(acct.Address || '')}${acct.Address && (acct.City || acct.State || acct.Zip) ? ', ' : ''}${[acct.City, (acct.State && acct.Zip ? acct.State + ' ' + acct.Zip : acct.State || acct.Zip)].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
     acct.ABCLicense   ? `<div class="profile-info-item"><span class="profile-info-label">ABC License</span><span>${esc(acct.ABCLicense)}</span></div>` : '',
+    (() => { let tags = []; try { tags = JSON.parse(acct.Tags || '[]'); } catch (e) {} return tags.length > 0 ? `<div class="profile-info-item"><span class="profile-info-label">Tags</span><span class="tag-badges">${tags.map(t => '<span class="badge badge-tag">' + esc(t) + '</span>').join(' ')}</span></div>` : ''; })(),
     acct.StaffName    ? `<div class="profile-info-item"><span class="profile-info-label">Sales Rep</span><span>${esc(acct.StaffName)}</span></div>` : '',
     acct.LastContacted ? `<div class="profile-info-item"><span class="profile-info-label">Last Contact</span><span>${formatDate(acct.LastContacted)}</span></div>` : '',
     acct.Notes        ? `<div class="profile-info-item profile-info-full"><span class="profile-info-label">Notes</span><span>${esc(acct.Notes)}</span></div>` : '',
@@ -427,7 +456,7 @@ async function loadAccountProfile(accountId) {
         <button class="btn btn-ghost btn-sm" onclick="loadAccounts()">&#8592; Accounts</button>
         <div>
           <h2>${esc(acct.Name)}</h2>
-          <p class="subtitle">${esc(acct.Type)} &mdash; ${statusBadge(acct.Status)}</p>
+          <p class="subtitle">${esc(acct.Type)} &mdash; ${statusBadge(acct.Status)}${(() => { let tags = []; try { tags = JSON.parse(acct.Tags || '[]'); } catch(e) {} return tags.length > 0 ? ' &mdash; ' + tags.map(t => '<span class="badge badge-tag">' + esc(t) + '</span>').join(' ') : ''; })()}</p>
         </div>
       </div>
       <div class="view-header-actions">
@@ -679,7 +708,7 @@ function openAddAccount() {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.post('/api/accounts', {
-      Name: name, Type: val('f-type'), Status: val('f-status'),
+      Name: name, Type: val('f-type'), Tags: collectSelectedTags(), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
@@ -701,7 +730,7 @@ function openEditAccount(id) {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.put(`/api/accounts/${id}`, {
-      Name: name, Type: val('f-type'), Status: val('f-status'),
+      Name: name, Type: val('f-type'), Tags: collectSelectedTags(), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
