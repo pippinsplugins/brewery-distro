@@ -1073,6 +1073,7 @@ async function confirmImport() {
         const lineTotal = val(`imp-li-total-${idx}-${liIdx}`) || li.lineTotal;
         lineItems.push({
           productName,
+          format: li.format || '',
           quantity,
           unitPrice,
           lineTotal,
@@ -1082,7 +1083,7 @@ async function confirmImport() {
         // Check if user wants to create this as new inventory
         const createEl = document.getElementById(`imp-create-${idx}-${liIdx}`);
         if (createEl && createEl.checked && li.inventoryMatch === 'none') {
-          newProducts.push({ productName, unitPrice });
+          newProducts.push({ productName, unitPrice, format: li.format || '' });
         }
       });
     }

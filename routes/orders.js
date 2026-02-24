@@ -231,7 +231,7 @@ router.post('/import/confirm', async (req, res) => {
               Location: def.Location || '',
               Style: '',
               ABV: '',
-              Format: '',
+              Format: np.format || '',
               Units: '0',
               PricePerUnit: np.unitPrice || '0',
               LowStockThreshold: '',
