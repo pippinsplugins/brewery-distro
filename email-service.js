@@ -1,6 +1,6 @@
 'use strict';
 
-const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 require('dotenv').config();
 
 const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '';
@@ -14,7 +14,27 @@ function isEmailConfigured() {
 }
 
 /**
- * Send a single email using the authenticated user's Gmail via OAuth2.
+ * Build a base64url-encoded RFC 2822 email message.
+ */
+function buildRawMessage({ from, to, bcc, subject, body }) {
+  const lines = [
+    `From: ${from}`,
+    `To: ${to}`,
+  ];
+  if (bcc) lines.push(`Bcc: ${bcc}`);
+  lines.push(
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    '',
+    body,
+  );
+  const message = lines.join('\r\n');
+  return Buffer.from(message).toString('base64url');
+}
+
+/**
+ * Send a single email using the authenticated user's Gmail via the Gmail API.
  *
  * @param {object} opts
  * @param {object} opts.user         - req.user (must include email, accessToken, refreshToken)
@@ -22,7 +42,7 @@ function isEmailConfigured() {
  * @param {string[]} [opts.bcc]      - BCC recipients (bulk send)
  * @param {string} opts.subject
  * @param {string} opts.body         - Plain-text body
- * @returns {Promise<object>}        - nodemailer info object
+ * @returns {Promise<object>}        - Gmail API response
  */
 async function sendEmail({ user, to, bcc, subject, body }) {
   if (!isEmailConfigured()) {
@@ -32,38 +52,31 @@ async function sendEmail({ user, to, bcc, subject, body }) {
     throw new Error('No OAuth tokens available. Please log out and log back in.');
   }
 
-  // Create a per-send transporter with the user's OAuth2 tokens.
-  // Nodemailer handles token refresh automatically via the refresh token.
-  // Using explicit SMTP config instead of service shortcut for reliable OAuth2.
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: {
-      type:         'OAuth2',
-      user:         user.email,
-      clientId:     CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
-      refreshToken: user.refreshToken,
-      accessToken:  user.accessToken,
-    },
+  const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
+  oauth2Client.setCredentials({
+    access_token:  user.accessToken,
+    refresh_token: user.refreshToken,
   });
 
-  const mailOptions = {
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+  const toAddress = to || user.email;
+  const bccAddress = bcc && bcc.length > 0 ? bcc.join(', ') : undefined;
+
+  const raw = buildRawMessage({
     from:    user.email,
-    subject: subject,
-    text:    body,
-  };
+    to:      toAddress,
+    bcc:     bccAddress,
+    subject,
+    body,
+  });
 
-  if (to) mailOptions.to = to;
+  const result = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw },
+  });
 
-  if (bcc && bcc.length > 0) {
-    mailOptions.bcc = bcc.join(', ');
-    // For bulk: put the sender in "to" so the To header isn't empty
-    if (!mailOptions.to) mailOptions.to = user.email;
-  }
-
-  return transporter.sendMail(mailOptions);
+  return result.data;
 }
 
 module.exports = { isEmailConfigured, sendEmail };
