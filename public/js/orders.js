@@ -918,11 +918,16 @@ function renderImportPreview() {
       : '<span class="badge badge-inactive">Low</span>';
     const errMsg = inv.error ? `<p class="text-danger text-sm">${esc(inv.error)}</p>` : '';
 
-    // Build account select with best match pre-selected
-    let acctSelect = `<select class="form-control form-control-sm" id="imp-acct-${idx}">
+    // Build account select with best match pre-selected + "create new" option
+    const showCreateNew = p.accountMatch === 'none' || p.accountMatch === 'fuzzy';
+    let acctSelect = `<select class="form-control form-control-sm" id="imp-acct-${idx}" onchange="toggleNewAccountField(${idx})">
       <option value="">-- Select Account --</option>
+      <option value="__new__">+ Create New Account</option>
       ${acctOptions}
-    </select>`;
+    </select>
+    <div id="imp-new-acct-wrap-${idx}" style="margin-top:6px;display:none">
+      <input class="form-control form-control-sm" id="imp-new-acct-name-${idx}" placeholder="New account name" value="${esc(p.accountMatch === 'none' && p.accountName ? p.accountName : '')}" />
+    </div>`;
 
     // Match indicator
     const matchLabel = p.accountMatch === 'exact' ? '<span class="match-exact">exact match</span>'
@@ -1015,14 +1020,26 @@ function renderImportPreview() {
 
   // Set pre-selected account values after DOM is rendered
   _importParsedInvoices.forEach((inv, idx) => {
+    const sel = document.getElementById(`imp-acct-${idx}`);
+    if (!sel) return;
     if (inv.parsed.accountId) {
-      const sel = document.getElementById(`imp-acct-${idx}`);
-      if (sel) sel.value = inv.parsed.accountId;
+      sel.value = inv.parsed.accountId;
+    } else if (inv.parsed.accountMatch === 'none' && inv.parsed.accountName) {
+      // No match found — default to "Create New Account"
+      sel.value = '__new__';
+      toggleNewAccountField(idx);
     }
   });
 
   // Swap the submit handler
   modal._onSubmit = confirmImport;
+}
+
+function toggleNewAccountField(idx) {
+  const sel = document.getElementById(`imp-acct-${idx}`);
+  const wrap = document.getElementById(`imp-new-acct-wrap-${idx}`);
+  if (!sel || !wrap) return;
+  wrap.style.display = sel.value === '__new__' ? 'block' : 'none';
 }
 
 async function confirmImport() {
@@ -1034,8 +1051,13 @@ async function confirmImport() {
 
     const inv = _importParsedInvoices[idx];
     const p = inv.parsed;
-    const accountId = val(`imp-acct-${idx}`);
-    const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
+    const acctVal = val(`imp-acct-${idx}`);
+    const isNewAccount = acctVal === '__new__';
+    const accountId = isNewAccount ? '' : acctVal;
+    const newAccountName = isNewAccount ? val(`imp-new-acct-name-${idx}`) : '';
+    const accountName = isNewAccount
+      ? newAccountName
+      : (accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '');
 
     const lineItems = [];
     const newProducts = [];
@@ -1065,6 +1087,7 @@ async function confirmImport() {
       filename: inv.filename,
       AccountID: accountId,
       AccountName: accountName,
+      newAccountName: newAccountName || '',
       Location: state.location || '',
       OrderDate: val(`imp-date-${idx}`) || p.orderDate || today(),
       InvoiceNumber: val(`imp-inv-${idx}`) || '',
@@ -1098,6 +1121,7 @@ async function confirmImport() {
 
     const msgs = [];
     if (result.created.length) msgs.push(`${result.created.length} order${result.created.length > 1 ? 's' : ''} created`);
+    if (result.newAccountsCreated) msgs.push(`${result.newAccountsCreated} new account${result.newAccountsCreated > 1 ? 's' : ''} created`);
     if (result.newProductsCreated) msgs.push(`${result.newProductsCreated} new product${result.newProductsCreated > 1 ? 's' : ''} added to inventory`);
     if (result.errors.length) msgs.push(`${result.errors.length} error${result.errors.length > 1 ? 's' : ''}`);
     toast(msgs.join(' · ') || 'Import complete');

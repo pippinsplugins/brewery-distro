@@ -177,9 +177,40 @@ router.post('/import/confirm', async (req, res) => {
     const created = [];
     const errors = [];
     let newProductsCreated = 0;
+    let newAccountsCreated = 0;
 
     for (const def of orderDefs) {
       try {
+        // 0. Create a new account if requested
+        if (!def.AccountID && def.newAccountName) {
+          const account = {
+            ID: uuidv4(),
+            Name: def.newAccountName,
+            Type: 'Bar',
+            Tags: '[]',
+            ContactName: '',
+            Email: '',
+            AdditionalEmails: '[]',
+            Phone: '',
+            PreferredMethod: 'Email',
+            Address: '',
+            City: '',
+            State: '',
+            Zip: '',
+            ABCLicense: '',
+            Status: 'Active',
+            Notes: 'Created from invoice import',
+            LastContacted: '',
+            StaffID: '',
+            StaffName: '',
+            CreatedAt: new Date().toISOString(),
+          };
+          await addRow('ACCOUNTS', account);
+          def.AccountID = account.ID;
+          def.AccountName = account.Name;
+          newAccountsCreated++;
+        }
+
         // 1. Create any new inventory items for unmatched products
         const productIdMap = {}; // maps temp key → new inventory ID
         if (Array.isArray(def.newProducts)) {
@@ -263,7 +294,7 @@ router.post('/import/confirm', async (req, res) => {
       }
     }
 
-    res.json({ created, errors, newProductsCreated });
+    res.json({ created, errors, newProductsCreated, newAccountsCreated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
