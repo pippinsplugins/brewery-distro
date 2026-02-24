@@ -262,7 +262,7 @@ router.post('/import/confirm', async (req, res) => {
           Notes: def.Notes || 'Imported from invoice',
           RequestedProducts: '',
           Status: def.Status || 'Paid',
-          Delivered: def.Delivered || 'false',
+          Delivered: def.Delivered || 'true',
           CreatedAt: new Date().toISOString(),
         };
         await addRow('ORDERS', order);
