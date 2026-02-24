@@ -5,6 +5,18 @@ const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
 
 const router = express.Router();
 
+async function getDefaultAccountType() {
+  try {
+    const rows = await getAllRows('SETTINGS');
+    const setting = rows.find(r => r.Key === 'accountTypes');
+    if (setting) {
+      const types = JSON.parse(setting.Value);
+      if (Array.isArray(types) && types.length > 0) return types[0];
+    }
+  } catch (e) { /* fall through to default */ }
+  return 'Bar';
+}
+
 async function getNextAccountId() {
   const accounts = await getAllRows('ACCOUNTS');
   const maxId = Math.max(0, ...accounts.map(a => parseInt(a.ID, 10) || 0));
@@ -25,10 +37,11 @@ router.post('/', async (req, res) => {
     const { Name, Type, ContactName, Email, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName } = req.body;
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
+    const defaultType = Type || await getDefaultAccountType();
     const account = {
       ID: await getNextAccountId(),
       Name: Name.trim(),
-      Type: Type || 'Bar',
+      Type: defaultType,
       ContactName: ContactName || '',
       Email: Email || '',
       Phone: Phone || '',

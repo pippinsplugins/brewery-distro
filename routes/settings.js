@@ -19,6 +19,10 @@ router.get('/', async (req, res) => {
       try { settings.locations = JSON.parse(settings.locations); }
       catch (e) { settings.locations = []; }
     }
+    if (settings.accountTypes) {
+      try { settings.accountTypes = JSON.parse(settings.accountTypes); }
+      catch (e) { settings.accountTypes = []; }
+    }
     res.json(settings);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -55,6 +59,10 @@ router.put('/', async (req, res) => {
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
+    }
+    if (result.accountTypes) {
+      try { result.accountTypes = JSON.parse(result.accountTypes); }
+      catch (e) { result.accountTypes = []; }
     }
     res.json(result);
   } catch (err) {
@@ -108,7 +116,58 @@ router.put('/rename-location', async (req, res) => {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
     }
+    if (result.accountTypes) {
+      try { result.accountTypes = JSON.parse(result.accountTypes); }
+      catch (e) { result.accountTypes = []; }
+    }
     result._renamed = { inventoryUpdated, ordersUpdated };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings/rename-account-type — renames an account type and updates all associated records
+router.put('/rename-account-type', async (req, res) => {
+  try {
+    const { oldName, newName, accountTypes } = req.body;
+    if (!oldName || !newName) return res.status(400).json({ error: 'oldName and newName are required' });
+
+    // Update the account types list in settings
+    const settingsRows = await getAllRows('SETTINGS');
+    const existingByKey = {};
+    for (const row of settingsRows) existingByKey[row.Key] = row;
+    const typesValue = JSON.stringify(accountTypes);
+    const now = new Date().toISOString().split('T')[0];
+    if (existingByKey.accountTypes) {
+      await updateRow('SETTINGS', existingByKey.accountTypes.ID, { Value: typesValue, UpdatedAt: now });
+    } else {
+      await addRow('SETTINGS', { ID: uuidv4(), Key: 'accountTypes', Value: typesValue, UpdatedAt: now });
+    }
+
+    // Update all account records with the old type
+    const accounts = await getAllRows('ACCOUNTS');
+    let accountsUpdated = 0;
+    for (const acct of accounts) {
+      if (acct.Type === oldName) {
+        await updateRow('ACCOUNTS', acct.ID, { Type: newName });
+        accountsUpdated++;
+      }
+    }
+
+    // Return updated settings
+    const updated = await getAllRows('SETTINGS');
+    const result = {};
+    for (const row of updated) result[row.Key] = row.Value;
+    if (result.locations) {
+      try { result.locations = JSON.parse(result.locations); }
+      catch (e) { result.locations = []; }
+    }
+    if (result.accountTypes) {
+      try { result.accountTypes = JSON.parse(result.accountTypes); }
+      catch (e) { result.accountTypes = []; }
+    }
+    result._renamed = { accountsUpdated };
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

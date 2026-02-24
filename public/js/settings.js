@@ -11,6 +11,7 @@ function renderSettings() {
   const s = state.settings;
   const companyName = s.companyName || '';
   const locations = Array.isArray(s.locations) ? s.locations : [...LOCATIONS];
+  const accountTypes = Array.isArray(s.accountTypes) ? s.accountTypes : [...ACCOUNT_TYPES];
 
   setContent(`
     <div class="view-header">
@@ -50,6 +51,31 @@ function renderSettings() {
                     <div class="settings-location-actions">
                       <button class="btn btn-ghost btn-sm" onclick="openRenameLocation(${i}, '${esc(loc)}')">Rename</button>
                       <button class="btn btn-ghost btn-sm text-danger" onclick="removeLocation(${i}, '${esc(loc)}')">Remove</button>
+                    </div>
+                  </li>`).join('')}
+              </ul>`
+          }
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Account Types</h3>
+          <button class="btn btn-ghost btn-sm" onclick="openAddAccountType()">+ Add Type</button>
+        </div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Manage account type categories. These appear in account forms and filters.
+          </p>
+          ${accountTypes.length === 0
+            ? '<p class="empty-state">No account types configured.</p>'
+            : `<ul class="settings-location-list">
+                ${accountTypes.map((t, i) => `
+                  <li class="settings-location-item">
+                    <span class="settings-location-name">${esc(t)}</span>
+                    <div class="settings-location-actions">
+                      <button class="btn btn-ghost btn-sm" onclick="openRenameAccountType(${i}, '${esc(t)}')">Rename</button>
+                      <button class="btn btn-ghost btn-sm text-danger" onclick="removeAccountType(${i}, '${esc(t)}')">Remove</button>
                     </div>
                   </li>`).join('')}
               </ul>`
@@ -131,6 +157,66 @@ function removeLocation(index, name) {
     }
     modal.close();
     toast('Location removed');
+    renderSettings();
+  });
+}
+
+// ── Account Types ─────────────────────────────────────────────────
+
+function openAddAccountType() {
+  modal.open('Add Account Type', `
+    <div class="form-group">
+      <label>Type Name <span class="required">*</span></label>
+      <input class="form-control" id="f-account-type-name" placeholder="e.g. Distributor" />
+    </div>
+  `, async () => {
+    const name = val('f-account-type-name');
+    if (!name) { toast('Type name is required', 'error'); return; }
+    const current = Array.isArray(state.settings.accountTypes) ? [...state.settings.accountTypes] : [...ACCOUNT_TYPES];
+    if (current.includes(name)) { toast('Account type already exists', 'error'); return; }
+    current.push(name);
+    const updated = await api.put('/api/settings', { accountTypes: current });
+    state.settings = updated;
+    applySettings(updated);
+    modal.close();
+    toast('Account type added');
+    renderSettings();
+  });
+}
+
+function openRenameAccountType(index, oldName) {
+  modal.open('Rename Account Type', `
+    <div class="form-group">
+      <label>New Name <span class="required">*</span></label>
+      <input class="form-control" id="f-account-type-name" value="${esc(oldName)}" />
+    </div>
+    <p class="text-sm text-muted" style="margin-top:8px">All accounts with this type will be updated.</p>
+  `, async () => {
+    const newName = val('f-account-type-name');
+    if (!newName) { toast('Type name is required', 'error'); return; }
+    const current = Array.isArray(state.settings.accountTypes) ? [...state.settings.accountTypes] : [...ACCOUNT_TYPES];
+    if (current.includes(newName) && newName !== oldName) { toast('Account type already exists', 'error'); return; }
+    current[index] = newName;
+    const updated = await api.put('/api/settings/rename-account-type', { oldName, newName, accountTypes: current });
+    state.settings = updated;
+    applySettings(updated);
+    modal.close();
+    const info = updated._renamed || {};
+    toast(`Account type renamed — ${info.accountsUpdated || 0} account(s) updated`);
+    renderSettings();
+  });
+}
+
+function removeAccountType(index, name) {
+  const current = Array.isArray(state.settings.accountTypes) ? [...state.settings.accountTypes] : [...ACCOUNT_TYPES];
+  if (current.length <= 1) { toast('At least one account type is required', 'error'); return; }
+  modal.confirm('Remove Account Type', `Remove "${name}"? Existing accounts with this type will not be affected.`, async () => {
+    current.splice(index, 1);
+    const updated = await api.put('/api/settings', { accountTypes: current });
+    state.settings = updated;
+    applySettings(updated);
+    modal.close();
+    toast('Account type removed');
     renderSettings();
   });
 }
