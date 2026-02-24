@@ -156,6 +156,7 @@ router.post('/import', upload.array('invoices', 50), async (req, res) => {
           error: parseErr.message,
           duplicate: false,
           duplicateOrderId: '',
+          abcLicense: '',
         });
       }
     }
@@ -197,7 +198,7 @@ router.post('/import/confirm', async (req, res) => {
             City: '',
             State: '',
             Zip: '',
-            ABCLicense: '',
+            ABCLicense: def.abcLicense || '',
             Status: 'Active',
             Notes: 'Created from invoice import',
             LastContacted: '',
@@ -209,6 +210,15 @@ router.post('/import/confirm', async (req, res) => {
           def.AccountID = account.ID;
           def.AccountName = account.Name;
           newAccountsCreated++;
+        }
+
+        // 0b. Update existing account's ABC license if we extracted one and the account doesn't have it yet
+        if (def.AccountID && def.abcLicense) {
+          const allAccounts = await getAllRows('ACCOUNTS');
+          const acct = allAccounts.find(a => a.ID === def.AccountID);
+          if (acct && !acct.ABCLicense) {
+            await updateRow('ACCOUNTS', def.AccountID, { ABCLicense: def.abcLicense });
+          }
         }
 
         // 1. Create any new inventory items for unmatched products

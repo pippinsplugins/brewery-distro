@@ -933,8 +933,9 @@ function renderImportPreview() {
     const matchLabel = p.accountMatch === 'exact' ? '<span class="match-exact">exact match</span>'
       : p.accountMatch === 'fuzzy' ? '<span class="match-fuzzy">fuzzy match</span>'
       : p.accountName ? '<span class="match-none">no match</span>' : '';
+    const abcHint = p.abcLicense ? `<span class="text-muted text-sm" style="margin-left:8px">ABC #${esc(p.abcLicense)}</span>` : '';
     const acctHint = p.accountName && p.accountMatch !== 'exact'
-      ? `<span class="text-muted text-sm">Extracted: "${esc(p.accountName)}" ${matchLabel}</span>` : matchLabel;
+      ? `<span class="text-muted text-sm">Extracted: "${esc(p.accountName)}" ${matchLabel}</span>${abcHint}` : `${matchLabel}${abcHint}`;
 
     // Line items table
     let lineItemsHtml = '';
@@ -1088,6 +1089,7 @@ async function confirmImport() {
       AccountID: accountId,
       AccountName: accountName,
       newAccountName: newAccountName || '',
+      abcLicense: p.abcLicense || '',
       Location: state.location || '',
       OrderDate: val(`imp-date-${idx}`) || p.orderDate || today(),
       InvoiceNumber: val(`imp-inv-${idx}`) || '',
