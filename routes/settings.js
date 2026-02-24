@@ -19,6 +19,10 @@ router.get('/', async (req, res) => {
       try { settings.locations = JSON.parse(settings.locations); }
       catch (e) { settings.locations = []; }
     }
+    if (settings.accountTags) {
+      try { settings.accountTags = JSON.parse(settings.accountTags); }
+      catch (e) { settings.accountTags = []; }
+    }
     res.json(settings);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -55,6 +59,10 @@ router.put('/', async (req, res) => {
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
+    }
+    if (result.accountTags) {
+      try { result.accountTags = JSON.parse(result.accountTags); }
+      catch (e) { result.accountTags = []; }
     }
     res.json(result);
   } catch (err) {
@@ -108,7 +116,62 @@ router.put('/rename-location', async (req, res) => {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
     }
+    if (result.accountTags) {
+      try { result.accountTags = JSON.parse(result.accountTags); }
+      catch (e) { result.accountTags = []; }
+    }
     result._renamed = { inventoryUpdated, ordersUpdated };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings/rename-account-tag — renames a tag and updates all associated accounts
+router.put('/rename-account-tag', async (req, res) => {
+  try {
+    const { oldName, newName, accountTags } = req.body;
+    if (!oldName || !newName) return res.status(400).json({ error: 'oldName and newName are required' });
+
+    // Update the account tags list in settings
+    const settingsRows = await getAllRows('SETTINGS');
+    const existingByKey = {};
+    for (const row of settingsRows) existingByKey[row.Key] = row;
+    const tagsValue = JSON.stringify(accountTags);
+    const now = new Date().toISOString().split('T')[0];
+    if (existingByKey.accountTags) {
+      await updateRow('SETTINGS', existingByKey.accountTags.ID, { Value: tagsValue, UpdatedAt: now });
+    } else {
+      await addRow('SETTINGS', { ID: uuidv4(), Key: 'accountTags', Value: tagsValue, UpdatedAt: now });
+    }
+
+    // Update all account records that have the old tag
+    const accounts = await getAllRows('ACCOUNTS');
+    let accountsUpdated = 0;
+    for (const acct of accounts) {
+      let tags = [];
+      try { tags = JSON.parse(acct.Tags || '[]'); } catch (e) { tags = []; }
+      const idx = tags.indexOf(oldName);
+      if (idx !== -1) {
+        tags[idx] = newName;
+        await updateRow('ACCOUNTS', acct.ID, { Tags: JSON.stringify(tags) });
+        accountsUpdated++;
+      }
+    }
+
+    // Return updated settings
+    const updated = await getAllRows('SETTINGS');
+    const result = {};
+    for (const row of updated) result[row.Key] = row.Value;
+    if (result.locations) {
+      try { result.locations = JSON.parse(result.locations); }
+      catch (e) { result.locations = []; }
+    }
+    if (result.accountTags) {
+      try { result.accountTags = JSON.parse(result.accountTags); }
+      catch (e) { result.accountTags = []; }
+    }
+    result._renamed = { accountsUpdated };
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
