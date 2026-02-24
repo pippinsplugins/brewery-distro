@@ -3,6 +3,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow } = require('../sheets');
+const { createNotification } = require('../notification-service');
 
 const router = express.Router();
 
@@ -69,6 +70,23 @@ router.post('/bulk', async (req, res) => {
         Units:       String(newUnits),
         LastUpdated: movDate,
       });
+
+      // Check for low stock after decrement
+      const threshold = parseInt(inv.LowStockThreshold || '5', 10);
+      if (newUnits <= threshold) {
+        const label = [invName, invFormat].filter(Boolean).join(' — ');
+        const isOut = newUnits === 0;
+        createNotification({
+          type:          isOut ? 'out_of_stock' : 'low_stock',
+          title:         isOut ? `Out of stock: ${label}` : `Low stock: ${label}`,
+          body:          `${newUnits} units remaining (threshold: ${threshold})${inv.Location ? ` at ${inv.Location}` : ''}`,
+          severity:      isOut ? 'critical' : 'warning',
+          staffId:       '',
+          referenceType: 'inventory',
+          referenceId:   item.inventoryId,
+          dedupKey:      `${isOut ? 'out_of_stock' : 'low_stock'}:${item.inventoryId}`,
+        });
+      }
 
       // Auto-create keg tracking record for keg-format products
       if (invFormat && invFormat.toLowerCase().includes('keg') && order) {
@@ -146,6 +164,23 @@ router.post('/', async (req, res) => {
       Units:       String(newUnits),
       LastUpdated: movDate,
     });
+
+    // Check for low stock after adjustment
+    const threshold = parseInt(inv.LowStockThreshold || '5', 10);
+    if (newUnits <= threshold && delta < 0) {
+      const label = [invName, invFormat].filter(Boolean).join(' — ');
+      const isOut = newUnits === 0;
+      createNotification({
+        type:          isOut ? 'out_of_stock' : 'low_stock',
+        title:         isOut ? `Out of stock: ${label}` : `Low stock: ${label}`,
+        body:          `${newUnits} units remaining (threshold: ${threshold})${inv.Location ? ` at ${inv.Location}` : ''}`,
+        severity:      isOut ? 'critical' : 'warning',
+        staffId:       '',
+        referenceType: 'inventory',
+        referenceId:   inventoryId,
+        dedupKey:      `${isOut ? 'out_of_stock' : 'low_stock'}:${inventoryId}`,
+      });
+    }
 
     res.json({ movement, newUnits });
   } catch (err) {

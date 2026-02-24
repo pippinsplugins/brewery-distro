@@ -85,6 +85,22 @@
           </a>
         </nav>
 
+        <div class="sidebar-notifications" id="sidebar-notifications">
+          <button class="notification-bell" id="notification-bell" onclick="toggleNotificationPanel()" title="Notifications">
+            <span class="bell-icon">&#128276;</span>
+            <span class="notification-badge hidden" id="notification-badge">0</span>
+          </button>
+        </div>
+
+        <!-- Notification Panel -->
+        <div class="notification-panel hidden" id="notification-panel">
+          <div class="notification-panel-header">
+            <h4>Notifications</h4>
+            <button class="btn btn-ghost btn-sm" id="mark-all-read-btn" onclick="markAllNotificationsRead()">Mark all read</button>
+          </div>
+          <div class="notification-panel-body" id="notification-list"></div>
+        </div>
+
         <div class="sidebar-user" id="sidebar-user" style="display:none">
           <img id="sidebar-user-photo" class="sidebar-user-photo" src="" alt="" />
           <div class="sidebar-user-info">
@@ -151,6 +167,9 @@
   <script src="js/kegs.js"></script>
   <script src="js/tap-handles.js"></script>
   <script src="js/map.js"></script>
+
+  <!-- Notifications -->
+  <script src="js/notifications.js"></script>
 
   <!-- Init: must load last (VIEW_LOADERS references all load functions) -->
   <script src="js/init.js"></script>

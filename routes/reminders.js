@@ -3,6 +3,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
+const { notifyTodoAssigned } = require('../notification-service');
 
 const router = express.Router();
 
@@ -66,6 +67,7 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('REMINDERS', reminder);
+    if (reminder.StaffID) notifyTodoAssigned(reminder);
     res.status(201).json(reminder);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -77,7 +79,17 @@ router.put('/:id', async (req, res) => {
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
+    // Capture old StaffID before update to detect reassignment
+    const allReminders = await getAllRows('REMINDERS');
+    const oldReminder = allReminders.find(r => r.ID === req.params.id);
+    const oldStaffId = oldReminder ? oldReminder.StaffID : '';
+
     const updated = await updateRow('REMINDERS', req.params.id, updates);
+
+    // Notify new staff member if todo was reassigned
+    if (updates.StaffID && updates.StaffID !== oldStaffId) {
+      notifyTodoAssigned(updated);
+    }
 
     // When completing a recurring reminder, spawn the next occurrence
     if (updates.Completed === 'true' && updated.Recurrence && RECURRENCE_VALUES.has(updated.Recurrence) && updated.Recurrence !== 'none') {

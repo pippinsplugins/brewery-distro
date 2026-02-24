@@ -26,6 +26,9 @@ const SUBMENU_VIEWS = {
 function navigate(view, filters = {}) {
   state.view = view;
   state.navFilters = filters;
+  // Close notification panel on navigation
+  const notifPanel = document.getElementById('notification-panel');
+  if (notifPanel) notifPanel.classList.add('hidden');
   // Update top-level nav active states
   const groupName = SUBMENU_VIEWS[view];
   document.querySelectorAll('.nav-item').forEach(el => {
@@ -204,6 +207,13 @@ async function init() {
   } catch (e) {
     document.getElementById('sidebar-status').className = 'status-dot error';
     document.getElementById('sidebar-status-text').textContent = 'Offline';
+  }
+
+  // Initialize notification system
+  try {
+    await initNotifications();
+  } catch (e) {
+    console.warn('Failed to initialize notifications:', e.message);
   }
 
   // Handle browser back/forward navigation
