@@ -95,9 +95,6 @@ function applySettings(settings) {
     state.location = LOCATIONS[0];
     localStorage.setItem('brewLocation', state.location);
   }
-  if (Array.isArray(settings.accountTypes) && settings.accountTypes.length > 0) {
-    ACCOUNT_TYPES = settings.accountTypes;
-  }
   if (settings.companyName) {
     const el = document.getElementById('brand-title');
     if (el) el.textContent = settings.companyName;

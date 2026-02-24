@@ -1,6 +1,6 @@
 'use strict';
 
-let ACCOUNT_TYPES = ['Bar', 'Restaurant', 'Retail Store', 'Grocery Store', 'Hotel', 'Event Venue', 'Individual', 'Other'];
+const ACCOUNT_TYPES = ['Bar', 'Restaurant', 'Retail Store', 'Grocery Store', 'Hotel', 'Event Venue', 'Individual', 'Other'];
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
