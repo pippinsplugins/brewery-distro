@@ -159,13 +159,13 @@ function renderAccounts() {
         <p class="subtitle">${accounts.length} account${accounts.length !== 1 ? 's' : ''} &mdash; ${accounts.filter(a => a.Status === 'Active').length} active</p>
       </div>
       <div class="view-header-actions">
-        ${state.emailConfigured ? '<button class="btn btn-ghost" onclick="openBulkEmail()">Email Selected</button>' : ''}
+        ${state.emailConfigured ? '<button class="btn btn-secondary" onclick="openBulkEmail()">Email Selected</button>' : ''}
         <button class="btn btn-primary" onclick="openAddAccount()">+ Add Account</button>
       </div>
     </div>
     <div id="bulk-actions-bar" class="bulk-actions-bar" style="display:none">
       <span id="bulk-selected-count" class="text-sm fw-600">0 selected</span>
-      <button class="btn btn-sm btn-ghost" onclick="openBulkEmail()">Email Selected</button>
+      <button class="btn btn-sm btn-secondary" onclick="openBulkEmail()">Email Selected</button>
     </div>
     <div class="filter-bar">
       <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="_paginationReset('accounts'); renderAccounts()" />
@@ -407,7 +407,7 @@ async function loadAccountProfile(accountId) {
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
-        ${state.emailConfigured && acct.Email ? `<button class="btn btn-ghost btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
+        ${state.emailConfigured && acct.Email ? `<button class="btn btn-secondary btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
