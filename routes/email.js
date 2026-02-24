@@ -50,7 +50,7 @@ router.post('/send', async (req, res) => {
       return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
     }
 
-    const { to, subject, body, accountId, accountName } = req.body;
+    const { to, cc, subject, body, accountId, accountName } = req.body;
 
     if (!to)      return res.status(400).json({ error: 'Recipient email is required' });
     if (!subject) return res.status(400).json({ error: 'Subject is required' });
@@ -58,23 +58,25 @@ router.post('/send', async (req, res) => {
 
     const senderName  = req.user.name  || 'Brewery Team';
     const senderEmail = req.user.email || '';
+    const ccEmails = Array.isArray(cc) ? cc.filter(Boolean) : [];
 
     let status = 'sent';
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, to, subject, body });
+      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, subject, body });
     } catch (err) {
       status = 'failed';
       error  = err.message;
     }
 
     // Log to EmailLog table
+    const allRecipients = [to, ...ccEmails].filter(Boolean).join(', ');
     const logEntry = {
       ID:          uuidv4(),
       SenderName:  senderName,
       SenderEmail: senderEmail,
-      Recipients:  to,
+      Recipients:  allRecipients,
       Subject:     subject,
       Body:        body,
       Type:        'individual',
@@ -108,7 +110,7 @@ router.post('/bulk', async (req, res) => {
     }
 
     const { recipients, subject, body } = req.body;
-    // recipients: [{ email, accountId, accountName }, ...]
+    // recipients: [{ email, additionalEmails, accountId, accountName }, ...]
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: 'At least one recipient is required' });
@@ -116,7 +118,15 @@ router.post('/bulk', async (req, res) => {
     if (!subject) return res.status(400).json({ error: 'Subject is required' });
     if (!body)    return res.status(400).json({ error: 'Message body is required' });
 
-    const bccEmails = recipients.map(r => r.email).filter(Boolean);
+    const bccEmails = [];
+    for (const r of recipients) {
+      if (r.email) bccEmails.push(r.email);
+      if (Array.isArray(r.additionalEmails)) {
+        for (const ae of r.additionalEmails) {
+          if (ae) bccEmails.push(ae);
+        }
+      }
+    }
     if (bccEmails.length === 0) {
       return res.status(400).json({ error: 'None of the selected accounts have email addresses' });
     }

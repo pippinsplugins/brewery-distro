@@ -4,6 +4,29 @@ const ACCOUNT_TYPES = ['Bar', 'Restaurant', 'Retail Store', 'Grocery Store', 'Ho
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
+function parseAdditionalEmails(acct) {
+  try { return JSON.parse(acct.AdditionalEmails || '[]').filter(Boolean); }
+  catch (e) { return []; }
+}
+
+function accountHasEmail(acct) {
+  return !!(acct.Email || parseAdditionalEmails(acct).length > 0);
+}
+
+function getAllAccountEmails(acct) {
+  const emails = [];
+  if (acct.Email) emails.push(acct.Email);
+  emails.push(...parseAdditionalEmails(acct));
+  return emails;
+}
+
+function collectAdditionalEmails() {
+  const raw = val('f-additional-emails');
+  if (!raw) return '[]';
+  const emails = raw.split('\n').map(e => e.trim()).filter(Boolean);
+  return JSON.stringify(emails);
+}
+
 function accountForm(acct = {}) {
   return `
     ${acct.ID ? `<div class="form-group">
@@ -56,6 +79,11 @@ function accountForm(acct = {}) {
         <label>Phone</label>
         <input class="form-control" id="f-phone" type="tel" value="${esc(formatPhone(acct.Phone))}" placeholder="(555) 000-0000" onblur="this.value=formatPhone(this.value)" />
       </div>
+    </div>
+    <div class="form-group">
+      <label>Additional Emails</label>
+      <textarea class="form-control" id="f-additional-emails" rows="2" placeholder="One email per line">${esc(parseAdditionalEmails(acct).join('\n'))}</textarea>
+      <span class="text-muted text-sm">Extra email addresses that will also receive emails sent to this account.</span>
     </div>
     <hr class="form-divider" />
     <div class="form-section-title">Location</div>
@@ -277,7 +305,7 @@ async function loadAccountProfile(accountId) {
   const infoRows = [
     `<div class="profile-info-item"><span class="profile-info-label">Account ID</span><span class="text-muted text-sm" style="font-family:monospace">${esc(acct.ID)}</span></div>`,
     acct.ContactName  ? `<div class="profile-info-item"><span class="profile-info-label">Contact</span><span>${esc(acct.ContactName)}</span></div>` : '',
-    acct.Email        ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email)}</span></div>` : '',
+    accountHasEmail(acct) ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email || '')}${(() => { const ae = parseAdditionalEmails(acct); return ae.length > 0 ? (acct.Email ? '<br>' : '') + ae.map(e => esc(e)).join('<br>') : ''; })()}</span></div>` : '',
     acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(formatPhone(acct.Phone))}</span></div>` : '',
     acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
     (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${esc(acct.Address || '')}${acct.Address && (acct.City || acct.State || acct.Zip) ? ', ' : ''}${[acct.City, (acct.State && acct.Zip ? acct.State + ' ' + acct.Zip : acct.State || acct.Zip)].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
@@ -406,7 +434,7 @@ async function loadAccountProfile(accountId) {
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
-        ${state.emailConfigured && acct.Email ? `<button class="btn btn-secondary btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
+        ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-secondary btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
@@ -653,7 +681,7 @@ function openAddAccount() {
     await api.post('/api/accounts', {
       Name: name, Type: val('f-type'), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
-      Email: val('f-email'), Phone: val('f-phone'),
+      Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
@@ -675,7 +703,7 @@ function openEditAccount(id) {
     await api.put(`/api/accounts/${id}`, {
       Name: name, Type: val('f-type'), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
-      Email: val('f-email'), Phone: val('f-phone'),
+      Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
@@ -720,15 +748,23 @@ function updateBulkEmailBar() {
 function openEmailCompose(accountId) {
   const acct = state.accounts.find(a => a.ID === accountId);
   if (!acct) return;
-  if (!acct.Email) {
+
+  const additionalEmails = parseAdditionalEmails(acct);
+  const allEmails = getAllAccountEmails(acct);
+
+  if (allEmails.length === 0) {
     toast('This account has no email address on file', 'error');
     return;
   }
 
+  const primaryEmail = acct.Email || additionalEmails[0];
+  const ccEmails = acct.Email ? additionalEmails : additionalEmails.slice(1);
+  const recipientDisplay = allEmails.join(', ');
+
   const formHtml = `
     <div class="form-group">
-      <label>To</label>
-      <input class="form-control" value="${esc(acct.Email)}" readonly style="background:#f5f5f5;cursor:default" />
+      <label>To${ccEmails.length > 0 ? ' / Cc' : ''}</label>
+      <input class="form-control" value="${esc(recipientDisplay)}" readonly style="background:#f5f5f5;cursor:default" />
     </div>
     <div class="form-group">
       <label>From</label>
@@ -751,7 +787,8 @@ function openEmailCompose(accountId) {
 
     try {
       await api.post('/api/email/send', {
-        to:          acct.Email,
+        to:          primaryEmail,
+        cc:          ccEmails.length > 0 ? ccEmails : undefined,
         subject,
         body,
         accountId:   acct.ID,
@@ -776,15 +813,19 @@ function openBulkEmail() {
   const selectedIds = Array.from(checked).map(cb => cb.dataset.accountId);
   const selectedAccounts = selectedIds.map(id => state.accounts.find(a => a.ID === id)).filter(Boolean);
 
-  const withEmail    = selectedAccounts.filter(a => a.Email);
-  const withoutEmail = selectedAccounts.filter(a => !a.Email);
+  const withEmail    = selectedAccounts.filter(a => accountHasEmail(a));
+  const withoutEmail = selectedAccounts.filter(a => !accountHasEmail(a));
 
   if (withEmail.length === 0) {
     toast('None of the selected accounts have email addresses', 'error');
     return;
   }
 
-  const recipientList = withEmail.map(a => `<li>${esc(a.Name)} &lt;${esc(a.Email)}&gt;</li>`).join('');
+  const recipientList = withEmail.map(a => {
+    const allEmails = getAllAccountEmails(a);
+    return `<li>${esc(a.Name)} &lt;${allEmails.map(e => esc(e)).join(', ')}&gt;</li>`;
+  }).join('');
+  const totalAddresses = withEmail.reduce((sum, a) => sum + getAllAccountEmails(a).length, 0);
   const warningHtml = withoutEmail.length > 0
     ? `<div style="margin-bottom:12px;padding:8px 12px;background:#fff3e0;border-radius:6px;border:1px solid #ffe0b2">
         <strong class="text-sm">Note:</strong>
@@ -797,7 +838,7 @@ function openBulkEmail() {
   const formHtml = `
     ${warningHtml}
     <div class="form-group">
-      <label>BCC Recipients (${withEmail.length})</label>
+      <label>BCC Recipients (${totalAddresses} address${totalAddresses !== 1 ? 'es' : ''} across ${withEmail.length} account${withEmail.length !== 1 ? 's' : ''})</label>
       <ul class="text-sm" style="max-height:120px;overflow-y:auto;margin:4px 0;padding-left:20px;color:var(--text-secondary)">
         ${recipientList}
       </ul>
@@ -822,15 +863,16 @@ function openBulkEmail() {
     if (!body)    { toast('Message is required', 'error'); return; }
 
     const recipients = withEmail.map(a => ({
-      email:       a.Email,
-      accountId:   a.ID,
-      accountName: a.Name,
+      email:            a.Email,
+      additionalEmails: parseAdditionalEmails(a),
+      accountId:        a.ID,
+      accountName:      a.Name,
     }));
 
     try {
       const result = await api.post('/api/email/bulk', { recipients, subject, body });
       modal.close();
-      toast(`Email sent to ${result.sent} account${result.sent !== 1 ? 's' : ''}`);
+      toast(`Email sent to ${result.sent} address${result.sent !== 1 ? 'es' : ''}`);
       document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
       updateBulkEmailBar();
     } catch (err) {

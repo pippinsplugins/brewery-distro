@@ -16,11 +16,12 @@ function isEmailConfigured() {
 /**
  * Build a base64url-encoded RFC 2822 email message.
  */
-function buildRawMessage({ from, to, bcc, subject, body }) {
+function buildRawMessage({ from, to, cc, bcc, subject, body }) {
   const lines = [
     `From: ${from}`,
     `To: ${to}`,
   ];
+  if (cc) lines.push(`Cc: ${cc}`);
   if (bcc) lines.push(`Bcc: ${bcc}`);
   lines.push(
     `Subject: ${subject}`,
@@ -44,7 +45,7 @@ function buildRawMessage({ from, to, bcc, subject, body }) {
  * @param {string} opts.body         - Plain-text body
  * @returns {Promise<object>}        - Gmail API response
  */
-async function sendEmail({ user, to, bcc, subject, body }) {
+async function sendEmail({ user, to, cc, bcc, subject, body }) {
   if (!isEmailConfigured()) {
     throw new Error('Email is not configured. Google OAuth credentials are missing.');
   }
@@ -61,11 +62,13 @@ async function sendEmail({ user, to, bcc, subject, body }) {
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
   const toAddress = to || user.email;
+  const ccAddress = cc && cc.length > 0 ? cc.join(', ') : undefined;
   const bccAddress = bcc && bcc.length > 0 ? bcc.join(', ') : undefined;
 
   const raw = buildRawMessage({
     from:    user.email,
     to:      toAddress,
+    cc:      ccAddress,
     bcc:     bccAddress,
     subject,
     body,
