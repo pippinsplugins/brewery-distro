@@ -29,7 +29,7 @@ const SHEETS = {
 const HEADERS = {
   PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'CreatedAt'],
   INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated', 'ProductID', 'ProductName'],
-  ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
+  ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],

@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Type, Tags, ContactName, Email, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName } = req.body;
+    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName } = req.body;
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
     const account = {
@@ -32,6 +32,7 @@ router.post('/', async (req, res) => {
       Tags: Tags || '[]',
       ContactName: ContactName || '',
       Email: Email || '',
+      AdditionalEmails: AdditionalEmails || '[]',
       Phone: Phone || '',
       PreferredMethod: PreferredMethod || 'Email',
       Address: Address || '',
