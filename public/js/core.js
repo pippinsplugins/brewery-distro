@@ -1,7 +1,7 @@
 'use strict';
 
 // ── State ────────────────────────────────────────────────────────
-let LOCATIONS = ['Hutchinson', 'Mission']; // Defaults; overwritten by settings on init
+let LOCATIONS = []; // Populated from settings on init
 
 const FORMATS = ['1/6 Keg', '1/4 Keg', '1/2 Keg', '12oz Can (case/24)', '16oz Can (case/24)', '22oz Bottle (case/12)', '750ml Bottle (case/12)', 'Other'];
 const STYLES  = ['IPA', 'Double IPA', 'Pale Ale', 'Lager', 'Pilsner', 'Wheat', 'Hefeweizen', 'Stout', 'Porter', 'Sour', 'Saison', 'Amber', 'Brown Ale', 'Barleywine', 'Scottish', 'English Mild', 'Kölsch', 'Golden Ale', 'Other'];
