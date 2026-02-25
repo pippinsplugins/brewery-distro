@@ -189,7 +189,7 @@ router.post('/import/confirm', async (req, res) => {
             Name: def.newAccountName,
             Type: 'Bar',
             Tags: '[]',
-            ContactName: '',
+            ContactName: def.contactName || '',
             Email: '',
             AdditionalEmails: '[]',
             Phone: '',
@@ -212,12 +212,17 @@ router.post('/import/confirm', async (req, res) => {
           newAccountsCreated++;
         }
 
-        // 0b. Update existing account's ABC license if we extracted one and the account doesn't have it yet
-        if (def.AccountID && def.abcLicense) {
+        // 0b. Update existing account with extracted fields if they're currently empty
+        if (def.AccountID && (def.abcLicense || def.contactName)) {
           const allAccounts = await getAllRows('ACCOUNTS');
           const acct = allAccounts.find(a => a.ID === def.AccountID);
-          if (acct && !acct.ABCLicense) {
-            await updateRow('ACCOUNTS', def.AccountID, { ABCLicense: def.abcLicense });
+          if (acct) {
+            const updates = {};
+            if (def.abcLicense && !acct.ABCLicense) updates.ABCLicense = def.abcLicense;
+            if (def.contactName && !acct.ContactName) updates.ContactName = def.contactName;
+            if (Object.keys(updates).length > 0) {
+              await updateRow('ACCOUNTS', def.AccountID, updates);
+            }
           }
         }
 

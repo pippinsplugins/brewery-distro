@@ -984,6 +984,12 @@ function renderImportPreview() {
               ${acctHint ? `<div style="margin-top:3px">${acctHint}</div>` : ''}
             </div>
             <div class="form-group">
+              <label>Contact Name</label>
+              <input class="form-control form-control-sm" id="imp-contact-${idx}" value="${esc(p.contactName)}" placeholder="Contact person" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
               <label>Invoice #</label>
               <input class="form-control form-control-sm" id="imp-inv-${idx}" value="${esc(p.invoiceNumber)}" />
             </div>
@@ -1093,6 +1099,7 @@ async function confirmImport() {
       AccountID: accountId,
       AccountName: accountName,
       newAccountName: newAccountName || '',
+      contactName: val(`imp-contact-${idx}`) || '',
       abcLicense: val(`imp-abc-${idx}`) || '',
       Location: state.location || '',
       OrderDate: val(`imp-date-${idx}`) || p.orderDate || today(),
