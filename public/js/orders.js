@@ -947,7 +947,7 @@ function renderImportPreview() {
         <div class="import-line-items">
           <div class="table-wrap" style="margin-top:8px">
             <table>
-              <thead><tr><th>Product</th><th>Match</th><th>Qty</th><th>Unit Price</th><th>Total</th>${p.lineItems.some(li => li.inventoryMatch === 'none') ? '<th>Create</th>' : ''}</tr></thead>
+              <thead><tr><th>Product</th><th>Format</th><th>Match</th><th>Qty</th><th>Unit Price</th><th>Total</th>${p.lineItems.some(li => li.inventoryMatch === 'none') ? '<th>Create</th>' : ''}</tr></thead>
               <tbody>
                 ${p.lineItems.map((li, liIdx) => {
                   const matchBadge = li.inventoryMatch === 'exact' ? '<span class="match-exact">exact</span>'
@@ -957,6 +957,7 @@ function renderImportPreview() {
                     ? `<td><label class="checkbox-label"><input type="checkbox" id="imp-create-${idx}-${liIdx}" checked /> New</label></td>` : '';
                   return `<tr>
                     <td><input class="form-control form-control-sm" id="imp-li-name-${idx}-${liIdx}" value="${esc(li.productName)}" /></td>
+                    <td class="text-sm">${esc(li.format) || '—'}</td>
                     <td class="text-sm">${matchBadge}</td>
                     <td><input class="form-control form-control-sm" id="imp-li-qty-${idx}-${liIdx}" type="number" min="0" step="1" value="${esc(li.quantity)}" style="width:70px" /></td>
                     <td><input class="form-control form-control-sm" id="imp-li-price-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.unitPrice)}" style="width:90px" /></td>
