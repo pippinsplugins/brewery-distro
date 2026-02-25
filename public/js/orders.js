@@ -180,7 +180,7 @@ function parseRequestedProducts(productsStr, inventoryItems) {
   return quantities;
 }
 
-function productPickerHtml(items, quantities = {}) {
+function productPickerHtml(items, quantities = {}, readOnly = false) {
   if (!items || items.length === 0) {
     return `<p class="text-muted text-sm">No products available for this location.</p>`;
   }
@@ -193,14 +193,17 @@ function productPickerHtml(items, quantities = {}) {
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
     const qty = quantities[item.ID] || 0;
+    const qtyCell = readOnly
+      ? `<td class="text-sm">${qty || '—'}</td>`
+      : `<td><input class="form-control" type="number" min="0" value="${qty}"
+           id="op-qty-${item.ID}" style="width:80px"
+           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>`;
     return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
       <td class="fw-600">${esc(item.Name)}</td>
       <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm">${esc(item.Units)}</td>
-      <td><input class="form-control" type="number" min="0" value="${qty}"
-           id="op-qty-${item.ID}" style="width:80px"
-           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>
+      ${qtyCell}
     </tr>`;
   };
 
@@ -215,25 +218,25 @@ function productPickerHtml(items, quantities = {}) {
         </tbody>
       </table>
     </div>
-    ${oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
+    ${!readOnly && oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
       <input type="checkbox" id="op-show-oos" style="margin-right:6px"
         onchange="document.querySelectorAll('#order-products-wrap tr[data-product-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
       Show out-of-stock products (${oosHidden.length})
     </label>` : ''}`;
 }
 
-async function refreshOrderProducts(existingProducts = '') {
+async function refreshOrderProducts(existingProducts = '', readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
   _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
   const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
   const wrap = document.getElementById('order-products-wrap');
-  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
   // Only auto-recalc if not restoring existing quantities (preserve manually set amount)
-  if (!existingProducts) recalcOrderAmount();
+  if (!existingProducts && !readOnly) recalcOrderAmount();
 }
 
-async function refreshOrderProductsFromItems(orderItems) {
+async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
   _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
@@ -245,7 +248,7 @@ async function refreshOrderProductsFromItems(orderItems) {
     }
   }
   const wrap = document.getElementById('order-products-wrap');
-  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
 }
 
 function recalcOrderAmount() {
@@ -524,12 +527,13 @@ async function openEditOrder(id) {
     toast('Order updated');
     loadOrders();
   });
+  const isPaid = order.Status === 'Paid';
   // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
   const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
   if (orderItems && orderItems.length > 0) {
-    await refreshOrderProductsFromItems(orderItems);
+    await refreshOrderProductsFromItems(orderItems, isPaid);
   } else {
-    await refreshOrderProducts(order.RequestedProducts);
+    await refreshOrderProducts(order.RequestedProducts, isPaid);
   }
 }
 
