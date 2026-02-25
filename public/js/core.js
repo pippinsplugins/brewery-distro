@@ -299,6 +299,7 @@ const modal = {
 
   close() {
     document.getElementById('modal-overlay').classList.add('hidden');
+    document.getElementById('modal-box').classList.remove('modal-wide');
     modal._onSubmit = null;
     if (modal._trapFocus) {
       document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);

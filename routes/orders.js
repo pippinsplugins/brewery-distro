@@ -1,8 +1,20 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
+const { extractInvoiceData } = require('../lib/pdf-parser');
+
+// Multer setup: memory storage, PDF only, 10MB limit, max 50 files
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Only PDF files are accepted'));
+  },
+});
 
 const router = express.Router();
 
@@ -93,6 +105,222 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+  }
+});
+
+// ── Import endpoints ────────────────────────────────────────────────
+
+// POST /import — upload PDF(s), extract + parse, return preview data
+router.post('/import', upload.array('invoices', 50), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No PDF files uploaded' });
+    }
+
+    const [accounts, inventory, existingOrders] = await Promise.all([
+      getAllRows('ACCOUNTS'),
+      getAllRows('INVENTORY'),
+      getAllRows('ORDERS'),
+    ]);
+
+    const existingInvoiceNums = new Set(
+      existingOrders.filter(o => o.InvoiceNumber).map(o => o.InvoiceNumber.toLowerCase().trim())
+    );
+
+    const results = [];
+    for (const file of req.files) {
+      try {
+        const { parsed, confidence } = await extractInvoiceData(file.buffer, accounts, inventory);
+        const duplicate = parsed.invoiceNumber
+          ? existingInvoiceNums.has(parsed.invoiceNumber.toLowerCase().trim())
+          : false;
+        const duplicateOrderId = duplicate
+          ? (existingOrders.find(o => o.InvoiceNumber && o.InvoiceNumber.toLowerCase().trim() === parsed.invoiceNumber.toLowerCase().trim()) || {}).ID || ''
+          : '';
+
+        results.push({
+          filename: file.originalname,
+          parsed,
+          confidence,
+          duplicate,
+          duplicateOrderId,
+        });
+      } catch (parseErr) {
+        results.push({
+          filename: file.originalname,
+          parsed: {
+            invoiceNumber: '', orderDate: '', accountId: '', accountName: '',
+            accountMatch: 'none', orderAmount: '', taxAmount: '', lineItems: [],
+          },
+          confidence: 'error',
+          error: parseErr.message,
+          duplicate: false,
+          duplicateOrderId: '',
+          abcLicense: '',
+        });
+      }
+    }
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /import/confirm — bulk create orders + line items + optional new inventory
+router.post('/import/confirm', async (req, res) => {
+  try {
+    const { orders: orderDefs } = req.body;
+    if (!Array.isArray(orderDefs) || orderDefs.length === 0) {
+      return res.status(400).json({ error: 'orders array is required' });
+    }
+
+    const created = [];
+    const errors = [];
+    let newProductsCreated = 0;
+    let newAccountsCreated = 0;
+    const createdAccountsByName = {}; // track new accounts within this batch to avoid duplicates
+
+    for (const def of orderDefs) {
+      try {
+        // 0. Create a new account if requested (or reuse one already created in this batch)
+        if (!def.AccountID && def.newAccountName) {
+          const nameKey = def.newAccountName.toLowerCase().trim();
+          if (createdAccountsByName[nameKey]) {
+            // Reuse account created earlier in this batch
+            def.AccountID = createdAccountsByName[nameKey].ID;
+            def.AccountName = createdAccountsByName[nameKey].Name;
+          } else {
+            const account = {
+              ID: uuidv4(),
+              Name: def.newAccountName,
+              Type: 'Bar',
+              Tags: '[]',
+              ContactName: def.contactName || '',
+              Email: '',
+              AdditionalEmails: '[]',
+              Phone: '',
+              PreferredMethod: 'Email',
+              Address: '',
+              City: '',
+              State: '',
+              Zip: '',
+              ABCLicense: def.abcLicense || '',
+              Status: 'Active',
+              Notes: 'Created from invoice import',
+              LastContacted: '',
+              StaffID: '',
+              StaffName: '',
+              CreatedAt: new Date().toISOString(),
+            };
+            await addRow('ACCOUNTS', account);
+            createdAccountsByName[nameKey] = account;
+            def.AccountID = account.ID;
+            def.AccountName = account.Name;
+            newAccountsCreated++;
+          }
+        }
+
+        // 0b. Update existing account with extracted fields if they're currently empty
+        if (def.AccountID && (def.abcLicense || def.contactName)) {
+          const allAccounts = await getAllRows('ACCOUNTS');
+          const acct = allAccounts.find(a => a.ID === def.AccountID);
+          if (acct) {
+            const updates = {};
+            if (def.abcLicense && !acct.ABCLicense) updates.ABCLicense = def.abcLicense;
+            if (def.contactName && !acct.ContactName) updates.ContactName = def.contactName;
+            if (Object.keys(updates).length > 0) {
+              await updateRow('ACCOUNTS', def.AccountID, updates);
+            }
+          }
+        }
+
+        // 1. Create any new inventory items for unmatched products
+        const productIdMap = {}; // maps temp key → new inventory ID
+        if (Array.isArray(def.newProducts)) {
+          for (const np of def.newProducts) {
+            const invItem = {
+              ID: uuidv4(),
+              Name: np.productName || '',
+              Location: def.Location || '',
+              Style: '',
+              ABV: '',
+              Format: np.format || '',
+              Units: '0',
+              PricePerUnit: np.unitPrice || '0',
+              LowStockThreshold: '',
+              Notes: 'Created from invoice import',
+              LastUpdated: new Date().toISOString(),
+              ProductID: '',
+              ProductName: np.productName || '',
+            };
+            await addRow('INVENTORY', invItem);
+            productIdMap[np.productName] = invItem.ID;
+            newProductsCreated++;
+          }
+        }
+
+        // 2. Create the order
+        const order = {
+          ID: uuidv4(),
+          AccountID: def.AccountID || '',
+          AccountName: def.AccountName || '',
+          Location: def.Location || '',
+          StaffID: def.StaffID || '',
+          StaffName: def.StaffName || '',
+          OrderDate: withTimestamp(def.OrderDate || new Date().toISOString().split('T')[0]),
+          DeliveryDate: def.DeliveryDate || '',
+          InvoiceNumber: def.InvoiceNumber || '',
+          OrderAmount: def.OrderAmount || '0',
+          TaxAmount: def.TaxAmount || '0',
+          Notes: def.Notes || 'Imported from invoice',
+          RequestedProducts: '',
+          Status: def.Status || 'Paid',
+          Delivered: def.Delivered || 'true',
+          CreatedAt: new Date().toISOString(),
+        };
+        await addRow('ORDERS', order);
+
+        // 3. Create order items (line items)
+        if (Array.isArray(def.lineItems)) {
+          for (const li of def.lineItems) {
+            // Resolve inventory ID — could be from existing match or newly created
+            let inventoryId = li.inventoryId || '';
+            if (!inventoryId && productIdMap[li.productName]) {
+              inventoryId = productIdMap[li.productName];
+            }
+            const item = {
+              ID: uuidv4(),
+              OrderID: order.ID,
+              InventoryID: inventoryId,
+              ProductName: li.productName || '',
+              Quantity: String(li.quantity || '0'),
+              UnitPrice: String(li.unitPrice || '0'),
+              LineTotal: String(li.lineTotal || '0'),
+              CreatedAt: new Date().toISOString(),
+            };
+            await addRow('ORDER_ITEMS', item);
+          }
+
+          // Build RequestedProducts string from line items
+          const rpParts = def.lineItems
+            .filter(li => li.productName && li.quantity)
+            .map(li => `${li.quantity}x ${li.productName}`);
+          if (rpParts.length) {
+            await updateRow('ORDERS', order.ID, { RequestedProducts: rpParts.join(', ') });
+            order.RequestedProducts = rpParts.join(', ');
+          }
+        }
+
+        created.push(order);
+      } catch (orderErr) {
+        errors.push({ filename: def.filename || 'unknown', error: orderErr.message });
+      }
+    }
+
+    res.json({ created, errors, newProductsCreated, newAccountsCreated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
