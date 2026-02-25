@@ -186,6 +186,9 @@ function productPickerHtml(items, quantities = {}) {
   }
   const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
   const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
+  // Out-of-stock items that are already on this order should always be visible
+  const oosWithQty = outOfStock.filter(i => quantities[i.ID] > 0);
+  const oosHidden = outOfStock.filter(i => !quantities[i.ID]);
 
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
@@ -207,14 +210,15 @@ function productPickerHtml(items, quantities = {}) {
         <thead><tr><th>Product</th><th>Format</th><th>Price</th><th>In Stock</th><th>Qty</th></tr></thead>
         <tbody>
           ${inStock.map(i => row(i, false)).join('')}
-          ${outOfStock.map(i => row(i, true)).join('')}
+          ${oosWithQty.map(i => row(i, false)).join('')}
+          ${oosHidden.map(i => row(i, true)).join('')}
         </tbody>
       </table>
     </div>
-    ${outOfStock.length ? `<label style="cursor:pointer;font-size:0.85rem">
+    ${oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
       <input type="checkbox" id="op-show-oos" style="margin-right:6px"
         onchange="document.querySelectorAll('#order-products-wrap tr[data-product-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
-      Show out-of-stock products (${outOfStock.length})
+      Show out-of-stock products (${oosHidden.length})
     </label>` : ''}`;
 }
 
