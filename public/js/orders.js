@@ -218,7 +218,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
         </tbody>
       </table>
     </div>
-    ${oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
+    ${!readOnly && oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
       <input type="checkbox" id="op-show-oos" style="margin-right:6px"
         onchange="document.querySelectorAll('#order-products-wrap tr[data-product-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
       Show out-of-stock products (${oosHidden.length})
