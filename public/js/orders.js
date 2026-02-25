@@ -180,7 +180,7 @@ function parseRequestedProducts(productsStr, inventoryItems) {
   return quantities;
 }
 
-function productPickerHtml(items, quantities = {}) {
+function productPickerHtml(items, quantities = {}, readOnly = false) {
   if (!items || items.length === 0) {
     return `<p class="text-muted text-sm">No products available for this location.</p>`;
   }
@@ -193,14 +193,17 @@ function productPickerHtml(items, quantities = {}) {
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
     const qty = quantities[item.ID] || 0;
+    const qtyCell = readOnly
+      ? `<td class="text-sm">${qty || '—'}</td>`
+      : `<td><input class="form-control" type="number" min="0" value="${qty}"
+           id="op-qty-${item.ID}" style="width:80px"
+           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>`;
     return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
       <td class="fw-600">${esc(item.Name)}</td>
       <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm">${esc(item.Units)}</td>
-      <td><input class="form-control" type="number" min="0" value="${qty}"
-           id="op-qty-${item.ID}" style="width:80px"
-           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>
+      ${qtyCell}
     </tr>`;
   };
 
@@ -222,15 +225,15 @@ function productPickerHtml(items, quantities = {}) {
     </label>` : ''}`;
 }
 
-async function refreshOrderProducts(existingProducts = '') {
+async function refreshOrderProducts(existingProducts = '', readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
   _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
   const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
   const wrap = document.getElementById('order-products-wrap');
-  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
   // Only auto-recalc if not restoring existing quantities (preserve manually set amount)
-  if (!existingProducts) recalcOrderAmount();
+  if (!existingProducts && !readOnly) recalcOrderAmount();
 }
 
 function recalcOrderAmount() {
@@ -509,7 +512,8 @@ async function openEditOrder(id) {
     toast('Order updated');
     loadOrders();
   });
-  await refreshOrderProducts(order.RequestedProducts);
+  const isPaid = order.Status === 'Paid';
+  await refreshOrderProducts(order.RequestedProducts, isPaid);
 }
 
 async function deleteOrder(id) {
