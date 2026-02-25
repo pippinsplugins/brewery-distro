@@ -302,10 +302,13 @@ router.post('/import/confirm', async (req, res) => {
             await addRow('ORDER_ITEMS', item);
           }
 
-          // Build RequestedProducts string from line items
+          // Build RequestedProducts string from line items (include format for correct matching)
           const rpParts = def.lineItems
             .filter(li => li.productName && li.quantity)
-            .map(li => `${li.quantity}x ${li.productName}`);
+            .map(li => {
+              const label = li.format ? `${li.productName} (${li.format})` : li.productName;
+              return `${li.quantity}x ${label}`;
+            });
           if (rpParts.length) {
             await updateRow('ORDERS', order.ID, { RequestedProducts: rpParts.join(', ') });
             order.RequestedProducts = rpParts.join(', ');

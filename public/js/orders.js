@@ -233,6 +233,21 @@ async function refreshOrderProducts(existingProducts = '') {
   if (!existingProducts) recalcOrderAmount();
 }
 
+async function refreshOrderProductsFromItems(orderItems) {
+  const location = val('f-location');
+  const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
+  _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
+  // Build quantities directly from InventoryID (exact match, no text parsing)
+  const quantities = {};
+  for (const item of orderItems) {
+    if (item.InventoryID) {
+      quantities[item.InventoryID] = (parseInt(quantities[item.InventoryID]) || 0) + parseInt(item.Quantity || 0);
+    }
+  }
+  const wrap = document.getElementById('order-products-wrap');
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+}
+
 function recalcOrderAmount() {
   let total = 0;
   let hasProducts = false;
@@ -509,7 +524,13 @@ async function openEditOrder(id) {
     toast('Order updated');
     loadOrders();
   });
-  await refreshOrderProducts(order.RequestedProducts);
+  // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
+  const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+  if (orderItems && orderItems.length > 0) {
+    await refreshOrderProductsFromItems(orderItems);
+  } else {
+    await refreshOrderProducts(order.RequestedProducts);
+  }
 }
 
 async function deleteOrder(id) {
