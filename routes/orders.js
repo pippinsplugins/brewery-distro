@@ -179,37 +179,46 @@ router.post('/import/confirm', async (req, res) => {
     const errors = [];
     let newProductsCreated = 0;
     let newAccountsCreated = 0;
+    const createdAccountsByName = {}; // track new accounts within this batch to avoid duplicates
 
     for (const def of orderDefs) {
       try {
-        // 0. Create a new account if requested
+        // 0. Create a new account if requested (or reuse one already created in this batch)
         if (!def.AccountID && def.newAccountName) {
-          const account = {
-            ID: uuidv4(),
-            Name: def.newAccountName,
-            Type: 'Bar',
-            Tags: '[]',
-            ContactName: def.contactName || '',
-            Email: '',
-            AdditionalEmails: '[]',
-            Phone: '',
-            PreferredMethod: 'Email',
-            Address: '',
-            City: '',
-            State: '',
-            Zip: '',
-            ABCLicense: def.abcLicense || '',
-            Status: 'Active',
-            Notes: 'Created from invoice import',
-            LastContacted: '',
-            StaffID: '',
-            StaffName: '',
-            CreatedAt: new Date().toISOString(),
-          };
-          await addRow('ACCOUNTS', account);
-          def.AccountID = account.ID;
-          def.AccountName = account.Name;
-          newAccountsCreated++;
+          const nameKey = def.newAccountName.toLowerCase().trim();
+          if (createdAccountsByName[nameKey]) {
+            // Reuse account created earlier in this batch
+            def.AccountID = createdAccountsByName[nameKey].ID;
+            def.AccountName = createdAccountsByName[nameKey].Name;
+          } else {
+            const account = {
+              ID: uuidv4(),
+              Name: def.newAccountName,
+              Type: 'Bar',
+              Tags: '[]',
+              ContactName: def.contactName || '',
+              Email: '',
+              AdditionalEmails: '[]',
+              Phone: '',
+              PreferredMethod: 'Email',
+              Address: '',
+              City: '',
+              State: '',
+              Zip: '',
+              ABCLicense: def.abcLicense || '',
+              Status: 'Active',
+              Notes: 'Created from invoice import',
+              LastContacted: '',
+              StaffID: '',
+              StaffName: '',
+              CreatedAt: new Date().toISOString(),
+            };
+            await addRow('ACCOUNTS', account);
+            createdAccountsByName[nameKey] = account;
+            def.AccountID = account.ID;
+            def.AccountName = account.Name;
+            newAccountsCreated++;
+          }
         }
 
         // 0b. Update existing account with extracted fields if they're currently empty
