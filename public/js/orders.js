@@ -1119,6 +1119,16 @@ function renderImportPreview() {
           </div>
           <div class="form-row">
             <div class="form-group">
+              <label>Phone</label>
+              <input class="form-control form-control-sm" id="imp-phone-${idx}" value="${esc(p.phone)}" placeholder="Phone number" />
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input class="form-control form-control-sm" id="imp-email-${idx}" value="${esc(p.email)}" placeholder="Email address" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
               <label>Invoice #</label>
               <input class="form-control form-control-sm" id="imp-inv-${idx}" value="${esc(p.invoiceNumber)}" />
             </div>
@@ -1229,6 +1239,8 @@ async function confirmImport() {
       AccountName: accountName,
       newAccountName: newAccountName || '',
       contactName: val(`imp-contact-${idx}`) || '',
+      phone: val(`imp-phone-${idx}`) || '',
+      email: val(`imp-email-${idx}`) || '',
       abcLicense: val(`imp-abc-${idx}`) || '',
       Location: state.location || '',
       OrderDate: val(`imp-date-${idx}`) || p.orderDate || today(),
