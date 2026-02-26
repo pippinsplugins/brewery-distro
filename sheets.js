@@ -40,7 +40,7 @@ const HEADERS = {
   KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
-  ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Quantity', 'UnitPrice', 'LineTotal', 'CreatedAt'],
+  ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'UnitPrice', 'LineTotal', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────

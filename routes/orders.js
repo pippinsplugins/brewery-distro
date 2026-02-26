@@ -294,6 +294,7 @@ router.post('/import/confirm', async (req, res) => {
               OrderID: order.ID,
               InventoryID: inventoryId,
               ProductName: li.productName || '',
+              Format: li.format || '',
               Quantity: String(li.quantity || '0'),
               UnitPrice: String(li.unitPrice || '0'),
               LineTotal: String(li.lineTotal || '0'),

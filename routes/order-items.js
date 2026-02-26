@@ -37,7 +37,7 @@ router.get('/counts', async (req, res) => {
 // POST /api/order-items — create a single item
 router.post('/', async (req, res) => {
   try {
-    const { OrderID, InventoryID, ProductName, Quantity, UnitPrice, LineTotal } = req.body;
+    const { OrderID, InventoryID, ProductName, Format, Quantity, UnitPrice, LineTotal } = req.body;
     if (!OrderID) return res.status(400).json({ error: 'OrderID is required' });
 
     const item = {
@@ -45,6 +45,7 @@ router.post('/', async (req, res) => {
       OrderID,
       InventoryID: InventoryID || '',
       ProductName: ProductName || '',
+      Format: Format || '',
       Quantity: Quantity || '0',
       UnitPrice: UnitPrice || '0',
       LineTotal: LineTotal || '0',
@@ -73,6 +74,7 @@ router.post('/bulk', async (req, res) => {
         OrderID: raw.OrderID || '',
         InventoryID: raw.InventoryID || '',
         ProductName: raw.ProductName || '',
+        Format: raw.Format || '',
         Quantity: String(raw.Quantity || '0'),
         UnitPrice: String(raw.UnitPrice || '0'),
         LineTotal: String(raw.LineTotal || '0'),
