@@ -264,15 +264,47 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
   _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
-  // Build quantities directly from InventoryID (exact match, no text parsing)
+  const wrap = document.getElementById('order-products-wrap');
+  if (!wrap) return;
+
+  if (readOnly) {
+    // Render directly from OrderItems — works even if inventory items were deleted
+    wrap.innerHTML = orderItemsReadOnlyHtml(orderItems);
+    return;
+  }
+
+  // Editable mode: build quantities from InventoryID for the product picker
   const quantities = {};
   for (const item of orderItems) {
     if (item.InventoryID) {
       quantities[item.InventoryID] = (parseInt(quantities[item.InventoryID]) || 0) + parseInt(item.Quantity || 0);
     }
   }
-  const wrap = document.getElementById('order-products-wrap');
-  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
+  wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
+}
+
+function orderItemsReadOnlyHtml(orderItems) {
+  if (!orderItems || orderItems.length === 0) {
+    return `<p class="text-muted text-sm">No products on this order.</p>`;
+  }
+  const rows = orderItems.map(item => {
+    const price = parseFloat(item.UnitPrice || 0);
+    const qty = parseInt(item.Quantity || 0);
+    const total = parseFloat(item.LineTotal || 0);
+    return `<tr>
+      <td class="fw-600">${esc(item.ProductName || '—')}</td>
+      <td class="text-sm">${qty}</td>
+      <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
+      <td class="text-sm">${total ? '$' + total.toFixed(2) : '—'}</td>
+    </tr>`;
+  });
+  return `
+    <div class="table-wrap" style="margin-bottom:8px">
+      <table>
+        <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 function recalcOrderAmount() {
