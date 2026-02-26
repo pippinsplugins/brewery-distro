@@ -197,9 +197,9 @@ router.post('/import/confirm', async (req, res) => {
               Type: 'Bar',
               Tags: '[]',
               ContactName: def.contactName || '',
-              Email: '',
+              Email: def.email || '',
               AdditionalEmails: '[]',
-              Phone: '',
+              Phone: def.phone || '',
               PreferredMethod: 'Email',
               Address: '',
               City: '',
@@ -222,13 +222,15 @@ router.post('/import/confirm', async (req, res) => {
         }
 
         // 0b. Update existing account with extracted fields if they're currently empty
-        if (def.AccountID && (def.abcLicense || def.contactName)) {
+        if (def.AccountID && (def.abcLicense || def.contactName || def.phone || def.email)) {
           const allAccounts = await getAllRows('ACCOUNTS');
           const acct = allAccounts.find(a => a.ID === def.AccountID);
           if (acct) {
             const updates = {};
             if (def.abcLicense && !acct.ABCLicense) updates.ABCLicense = def.abcLicense;
             if (def.contactName && !acct.ContactName) updates.ContactName = def.contactName;
+            if (def.phone && !acct.Phone) updates.Phone = def.phone;
+            if (def.email && !acct.Email) updates.Email = def.email;
             if (Object.keys(updates).length > 0) {
               await updateRow('ACCOUNTS', def.AccountID, updates);
             }
