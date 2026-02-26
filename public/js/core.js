@@ -271,6 +271,7 @@ const modal = {
     document.getElementById('modal-body').innerHTML = bodyHtml;
     document.getElementById('modal-submit-btn').textContent = submitLabel;
     document.getElementById('modal-submit-btn').className = 'btn btn-primary';
+    document.getElementById('modal-cancel-btn').textContent = onSubmit ? 'Cancel' : 'Close';
     document.getElementById('modal-overlay').classList.remove('hidden');
     modal._onSubmit = onSubmit;
 
@@ -301,6 +302,7 @@ const modal = {
     document.getElementById('modal-overlay').classList.add('hidden');
     document.getElementById('modal-box').classList.remove('modal-wide');
     document.getElementById('modal-submit-btn').style.display = '';
+    document.getElementById('modal-cancel-btn').textContent = 'Cancel';
     modal._onSubmit = null;
     if (modal._trapFocus) {
       document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);
