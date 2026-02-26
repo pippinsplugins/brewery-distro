@@ -236,6 +236,21 @@ async function refreshOrderProducts(existingProducts = '', readOnly = false) {
   if (!existingProducts && !readOnly) recalcOrderAmount();
 }
 
+async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
+  const location = val('f-location');
+  const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
+  _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
+  // Build quantities directly from InventoryID (exact match, no text parsing)
+  const quantities = {};
+  for (const item of orderItems) {
+    if (item.InventoryID) {
+      quantities[item.InventoryID] = (parseInt(quantities[item.InventoryID]) || 0) + parseInt(item.Quantity || 0);
+    }
+  }
+  const wrap = document.getElementById('order-products-wrap');
+  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
+}
+
 function recalcOrderAmount() {
   let total = 0;
   let hasProducts = false;
@@ -513,7 +528,13 @@ async function openEditOrder(id) {
     loadOrders();
   });
   const isPaid = order.Status === 'Paid';
-  await refreshOrderProducts(order.RequestedProducts, isPaid);
+  // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
+  const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+  if (orderItems && orderItems.length > 0) {
+    await refreshOrderProductsFromItems(orderItems, isPaid);
+  } else {
+    await refreshOrderProducts(order.RequestedProducts, isPaid);
+  }
 }
 
 async function deleteOrder(id) {
@@ -951,7 +972,7 @@ function renderImportPreview() {
         <div class="import-line-items">
           <div class="table-wrap" style="margin-top:8px">
             <table>
-              <thead><tr><th>Product</th><th>Match</th><th>Qty</th><th>Unit Price</th><th>Total</th>${p.lineItems.some(li => li.inventoryMatch === 'none') ? '<th>Create</th>' : ''}</tr></thead>
+              <thead><tr><th>Product</th><th>Format</th><th>Match</th><th>Qty</th><th>Unit Price</th><th>Total</th>${p.lineItems.some(li => li.inventoryMatch === 'none') ? '<th>Create</th>' : ''}</tr></thead>
               <tbody>
                 ${p.lineItems.map((li, liIdx) => {
                   const matchBadge = li.inventoryMatch === 'exact' ? '<span class="match-exact">exact</span>'
@@ -961,6 +982,7 @@ function renderImportPreview() {
                     ? `<td><label class="checkbox-label"><input type="checkbox" id="imp-create-${idx}-${liIdx}" checked /> New</label></td>` : '';
                   return `<tr>
                     <td><input class="form-control form-control-sm" id="imp-li-name-${idx}-${liIdx}" value="${esc(li.productName)}" /></td>
+                    <td class="text-sm">${esc(li.format) || '—'}</td>
                     <td class="text-sm">${matchBadge}</td>
                     <td><input class="form-control form-control-sm" id="imp-li-qty-${idx}-${liIdx}" type="number" min="0" step="1" value="${esc(li.quantity)}" style="width:70px" /></td>
                     <td><input class="form-control form-control-sm" id="imp-li-price-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.unitPrice)}" style="width:90px" /></td>
