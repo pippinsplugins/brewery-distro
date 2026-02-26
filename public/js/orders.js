@@ -293,6 +293,7 @@ function orderItemsReadOnlyHtml(orderItems) {
     const total = parseFloat(item.LineTotal || 0);
     return `<tr>
       <td class="fw-600">${esc(item.ProductName || '—')}</td>
+      <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${qty}</td>
       <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm">${total ? '$' + total.toFixed(2) : '—'}</td>
@@ -301,7 +302,7 @@ function orderItemsReadOnlyHtml(orderItems) {
   return `
     <div class="table-wrap" style="margin-bottom:8px">
       <table>
-        <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+        <thead><tr><th>Product</th><th>Format</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
         <tbody>${rows.join('')}</tbody>
       </table>
     </div>`;
@@ -352,6 +353,7 @@ function collectOrderItems() {
         items.push({
           InventoryID: item.ID,
           ProductName: item.Name,
+          Format: item.Format || '',
           Quantity: qty,
           UnitPrice: price.toFixed(2),
           LineTotal: (qty * price).toFixed(2),
