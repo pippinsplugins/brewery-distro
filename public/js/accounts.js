@@ -694,6 +694,7 @@ function profileEditOrder(id) {
 
 function profileDeleteOrder(id) {
   modal.confirm('Delete Order', 'Delete this order? This cannot be undone.', async () => {
+    await api.del(`/api/order-items?orderId=${encodeURIComponent(id)}`);
     await api.del(`/api/orders/${id}`);
     modal.close();
     toast('Order deleted');

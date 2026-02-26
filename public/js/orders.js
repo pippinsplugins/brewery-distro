@@ -184,6 +184,32 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
   if (!items || items.length === 0) {
     return `<p class="text-muted text-sm">No products available for this location.</p>`;
   }
+
+  // For paid/read-only orders, only show products that are on the order
+  if (readOnly) {
+    const orderItems = items.filter(i => quantities[i.ID] > 0);
+    if (orderItems.length === 0) {
+      return `<p class="text-muted text-sm">No products on this order.</p>`;
+    }
+    const rows = orderItems.map(item => {
+      const price = parseFloat(item.PricePerUnit || 0);
+      const qty = quantities[item.ID] || 0;
+      return `<tr>
+        <td class="fw-600">${esc(item.Name)}</td>
+        <td class="text-sm">${esc(item.Format) || '—'}</td>
+        <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
+        <td class="text-sm">${qty}</td>
+      </tr>`;
+    });
+    return `
+      <div class="table-wrap" style="margin-bottom:8px">
+        <table>
+          <thead><tr><th>Product</th><th>Format</th><th>Price</th><th>Qty</th></tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
   const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
   const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
   // Out-of-stock items that are already on this order should always be visible
@@ -193,17 +219,14 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
     const qty = quantities[item.ID] || 0;
-    const qtyCell = readOnly
-      ? `<td class="text-sm">${qty || '—'}</td>`
-      : `<td><input class="form-control" type="number" min="0" value="${qty}"
-           id="op-qty-${item.ID}" style="width:80px"
-           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>`;
     return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
       <td class="fw-600">${esc(item.Name)}</td>
       <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm">${esc(item.Units)}</td>
-      ${qtyCell}
+      <td><input class="form-control" type="number" min="0" value="${qty}"
+           id="op-qty-${item.ID}" style="width:80px"
+           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>
     </tr>`;
   };
 
@@ -218,7 +241,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
         </tbody>
       </table>
     </div>
-    ${!readOnly && oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
+    ${oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
       <input type="checkbox" id="op-show-oos" style="margin-right:6px"
         onchange="document.querySelectorAll('#order-products-wrap tr[data-product-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
       Show out-of-stock products (${oosHidden.length})
@@ -283,6 +306,39 @@ function collectOrderProducts() {
     }
   }
   return selected.join(', ');
+}
+
+function collectOrderItems() {
+  const items = [];
+  for (const item of _orderFormInventory) {
+    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
+    if (qtyEl) {
+      const qty = parseInt(qtyEl.value) || 0;
+      if (qty > 0) {
+        const price = parseFloat(item.PricePerUnit || 0);
+        items.push({
+          InventoryID: item.ID,
+          ProductName: item.Name,
+          Quantity: qty,
+          UnitPrice: price.toFixed(2),
+          LineTotal: (qty * price).toFixed(2),
+        });
+      }
+    }
+  }
+  return items;
+}
+
+async function saveOrderItems(orderId) {
+  const items = collectOrderItems();
+  // Delete existing items for this order first
+  await api.del(`/api/order-items?orderId=${encodeURIComponent(orderId)}`);
+  // Create new items if any
+  if (items.length > 0) {
+    await api.post('/api/order-items/bulk', {
+      items: items.map(i => ({ ...i, OrderID: orderId })),
+    });
+  }
 }
 
 async function loadOrders() {
@@ -489,7 +545,7 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
-    await api.post('/api/orders', {
+    const order = await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -499,6 +555,7 @@ async function openAddOrder(presetAccountId = '') {
       Notes: val('f-notes'),
       RequestedProducts: products,
     });
+    await saveOrderItems(order.ID);
     modal.close();
     toast('Order logged');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
@@ -510,6 +567,7 @@ async function openAddOrder(presetAccountId = '') {
 async function openEditOrder(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
+  const isPaid = order.Status === 'Paid';
   modal.open('Edit Order', orderForm(order), async () => {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
@@ -523,11 +581,12 @@ async function openEditOrder(id) {
       Notes: val('f-notes'),
       RequestedProducts: products || order.RequestedProducts || '',
     });
+    // Update order items (skip for paid orders — quantities are read-only)
+    if (!isPaid) await saveOrderItems(id);
     modal.close();
     toast('Order updated');
     loadOrders();
   });
-  const isPaid = order.Status === 'Paid';
   // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
   const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
   if (orderItems && orderItems.length > 0) {
@@ -539,6 +598,7 @@ async function openEditOrder(id) {
 
 async function deleteOrder(id) {
   modal.confirm('Delete Order', 'Delete this order? This cannot be undone.', async () => {
+    await api.del(`/api/order-items?orderId=${encodeURIComponent(id)}`);
     await api.del(`/api/orders/${id}`);
     modal.close();
     toast('Order deleted');
@@ -641,6 +701,7 @@ async function convertPreSale(id) {
       Notes: val('f-notes'),
       RequestedProducts: products || ps.RequestedProducts || '',
     });
+    await saveOrderItems(id);
     modal.close();
     toast('Pre-sale converted to order');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
