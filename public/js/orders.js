@@ -285,6 +285,39 @@ function collectOrderProducts() {
   return selected.join(', ');
 }
 
+function collectOrderItems() {
+  const items = [];
+  for (const item of _orderFormInventory) {
+    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
+    if (qtyEl) {
+      const qty = parseInt(qtyEl.value) || 0;
+      if (qty > 0) {
+        const price = parseFloat(item.PricePerUnit || 0);
+        items.push({
+          InventoryID: item.ID,
+          ProductName: item.Name,
+          Quantity: qty,
+          UnitPrice: price.toFixed(2),
+          LineTotal: (qty * price).toFixed(2),
+        });
+      }
+    }
+  }
+  return items;
+}
+
+async function saveOrderItems(orderId) {
+  const items = collectOrderItems();
+  // Delete existing items for this order first
+  await api.del(`/api/order-items?orderId=${encodeURIComponent(orderId)}`);
+  // Create new items if any
+  if (items.length > 0) {
+    await api.post('/api/order-items/bulk', {
+      items: items.map(i => ({ ...i, OrderID: orderId })),
+    });
+  }
+}
+
 async function loadOrders() {
   _paginationReset('orders');
   _ordersDatePreset = '';
@@ -489,7 +522,7 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
-    await api.post('/api/orders', {
+    const order = await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -499,6 +532,7 @@ async function openAddOrder(presetAccountId = '') {
       Notes: val('f-notes'),
       RequestedProducts: products,
     });
+    await saveOrderItems(order.ID);
     modal.close();
     toast('Order logged');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
@@ -510,6 +544,7 @@ async function openAddOrder(presetAccountId = '') {
 async function openEditOrder(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
+  const isPaid = order.Status === 'Paid';
   modal.open('Edit Order', orderForm(order), async () => {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
@@ -523,11 +558,12 @@ async function openEditOrder(id) {
       Notes: val('f-notes'),
       RequestedProducts: products || order.RequestedProducts || '',
     });
+    // Update order items (skip for paid orders — quantities are read-only)
+    if (!isPaid) await saveOrderItems(id);
     modal.close();
     toast('Order updated');
     loadOrders();
   });
-  const isPaid = order.Status === 'Paid';
   // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
   const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
   if (orderItems && orderItems.length > 0) {
@@ -539,6 +575,7 @@ async function openEditOrder(id) {
 
 async function deleteOrder(id) {
   modal.confirm('Delete Order', 'Delete this order? This cannot be undone.', async () => {
+    await api.del(`/api/order-items?orderId=${encodeURIComponent(id)}`);
     await api.del(`/api/orders/${id}`);
     modal.close();
     toast('Order deleted');
@@ -641,6 +678,7 @@ async function convertPreSale(id) {
       Notes: val('f-notes'),
       RequestedProducts: products || ps.RequestedProducts || '',
     });
+    await saveOrderItems(id);
     modal.close();
     toast('Pre-sale converted to order');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
