@@ -2,13 +2,14 @@
 
 const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
-function orderForm(order = {}, presetAccountId = '') {
+function orderForm(order = {}, presetAccountId = '', readOnly = false) {
   const selAcctId = order.AccountID || presetAccountId;
+  const dis = readOnly ? ' disabled' : '';
   return `
     <div class="form-row">
       <div class="form-group">
         <label>Account <span class="required">*</span></label>
-        <select class="form-control" id="f-account" ${presetAccountId ? 'disabled' : ''}>
+        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''}>
           <option value="">-- Select Account --</option>
           ${accountOptions(selAcctId)}
         </select>
@@ -16,7 +17,7 @@ function orderForm(order = {}, presetAccountId = '') {
       </div>
       <div class="form-group">
         <label>Location <span class="required">*</span></label>
-        <select class="form-control" id="f-location" onchange="refreshOrderProducts()">
+        <select class="form-control" id="f-location"${dis}${readOnly ? '' : ' onchange="refreshOrderProducts()"'}>
           ${LOCATIONS.map(l => `<option value="${l}" ${(order.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
       </div>
@@ -24,7 +25,7 @@ function orderForm(order = {}, presetAccountId = '') {
     <div class="form-row">
       <div class="form-group">
         <label>Sales Rep</label>
-        <select class="form-control" id="f-staff">
+        <select class="form-control" id="f-staff"${dis}>
           <option value="">-- Unassigned --</option>
           ${staffOptions(order.StaffID)}
         </select>
@@ -33,21 +34,21 @@ function orderForm(order = {}, presetAccountId = '') {
     <div class="form-row">
       <div class="form-group">
         <label>Order Date <span class="required">*</span></label>
-        <input class="form-control" id="f-order-date" type="date" value="${esc(dateOnly(order.OrderDate) || today())}" />
+        <input class="form-control" id="f-order-date" type="date" value="${esc(dateOnly(order.OrderDate) || today())}"${dis} />
       </div>
       <div class="form-group">
         <label>Delivery Date</label>
-        <input class="form-control" id="f-delivery-date" type="date" value="${esc(order.DeliveryDate)}" />
+        <input class="form-control" id="f-delivery-date" type="date" value="${esc(order.DeliveryDate)}"${dis} />
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>Invoice Number</label>
-        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
+        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001"${dis} />
       </div>
       <div class="form-group">
         <label>Status</label>
-        <select class="form-control" id="f-status">
+        <select class="form-control" id="f-status"${dis}>
           ${ORDER_STATUSES.map(s => `<option value="${s}" ${order.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
@@ -61,16 +62,16 @@ function orderForm(order = {}, presetAccountId = '') {
     <div class="form-row">
       <div class="form-group">
         <label>Order Amount ($) <span class="required">*</span></label>
-        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00" />
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00"${dis} />
       </div>
       <div class="form-group">
         <label>Tax Amount ($)</label>
-        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(order.TaxAmount || '')}" placeholder="0.00" />
+        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(order.TaxAmount || '')}" placeholder="0.00"${dis} />
       </div>
     </div>
     <div class="form-group">
       <label>Notes / Reference</label>
-      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
+      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc."${dis}>${esc(order.Notes)}</textarea>
     </div>`;
 }
 
@@ -511,7 +512,7 @@ function renderOrders() {
                 <td class="td-actions">
                   ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
-                  <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>`}
                 </td>
               </tr>`;
@@ -568,25 +569,30 @@ async function openEditOrder(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
   const isPaid = order.Status === 'Paid';
-  modal.open('Edit Order', orderForm(order), async () => {
-    const staffId = val('f-staff');
-    const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-    const products = collectOrderProducts();
-    await api.put(`/api/orders/${id}`, {
-      Location: val('f-location') || state.location,
-      StaffID: staffId, StaffName: staffName,
-      OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
-      InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-      OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
-      Notes: val('f-notes'),
-      RequestedProducts: products || order.RequestedProducts || '',
+  if (isPaid) {
+    // View-only modal for paid orders
+    modal.open('View Order', orderForm(order, '', true), null, 'Save');
+    document.getElementById('modal-submit-btn').style.display = 'none';
+  } else {
+    modal.open('Edit Order', orderForm(order), async () => {
+      const staffId = val('f-staff');
+      const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
+      const products = collectOrderProducts();
+      await api.put(`/api/orders/${id}`, {
+        Location: val('f-location') || state.location,
+        StaffID: staffId, StaffName: staffName,
+        OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
+        InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+        OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
+        Notes: val('f-notes'),
+        RequestedProducts: products || order.RequestedProducts || '',
+      });
+      await saveOrderItems(id);
+      modal.close();
+      toast('Order updated');
+      loadOrders();
     });
-    // Update order items (skip for paid orders — quantities are read-only)
-    if (!isPaid) await saveOrderItems(id);
-    modal.close();
-    toast('Order updated');
-    loadOrders();
-  });
+  }
   // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
   const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
   if (orderItems && orderItems.length > 0) {
