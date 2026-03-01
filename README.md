@@ -101,20 +101,21 @@ The endpoint accepts flexible field names to accommodate different source system
 
 All data is stored in a local SQLite database with these tables:
 
-| Table | Key columns |
+| Table | Columns |
 |---|---|
-| Products | ID, Name, Style, ABV, Format, PricePerUnit |
-| Inventory | ID, ProductID, ProductName, Location, Units, LowStockThreshold |
-| Accounts | ID, Name, Type, ContactName, Email, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, StaffID, LastContacted |
-| Orders | ID, AccountID, Location, StaffID, OrderDate, DeliveryDate, InvoiceNumber, OrderAmount, TaxAmount, Status, Delivered, RequestedProducts |
-| StockMovements | ID, InventoryID, OrderID, Type (sale/received/write-off/adjustment), Quantity, Date |
-| Outreach | ID, AccountID, Date, Method, Notes, FollowUpDate, FollowUpStatus |
-| Reminders | ID, AccountID, StaffID, Title, Type, DueDate, Priority, Completed, Recurrence |
-| KegTracking | ID, AccountID, OrderID, ProductName, Format, Quantity, DeliveredDate, ReturnedDate, ReturnedQuantity |
-| TapHandles | ID, AccountID, Quantity, DeployedDate, CollectedDate, CollectedQuantity |
-| Staff | ID, Name, Email, Phone, Role, Active |
-| EmailLog | ID, SenderName, SenderEmail, Recipients, Subject, Body, Type, Status |
-| Settings | ID, Key, Value |
+| Products | ID, Name, Style, ABV, Format, PricePerUnit, Notes, CreatedAt |
+| Inventory | ID, Name, Location, Style, ABV, Format, Units, PricePerUnit, LowStockThreshold, Notes, LastUpdated, ProductID, ProductName |
+| Accounts | ID, Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, Notes, LastContacted, StaffID, StaffName, CreatedAt |
+| Orders | ID, AccountID, AccountName, Location, StaffID, StaffName, OrderDate, DeliveryDate, InvoiceNumber, OrderAmount, TaxAmount, Notes, RequestedProducts, Status, Delivered, CreatedAt |
+| OrderItems | ID, OrderID, InventoryID, ProductName, Format, Quantity, UnitPrice, LineTotal, CreatedAt |
+| StockMovements | ID, InventoryID, InventoryName, OrderID, Type (sale/received/write-off/adjustment), Quantity, Notes, Date, CreatedAt |
+| Outreach | ID, AccountID, AccountName, Date, Method, Notes, FollowUpDate, FollowUpStatus, CreatedAt |
+| Reminders | ID, Type, AccountID, AccountName, Title, DueDate, Priority, Notes, Completed, StaffID, StaffName, Recurrence, RecurrenceParentID, CreatedAt |
+| KegTracking | ID, AccountID, AccountName, OrderID, InventoryID, ProductName, Format, Quantity, DeliveredDate, ReturnedDate, ReturnedQuantity, Notes, CreatedAt |
+| TapHandles | ID, AccountID, AccountName, Quantity, DeployedDate, CollectedDate, CollectedQuantity, Notes, CreatedAt |
+| Staff | ID, Name, Email, Phone, Role, Active, Notes, CreatedAt |
+| EmailLog | ID, SenderName, SenderEmail, Recipients, Subject, Body, Type, AccountIDs, Status, Error, CreatedAt |
+| Settings | ID, Key, Value, UpdatedAt |
 
 ## Migrating from Google Sheets
 
