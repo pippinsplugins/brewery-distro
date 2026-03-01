@@ -44,7 +44,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Invoice Number</label>
-        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001"${dis} />
+        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
       </div>
       <div class="form-group">
         <label>Status</label>
@@ -71,7 +71,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     </div>
     <div class="form-group">
       <label>Notes / Reference</label>
-      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc."${dis}>${esc(order.Notes)}</textarea>
+      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>`;
 }
 
@@ -604,9 +604,15 @@ async function openEditOrder(id) {
   if (!order) return;
   const isPaid = order.Status === 'Paid';
   if (isPaid) {
-    // View-only modal for paid orders
-    modal.open('View Order', orderForm(order, '', true), null, 'Save');
-    document.getElementById('modal-submit-btn').style.display = 'none';
+    modal.open('View Order', orderForm(order, '', true), async () => {
+      await api.put(`/api/orders/${id}`, {
+        InvoiceNumber: val('f-invoice'),
+        Notes: val('f-notes'),
+      });
+      modal.close();
+      toast('Order updated');
+      loadOrders();
+    }, 'Save');
   } else {
     modal.open('Edit Order', orderForm(order), async () => {
       const staffId = val('f-staff');
