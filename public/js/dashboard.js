@@ -153,7 +153,7 @@ async function loadDashboard() {
       <div class="card">
         <div class="card-header">
           <h3>My Todos${myOverdue.length > 0 ? ` <span class="text-danger">(${myOverdue.length} overdue)</span>` : ''}</h3>
-          ${currentStaffId ? `<button class="btn btn-ghost btn-sm" onclick="navigate('todos', {staffId: '${esc(currentStaffId)}', staffName: '${esc(currentStaff.Name)}'})">View all</button>` : ''}
+          ${currentStaffId ? `<button class="btn btn-ghost btn-sm" data-name="${esc(currentStaff.Name)}" onclick="navigate('todos', {staffId: '${esc(currentStaffId)}', staffName: this.dataset.name})">View all</button>` : ''}
         </div>
         <ul class="dash-list">${myTodosHtml}</ul>
       </div>

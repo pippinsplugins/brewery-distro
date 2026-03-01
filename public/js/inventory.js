@@ -111,7 +111,7 @@ function renderInventory() {
                   <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Threshold</button>
                   <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
                   <button class="btn btn-ghost btn-sm" onclick="openInventoryHistory('${esc(item.ID)}')">History</button>
-                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteInventory('${esc(item.ID)}', '${esc(item.Name)}')">Remove</button>
+                  <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(item.Name)}" onclick="deleteInventory('${esc(item.ID)}', this.dataset.name)">Remove</button>
                 </td>
               </tr>`;
             }).join('')}

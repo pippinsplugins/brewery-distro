@@ -100,9 +100,9 @@ function renderStaff() {
               <td><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
               <td class="text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
               <td class="td-actions">
-                <button class="btn btn-ghost btn-sm" onclick="navigate('todos', { staffId: '${esc(s.ID)}', staffName: '${esc(s.Name)}' })">Todos</button>
+                <button class="btn btn-ghost btn-sm" data-name="${esc(s.Name)}" onclick="navigate('todos', { staffId: '${esc(s.ID)}', staffName: this.dataset.name })">Todos</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditStaff('${esc(s.ID)}')">Edit</button>
-                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteStaff('${esc(s.ID)}', '${esc(s.Name)}')">Delete</button>
+                <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(s.Name)}" onclick="deleteStaff('${esc(s.ID)}', this.dataset.name)">Delete</button>
               </td>
             </tr>`).join('')}
         </tbody>
