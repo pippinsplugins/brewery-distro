@@ -135,7 +135,7 @@ async function openAddKegs(presetAccountId = '') {
       </div>
       <div class="form-group">
         <label>Format <span class="required">*</span></label>
-        <select class="form-control" id="f-format">
+        <select class="form-control" id="f-format" onchange="var d=getDepositForFormat(this.value); document.getElementById('f-deposit').value=d||''">
           ${KEG_FORMATS.map(f => `<option value="${f}">${f}</option>`).join('')}
         </select>
       </div>
@@ -152,8 +152,8 @@ async function openAddKegs(presetAccountId = '') {
     </div>
     <div class="form-group">
       <label>Deposit per Keg ($)</label>
-      <input class="form-control" id="f-deposit" type="number" step="0.01" min="0" placeholder="0.00" />
-      <span class="text-muted text-sm">Leave blank to use the global rate from Settings.</span>
+      <input class="form-control" id="f-deposit" type="number" step="0.01" min="0" value="${getDepositForFormat(KEG_FORMATS[0]) || ''}" placeholder="0.00" />
+      <span class="text-muted text-sm">Pre-filled from Settings. Clear to record no deposit.</span>
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -169,12 +169,10 @@ async function openAddKegs(presetAccountId = '') {
     const qty = parseInt(val('f-qty'));
     if (!qty || qty < 1) { toast('Enter a valid quantity', 'error'); return; }
     const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
-    const manualDeposit = val('f-deposit');
-    const depositPerUnit = manualDeposit || String(getDepositForFormat(format) || '');
     await api.post('/api/keg-tracking', {
       accountId, accountName, productName, format,
       quantity: qty,
-      depositPerUnit,
+      depositPerUnit: val('f-deposit') || '',
       deliveredDate: val('f-date') || today(),
       notes: val('f-notes') || '',
     });
