@@ -7,11 +7,23 @@ async function loadSettings() {
   renderSettings();
 }
 
+function getKegDeposits() {
+  return (state.settings && typeof state.settings.kegDeposits === 'object') ? state.settings.kegDeposits : {};
+}
+
+function getDepositForFormat(format) {
+  if (!format) return 0;
+  const deposits = getKegDeposits();
+  return parseFloat(deposits[format]) || 0;
+}
+
 function renderSettings() {
   const s = state.settings;
   const companyName = s.companyName || '';
   const locations = Array.isArray(s.locations) ? s.locations : [...LOCATIONS];
   const accountTags = Array.isArray(s.accountTags) ? s.accountTags : [];
+  const kegDeposits = getKegDeposits();
+  const kegFormats = ['1/6 Keg', '1/4 Keg', '1/2 Keg'];
 
   setContent(`
     <div class="view-header">
@@ -80,6 +92,28 @@ function renderSettings() {
                   </li>`).join('')}
               </ul>`
           }
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Keg Deposits</h3></div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Set deposit amounts per keg format. These are used when accounts are configured to charge keg deposits.
+          </p>
+          ${kegFormats.map(fmt => `
+            <div class="form-row" style="align-items:center;margin-bottom:8px">
+              <div style="flex:1;font-weight:500">${esc(fmt)}</div>
+              <div style="flex:1">
+                <div style="position:relative">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted)">$</span>
+                  <input class="form-control" id="settings-deposit-${esc(fmt.replace(/[^a-zA-Z0-9]/g, '-'))}"
+                    type="number" step="0.01" min="0" value="${esc(kegDeposits[fmt] || '')}" placeholder="0.00"
+                    style="padding-left:24px" />
+                </div>
+              </div>
+            </div>`).join('')}
+          <button class="btn btn-primary" style="margin-top:12px" onclick="saveKegDeposits()">Save</button>
         </div>
       </div>
     </div>`);
@@ -159,6 +193,22 @@ function removeLocation(index, name) {
     toast('Location removed');
     renderSettings();
   });
+}
+
+// ── Keg Deposits ─────────────────────────────────────────────────
+
+function saveKegDeposits() {
+  const kegFormats = ['1/6 Keg', '1/4 Keg', '1/2 Keg'];
+  const deposits = {};
+  for (const fmt of kegFormats) {
+    const id = 'settings-deposit-' + fmt.replace(/[^a-zA-Z0-9]/g, '-');
+    const v = val(id);
+    if (v && parseFloat(v) > 0) deposits[fmt] = parseFloat(v).toFixed(2);
+  }
+  api.put('/api/settings', { kegDeposits: deposits }).then(updated => {
+    state.settings = updated;
+    toast('Keg deposit rates saved');
+  }).catch(err => toast(err.message, 'error'));
 }
 
 // ── Account Tags ──────────────────────────────────────────────────

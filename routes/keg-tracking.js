@@ -30,9 +30,14 @@ router.get('/summary', async (req, res) => {
       const outstanding = qty - returned;
       if (outstanding <= 0) continue;
       if (!summary[r.AccountID]) {
-        summary[r.AccountID] = { accountId: r.AccountID, accountName: r.AccountName, outstanding: 0 };
+        summary[r.AccountID] = { accountId: r.AccountID, accountName: r.AccountName, outstanding: 0, depositOutstanding: 0 };
       }
       summary[r.AccountID].outstanding += outstanding;
+      const depTotal = parseFloat(r.DepositTotal) || 0;
+      const depRefunded = parseFloat(r.DepositRefunded) || 0;
+      if (depTotal > 0) {
+        summary[r.AccountID].depositOutstanding += (depTotal - depRefunded);
+      }
     }
     res.json(Object.values(summary));
   } catch (err) {
@@ -43,9 +48,11 @@ router.get('/summary', async (req, res) => {
 // POST /api/keg-tracking — create a keg tracking record
 router.post('/', async (req, res) => {
   try {
-    const { accountId, accountName, orderId, inventoryId, productName, format, quantity, deliveredDate, notes } = req.body;
+    const { accountId, accountName, orderId, inventoryId, productName, format, quantity, depositPerUnit, deliveredDate, notes } = req.body;
     if (!accountId || !quantity) return res.status(400).json({ error: 'accountId and quantity are required' });
 
+    const depPerUnit = parseFloat(depositPerUnit) || 0;
+    const qty = parseInt(quantity) || 0;
     const record = {
       ID: uuidv4(),
       AccountID: accountId,
@@ -55,6 +62,9 @@ router.post('/', async (req, res) => {
       ProductName: productName || '',
       Format: format || '',
       Quantity: String(quantity),
+      DepositPerUnit: depPerUnit ? String(depPerUnit) : '',
+      DepositTotal: depPerUnit ? String((depPerUnit * qty).toFixed(2)) : '',
+      DepositRefunded: depPerUnit ? '0' : '',
       DeliveredDate: deliveredDate || new Date().toISOString().split('T')[0],
       ReturnedDate: '',
       ReturnedQuantity: '0',
@@ -73,7 +83,7 @@ router.put('/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const updates = {};
-    const allowed = ['ReturnedDate', 'ReturnedQuantity', 'Notes'];
+    const allowed = ['ReturnedDate', 'ReturnedQuantity', 'DepositRefunded', 'Notes'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }

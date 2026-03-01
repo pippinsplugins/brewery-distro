@@ -9,7 +9,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Account <span class="required">*</span></label>
-        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''}>
+        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox()">
           <option value="">-- Select Account --</option>
           ${accountOptions(selAcctId)}
         </select>
@@ -53,6 +53,12 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         </select>
       </div>
     </div>
+    ${readOnly ? '' : `<div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-charge-deposits" onchange="toggleOrderDeposits()" ${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'checked' : ''} />
+        Charge keg deposits for this order
+      </label>
+    </div>`}
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
     <div id="order-products-wrap">
@@ -67,6 +73,10 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <div class="form-group">
         <label>Tax Amount ($)</label>
         <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(order.TaxAmount || '')}" placeholder="0.00"${dis} />
+      </div>
+      <div class="form-group" id="deposit-amount-group" style="display:${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'block' : 'none'}">
+        <label>Keg Deposits ($)</label>
+        <input class="form-control" id="f-deposit-amount" type="number" step="0.01" min="0" value="${esc(order.DepositAmount || '')}" placeholder="0.00" readonly${dis} />
       </div>
     </div>
     <div class="form-group">
@@ -130,6 +140,26 @@ let _ordersDateTo = '';
 let _orderFormInventory = [];
 let _ordersSort = { col: 'OrderDate', dir: 'desc' };
 let _orderItemCounts = {}; // { orderId: count } for item count badges
+
+function toggleOrderDeposits() {
+  const checked = document.getElementById('f-charge-deposits')?.checked;
+  const depGroup = document.getElementById('deposit-amount-group');
+  if (depGroup) depGroup.style.display = checked ? 'block' : 'none';
+  // Toggle deposit column visibility in product picker
+  document.querySelectorAll('.deposit-col').forEach(el => el.style.display = checked ? '' : 'none');
+  recalcOrderAmount();
+}
+
+function initOrderDepositCheckbox(presetAccountId) {
+  const acctId = presetAccountId || val('f-account');
+  if (!acctId) return;
+  const acct = state.accounts.find(a => a.ID === acctId);
+  const cb = document.getElementById('f-charge-deposits');
+  if (cb && acct) {
+    cb.checked = acct.ChargeDeposits === 'true';
+    toggleOrderDeposits();
+  }
+}
 
 function sortOrders(col) {
   _paginationReset('orders');
@@ -217,13 +247,18 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
   const oosWithQty = outOfStock.filter(i => quantities[i.ID] > 0);
   const oosHidden = outOfStock.filter(i => !quantities[i.ID]);
 
+  const showDeposits = document.getElementById('f-charge-deposits')?.checked;
+  const depDisplay = showDeposits ? '' : 'display:none';
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
     const qty = quantities[item.ID] || 0;
+    const dep = getDepositForFormat(item.Format);
+    const isKeg = (item.Format || '').toLowerCase().includes('keg');
     return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
       <td class="fw-600">${esc(item.Name)}</td>
       <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
+      <td class="text-sm deposit-col" style="${depDisplay}">${isKeg && dep ? '$' + dep.toFixed(2) : '—'}</td>
       <td class="text-sm">${esc(item.Units)}</td>
       <td><input class="form-control" type="number" min="0" value="${qty}"
            id="op-qty-${item.ID}" style="width:80px"
@@ -234,7 +269,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
   return `
     <div class="table-wrap" style="margin-bottom:8px">
       <table>
-        <thead><tr><th>Product</th><th>Format</th><th>Price</th><th>In Stock</th><th>Qty</th></tr></thead>
+        <thead><tr><th>Product</th><th>Format</th><th>Price</th><th class="deposit-col" style="${depDisplay}">Deposit</th><th>In Stock</th><th>Qty</th></tr></thead>
         <tbody>
           ${inStock.map(i => row(i, false)).join('')}
           ${oosWithQty.map(i => row(i, false)).join('')}
@@ -310,7 +345,9 @@ function orderItemsReadOnlyHtml(orderItems) {
 
 function recalcOrderAmount() {
   let total = 0;
+  let depositTotal = 0;
   let hasProducts = false;
+  const chargeDeposits = document.getElementById('f-charge-deposits')?.checked;
   for (const item of _orderFormInventory) {
     const qtyEl = document.getElementById(`op-qty-${item.ID}`);
     if (qtyEl) {
@@ -318,6 +355,10 @@ function recalcOrderAmount() {
       if (qty > 0) {
         hasProducts = true;
         total += qty * parseFloat(item.PricePerUnit || 0);
+        if (chargeDeposits) {
+          const dep = getDepositForFormat(item.Format);
+          if (dep > 0) depositTotal += qty * dep;
+        }
       }
     }
   }
@@ -325,6 +366,8 @@ function recalcOrderAmount() {
     const amountEl = document.getElementById('f-amount');
     if (amountEl) amountEl.value = total.toFixed(2);
   }
+  const depEl = document.getElementById('f-deposit-amount');
+  if (depEl) depEl.value = chargeDeposits && depositTotal > 0 ? depositTotal.toFixed(2) : '';
 }
 
 function collectOrderProducts() {
@@ -535,7 +578,7 @@ function renderOrders() {
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
-                <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
+                <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
                 <td>${orderStatusBadge(s.Status)}</td>
@@ -587,6 +630,7 @@ async function openAddOrder(presetAccountId = '') {
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
       OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
+      DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
       RequestedProducts: products,
     });
@@ -597,6 +641,7 @@ async function openAddOrder(presetAccountId = '') {
     else loadOrders();
   });
   await refreshOrderProducts();
+  initOrderDepositCheckbox(presetAccountId);
 }
 
 async function openEditOrder(id) {
@@ -618,6 +663,7 @@ async function openEditOrder(id) {
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
         InvoiceNumber: val('f-invoice'), Status: val('f-status'),
         OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
+        DepositAmount: val('f-deposit-amount') || '0',
         Notes: val('f-notes'),
         RequestedProducts: products || order.RequestedProducts || '',
       });
@@ -877,14 +923,16 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     </p>
     <div class="table-wrap" style="margin-bottom:16px">
       <table>
-        <thead><tr><th>Product</th><th>Format</th><th>Outstanding</th><th>Returned</th></tr></thead>
+        <thead><tr><th>Product</th><th>Format</th><th>Outstanding</th><th>Deposit</th><th>Returned</th></tr></thead>
         <tbody>
           ${outstandingKegs.map(k => {
             const outstanding = Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0));
+            const depPerUnit = parseFloat(k.DepositPerUnit) || 0;
             return `<tr>
               <td class="fw-600">${esc(k.ProductName)}</td>
               <td class="text-sm">${esc(k.Format) || '—'}</td>
               <td class="text-sm">${outstanding}</td>
+              <td class="text-sm">${depPerUnit > 0 ? '$' + depPerUnit.toFixed(2) + '/keg' : '—'}</td>
               <td><input class="form-control" type="number" min="0" max="${outstanding}" value="0"
                    id="keg-ret-${k.ID}" style="width:80px" /></td>
             </tr>`;
@@ -943,14 +991,23 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     }
 
     // Process keg returns
+    let totalDepositRefund = 0;
     for (const r of kegReturns) {
       const newReturnedTotal = (parseInt(r.keg.ReturnedQuantity) || 0) + r.returnQty;
       const combinedNotes = [r.keg.Notes, notes].filter(Boolean).join(' | ');
-      await api.put(`/api/keg-tracking/${r.keg.ID}`, {
+      const updates = {
         ReturnedQuantity: String(newReturnedTotal),
         ReturnedDate: today(),
         Notes: combinedNotes,
-      });
+      };
+      const depPerUnit = parseFloat(r.keg.DepositPerUnit) || 0;
+      if (depPerUnit > 0) {
+        const refundAmount = r.returnQty * depPerUnit;
+        const existingRefunded = parseFloat(r.keg.DepositRefunded) || 0;
+        updates.DepositRefunded = String((existingRefunded + refundAmount).toFixed(2));
+        totalDepositRefund += refundAmount;
+      }
+      await api.put(`/api/keg-tracking/${r.keg.ID}`, updates);
     }
 
     modal.close();
@@ -958,7 +1015,9 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     if (delivItems.length) parts.push('Delivery confirmed');
     if (kegReturns.length) {
       const totalReturned = kegReturns.reduce((sum, r) => sum + r.returnQty, 0);
-      parts.push(`${totalReturned} keg${totalReturned !== 1 ? 's' : ''} returned`);
+      let returnMsg = `${totalReturned} keg${totalReturned !== 1 ? 's' : ''} returned`;
+      if (totalDepositRefund > 0) returnMsg += ` · $${totalDepositRefund.toFixed(2)} deposit refunded`;
+      parts.push(returnMsg);
     }
     toast(parts.join(' · ') || 'Delivery confirmed');
     onComplete();

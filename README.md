@@ -7,11 +7,12 @@ A web app for managing self-distribution operations for a small microbrewery. Tr
 - **Dashboard** — At-a-glance KPIs: active accounts, monthly orders & revenue, overdue reminders, low-stock alerts, recent outreach, and pending deliveries.
 - **Products** — Master product catalog (name, style, ABV, format, price). Adding a product auto-creates inventory rows at every configured location.
 - **Inventory** — Per-location stock levels with low-stock thresholds and alerts. Stock is adjusted through stock movements (sales, received, write-offs, adjustments) for a full audit trail.
-- **Accounts** — Manage bars, restaurants, retail stores, grocery stores, hotels, event venues, and individuals. Store contact info, preferred contact method, address, ABC license, and assigned sales rep. Detailed profile view with outreach history, orders, kegs, and tap handles in one place.
+- **Accounts** — Manage bars, restaurants, retail stores, grocery stores, hotels, event venues, and individuals. Store contact info, preferred contact method, address, ABC license, keg deposit preference, and assigned sales rep. Detailed profile view with outreach history, orders, kegs, deposits owed, and tap handles in one place.
 - **Orders & Sales** — Create and manage orders with invoice numbers, delivery dates, and payment status (Pending / Paid / Cancelled / Pre-Sale). Confirm deliveries with product selection, which auto-decrements inventory and creates keg tracking records.
 - **Outreach Log** — Log every customer contact (phone, email, in-person) with notes and follow-up dates. Automatically updates the account's "Last Contacted" date.
 - **Reminders / Todos** — Task management with due dates, priorities, account/staff assignment, and recurring schedules (daily, weekly, biweekly, monthly, quarterly, yearly). Completing a recurring reminder auto-creates the next occurrence.
-- **Keg Tracking** — Track kegs deployed to accounts and mark returns. Auto-created when delivering keg-format products. Outstanding keg counts shown on account profiles and a dedicated kegs view.
+- **Keg Tracking** — Track kegs deployed to accounts and mark returns. Auto-created when delivering keg-format products. Outstanding keg counts shown on account profiles and a dedicated kegs view. Includes deposit tracking with per-keg deposit rates, refund calculation on returns, and outstanding deposit balances.
+- **Keg Deposits** — Configure global deposit rates per keg format (1/6, 1/4, 1/2) in Settings. Accounts can be flagged to charge deposits, and orders auto-detect the preference with manual override. Deposits are snapshotted onto keg records at delivery time, and refunds are tracked as kegs are returned.
 - **Tap Handles** — Track promotional tap handles deployed to venues and mark collections.
 - **Email** — Send individual or bulk emails directly from the app using each staff member's own Gmail account via OAuth2. Bulk emails use BCC for recipient privacy. Sends are auto-logged as outreach entries.
 - **Staff** — Manage sales reps with assignment to accounts and orders.
@@ -105,13 +106,13 @@ All data is stored in a local SQLite database with these tables:
 |---|---|
 | Products | ID, Name, Style, ABV, Format, PricePerUnit, Notes, CreatedAt |
 | Inventory | ID, Name, Location, Style, ABV, Format, Units, PricePerUnit, LowStockThreshold, Notes, LastUpdated, ProductID, ProductName |
-| Accounts | ID, Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, Notes, LastContacted, StaffID, StaffName, CreatedAt |
-| Orders | ID, AccountID, AccountName, Location, StaffID, StaffName, OrderDate, DeliveryDate, InvoiceNumber, OrderAmount, TaxAmount, Notes, RequestedProducts, Status, Delivered, CreatedAt |
+| Accounts | ID, Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, ChargeDeposits, Status, Notes, LastContacted, StaffID, StaffName, CreatedAt |
+| Orders | ID, AccountID, AccountName, Location, StaffID, StaffName, OrderDate, DeliveryDate, InvoiceNumber, OrderAmount, TaxAmount, DepositAmount, Notes, RequestedProducts, Status, Delivered, CreatedAt |
 | OrderItems | ID, OrderID, InventoryID, ProductName, Format, Quantity, UnitPrice, LineTotal, CreatedAt |
 | StockMovements | ID, InventoryID, InventoryName, OrderID, Type (sale/received/write-off/adjustment), Quantity, Notes, Date, CreatedAt |
 | Outreach | ID, AccountID, AccountName, Date, Method, Notes, FollowUpDate, FollowUpStatus, CreatedAt |
 | Reminders | ID, Type, AccountID, AccountName, Title, DueDate, Priority, Notes, Completed, StaffID, StaffName, Recurrence, RecurrenceParentID, CreatedAt |
-| KegTracking | ID, AccountID, AccountName, OrderID, InventoryID, ProductName, Format, Quantity, DeliveredDate, ReturnedDate, ReturnedQuantity, Notes, CreatedAt |
+| KegTracking | ID, AccountID, AccountName, OrderID, InventoryID, ProductName, Format, Quantity, DepositPerUnit, DepositTotal, DepositRefunded, DeliveredDate, ReturnedDate, ReturnedQuantity, Notes, CreatedAt |
 | TapHandles | ID, AccountID, AccountName, Quantity, DeployedDate, CollectedDate, CollectedQuantity, Notes, CreatedAt |
 | Staff | ID, Name, Email, Phone, Role, Active, Notes, CreatedAt |
 | EmailLog | ID, SenderName, SenderEmail, Recipients, Subject, Body, Type, AccountIDs, Status, Error, CreatedAt |
