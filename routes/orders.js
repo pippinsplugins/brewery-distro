@@ -237,27 +237,49 @@ router.post('/import/confirm', async (req, res) => {
           }
         }
 
-        // 1. Create any new inventory items for unmatched products
-        const productIdMap = {}; // maps temp key → new inventory ID
+        // 1. Create Products + Inventory rows for unmatched products
+        const productIdMap = {}; // maps product name → inventory ID at the order's location
         if (Array.isArray(def.newProducts)) {
+          // Read locations from settings so inventory rows are created at every location
+          const settings = await getAllRows('SETTINGS');
+          const locRow = settings.find(s => s.Key === 'locations');
+          let locations = [];
+          if (locRow) {
+            try { locations = JSON.parse(locRow.Value); } catch (e) { /* ignore */ }
+          }
+
           for (const np of def.newProducts) {
-            const invItem = {
+            // Create master product entry
+            const product = {
               ID: uuidv4(),
-              Name: np.productName || '',
-              Location: def.Location || '',
+              Name: (np.productName || '').trim(),
               Style: '',
               ABV: '',
               Format: np.format || '',
-              Units: '0',
               PricePerUnit: np.unitPrice || '0',
-              LowStockThreshold: '',
               Notes: 'Created from invoice import',
-              LastUpdated: new Date().toISOString(),
-              ProductID: '',
-              ProductName: np.productName || '',
+              CreatedAt: new Date().toISOString(),
             };
-            await addRow('INVENTORY', invItem);
-            productIdMap[np.productName] = invItem.ID;
+            await addRow('PRODUCTS', product);
+
+            // Create inventory rows at every location (mirrors POST /api/products)
+            const today = new Date().toISOString().split('T')[0];
+            for (const loc of locations) {
+              const inv = {
+                ID: uuidv4(),
+                ProductID: product.ID,
+                ProductName: product.Name,
+                Location: loc,
+                Units: '0',
+                LowStockThreshold: '5',
+                LastUpdated: today,
+              };
+              await addRow('INVENTORY', inv);
+              // Track the inventory ID at the order's location for line-item linking
+              if (loc === (def.Location || '')) {
+                productIdMap[np.productName] = inv.ID;
+              }
+            }
             newProductsCreated++;
           }
         }
