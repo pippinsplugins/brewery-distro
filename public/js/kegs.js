@@ -54,12 +54,15 @@ function renderKegs() {
   const pg = paginate(filtered, 'kegs');
 
   const rows = pg.total === 0
-    ? `<tr><td colspan="8" class="empty-state">No keg records found.</td></tr>`
+    ? `<tr><td colspan="10" class="empty-state">No keg records found.</td></tr>`
     : pg.rows.map(k => {
         const qty = parseInt(k.Quantity) || 0;
         const returned = parseInt(k.ReturnedQuantity) || 0;
         const outstanding = Math.max(0, qty - returned);
         const fullyReturned = outstanding === 0;
+        const depTotal = parseFloat(k.DepositTotal) || 0;
+        const depRefunded = parseFloat(k.DepositRefunded) || 0;
+        const depOutstanding = depTotal - depRefunded;
         return `<tr class="${fullyReturned ? 'row-completed' : ''}">
           <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(k.AccountID)}')">${esc(k.AccountName)}</span></td>
           <td>${esc(k.ProductName)}</td>
@@ -68,9 +71,11 @@ function renderKegs() {
           <td class="text-center">${qty}</td>
           <td class="text-center">${returned}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
+          <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
+          <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
           <td class="td-actions">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned}, '${esc(k.Notes || '')}')">Return</button>`
+              ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal)">Return</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
           </td>
         </tr>`;
@@ -100,7 +105,7 @@ function renderKegs() {
       <table>
         <thead><tr>
           <th>Account</th><th>Product</th><th>Format</th><th>Delivered</th>
-          <th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Actions</th>
+          <th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Deposit</th><th>Refunded</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -141,9 +146,13 @@ async function openAddKegs(presetAccountId = '') {
         <input class="form-control" id="f-qty" type="number" min="1" value="1" />
       </div>
       <div class="form-group">
-        <label>Delivered Date</label>
-        <input class="form-control" id="f-date" type="date" value="${today()}" />
+        <label>Deposit per Keg ($)</label>
+        <input class="form-control" id="f-deposit" type="number" step="0.01" min="0" placeholder="0.00" />
       </div>
+    </div>
+    <div class="form-group">
+      <label>Delivered Date</label>
+      <input class="form-control" id="f-date" type="date" value="${today()}" />
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -162,6 +171,7 @@ async function openAddKegs(presetAccountId = '') {
     await api.post('/api/keg-tracking', {
       accountId, accountName, productName, format,
       quantity: qty,
+      depositPerUnit: val('f-deposit') || '',
       deliveredDate: val('f-date') || today(),
       notes: val('f-notes') || '',
     });

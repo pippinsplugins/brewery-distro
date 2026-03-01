@@ -28,16 +28,16 @@ const TABLES = {
 // HEADERS defines every column each table should have.
 // On startup, any missing columns are automatically added (migration-safe).
 const HEADERS = {
-  PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'CreatedAt'],
+  PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'DepositAmount', 'Notes', 'CreatedAt'],
   INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'LowStockThreshold', 'Notes', 'LastUpdated', 'ProductID', 'ProductName'],
-  ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
+  ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'ChargeDeposits', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'CreatedAt'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
-  ORDERS:          ['ID', 'AccountID', 'AccountName', 'Location', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'Notes', 'RequestedProducts', 'Status', 'Delivered', 'CreatedAt'],
+  ORDERS:          ['ID', 'AccountID', 'AccountName', 'Location', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'DepositAmount', 'Notes', 'RequestedProducts', 'Status', 'Delivered', 'CreatedAt'],
   STOCK_MOVEMENTS: ['ID', 'InventoryID', 'InventoryName', 'OrderID', 'Type', 'Quantity', 'Notes', 'Date', 'CreatedAt'],
   SETTINGS:        ['ID', 'Key', 'Value', 'UpdatedAt'],
-  KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
+  KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DepositPerUnit', 'DepositTotal', 'DepositRefunded', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
   ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'UnitPrice', 'LineTotal', 'CreatedAt'],

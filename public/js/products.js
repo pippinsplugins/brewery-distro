@@ -33,9 +33,15 @@ function productForm(product = {}) {
         </select>
       </div>
     </div>
-    <div class="form-group">
-      <label>Price per Unit ($)</label>
-      <input class="form-control" id="f-price" type="number" step="0.01" min="0" value="${esc(product.PricePerUnit)}" placeholder="0.00" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>Price per Unit ($)</label>
+        <input class="form-control" id="f-price" type="number" step="0.01" min="0" value="${esc(product.PricePerUnit)}" placeholder="0.00" />
+      </div>
+      <div class="form-group">
+        <label>Keg Deposit ($)</label>
+        <input class="form-control" id="f-deposit" type="number" step="0.01" min="0" value="${esc(product.DepositAmount)}" placeholder="0.00" />
+      </div>
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -85,6 +91,7 @@ function renderProducts() {
     else if (col === 'ABV')   { av = parseFloat(a.ABV || 0);                 bv = parseFloat(b.ABV || 0); }
     else if (col === 'Format'){ av = (a.Format || '').toLowerCase();         bv = (b.Format || '').toLowerCase(); }
     else if (col === 'Price') { av = parseFloat(a.PricePerUnit || 0);        bv = parseFloat(b.PricePerUnit || 0); }
+    else if (col === 'Deposit') { av = parseFloat(a.DepositAmount || 0);     bv = parseFloat(b.DepositAmount || 0); }
     if (av < bv) return dir === 'asc' ? -1 : 1;
     if (av > bv) return dir === 'asc' ? 1 : -1;
     return 0;
@@ -116,17 +123,18 @@ function renderProducts() {
         <thead>
           <tr>
             ${th('Name', 'Name')}${th('Style', 'Style')}${th('ABV', 'ABV')}${th('Format', 'Format')}
-            ${th('Price/Unit', 'Price')}<th>Actions</th>
+            ${th('Price/Unit', 'Price')}${th('Deposit', 'Deposit')}<th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="6" class="empty-state">No products found. Add your first product!</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="7" class="empty-state">No products found. Add your first product!</td></tr>` :
             pg.rows.map(p => `<tr>
               <td class="fw-600"><span class="td-link" onclick="openEditProduct('${esc(p.ID)}')">${esc(p.Name)}</span></td>
               <td>${esc(p.Style) || '—'}</td>
               <td>${p.ABV ? esc(p.ABV) + '%' : '—'}</td>
               <td>${esc(p.Format) || '—'}</td>
               <td>${p.PricePerUnit ? '$' + esc(p.PricePerUnit) : '—'}</td>
+              <td>${p.DepositAmount ? '$' + esc(p.DepositAmount) : '—'}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm" onclick="openEditProduct('${esc(p.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(p.Name)}" onclick="deleteProduct('${esc(p.ID)}', this.dataset.name)">Delete</button>
@@ -149,6 +157,7 @@ function openAddProduct() {
       ABV: val('f-abv'),
       Format: val('f-format'),
       PricePerUnit: val('f-price'),
+      DepositAmount: val('f-deposit'),
       Notes: val('f-notes'),
     });
     modal.close();
@@ -169,6 +178,7 @@ function openEditProduct(id) {
       ABV: val('f-abv'),
       Format: val('f-format'),
       PricePerUnit: val('f-price'),
+      DepositAmount: val('f-deposit'),
       Notes: val('f-notes'),
     });
     modal.close();

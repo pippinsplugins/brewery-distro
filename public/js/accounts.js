@@ -125,6 +125,12 @@ function accountForm(acct = {}) {
       <label>ABC License #</label>
       <input class="form-control" id="f-abc-license" value="${esc(acct.ABCLicense)}" placeholder="e.g. 47-123456" />
     </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-charge-deposits" ${acct.ChargeDeposits === 'true' ? 'checked' : ''} />
+        Charge keg deposits for this account
+      </label>
+    </div>
     <hr class="form-divider" />
     <div class="form-group">
       <label>Notes</label>
@@ -322,6 +328,16 @@ async function loadAccountProfile(accountId) {
     return sum + Math.max(0, qty - returned);
   }, 0);
 
+  // Deposit calculations
+  const depositsOutstanding = acctKegs.reduce((sum, k) => {
+    const depTotal = parseFloat(k.DepositTotal) || 0;
+    const depRefunded = parseFloat(k.DepositRefunded) || 0;
+    const qty = parseInt(k.Quantity) || 0;
+    const returned = parseInt(k.ReturnedQuantity) || 0;
+    if (depTotal > 0 && (qty - returned) > 0) return sum + (depTotal - depRefunded);
+    return sum;
+  }, 0);
+
   // Tap handle calculations
   const acctTapHandles = (tapHandleRecords || []).sort((a, b) => (b.DeployedDate || '').localeCompare(a.DeployedDate || ''));
   const outstandingHandles = acctTapHandles.reduce((sum, h) => {
@@ -409,12 +425,15 @@ async function loadAccountProfile(accountId) {
     : '';
 
   const kegRows = acctKegs.length === 0
-    ? `<tr><td colspan="7" class="empty-state">No keg deliveries recorded.</td></tr>`
+    ? `<tr><td colspan="9" class="empty-state">No keg deliveries recorded.</td></tr>`
     : acctKegs.map(k => {
         const qty = parseInt(k.Quantity) || 0;
         const returned = parseInt(k.ReturnedQuantity) || 0;
         const outstanding = Math.max(0, qty - returned);
         const fullyReturned = outstanding === 0;
+        const depTotal = parseFloat(k.DepositTotal) || 0;
+        const depRefunded = parseFloat(k.DepositRefunded) || 0;
+        const depOutstanding = depTotal - depRefunded;
         return `<tr class="${fullyReturned ? 'row-completed' : ''}">
           <td class="text-sm">${formatDate(k.DeliveredDate)}</td>
           <td class="fw-600">${esc(k.ProductName)}</td>
@@ -422,9 +441,11 @@ async function loadAccountProfile(accountId) {
           <td class="text-center">${qty}</td>
           <td class="text-center">${returned}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
+          <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
+          <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
           <td class="td-actions">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" onclick="openReturnKegs('${esc(k.ID)}', '${esc(k.ProductName)}', '${esc(k.Format)}', ${qty}, ${returned}, '${esc(k.Notes || '')}')">Return Kegs</button>`
+              ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal)">Return Kegs</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
           </td>
         </tr>`;
@@ -474,6 +495,7 @@ async function loadAccountProfile(accountId) {
       <div class="profile-stat"><div class="stat-value">${acctOrders.length}</div><div class="stat-label">Orders</div></div>
       <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
       <div class="profile-stat"><div class="stat-value${outstandingKegs > 0 ? ' text-danger' : ''}">${outstandingKegs}</div><div class="stat-label">Kegs Out</div></div>
+      ${depositsOutstanding > 0 ? `<div class="profile-stat"><div class="stat-value text-danger">${fmtMoney(depositsOutstanding)}</div><div class="stat-label">Deposits Owed</div></div>` : ''}
       <div class="profile-stat"><div class="stat-value${outstandingHandles > 0 ? ' text-danger' : ''}">${outstandingHandles}</div><div class="stat-label">Tap Handles Out</div></div>
     </div>
 
@@ -531,7 +553,7 @@ async function loadAccountProfile(accountId) {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Delivered</th><th>Product</th><th>Format</th><th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Delivered</th><th>Product</th><th>Format</th><th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Deposit</th><th>Refund Status</th><th>Actions</th></tr></thead>
           <tbody>${kegRows}</tbody>
         </table>
       </div>
@@ -552,14 +574,29 @@ async function loadAccountProfile(accountId) {
   `);
 }
 
-function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes) {
+function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes, depositPerUnit, depositRefunded, depositTotal) {
   const outstanding = totalQty - alreadyReturned;
+  const depPerUnit = parseFloat(depositPerUnit) || 0;
+  const depRefunded = parseFloat(depositRefunded) || 0;
+  const depTotal = parseFloat(depositTotal) || 0;
   const notesHistory = existingNotes
     ? `<div style="margin-bottom:16px;padding:10px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #e0e0e0">
         <div class="text-muted text-sm" style="margin-bottom:4px;font-weight:600">Previous notes</div>
         <div class="text-sm">${esc(existingNotes)}</div>
       </div>`
     : '';
+  const depositSection = depPerUnit > 0 ? `
+    <div style="margin-bottom:16px;padding:10px 12px;background:#fff8e1;border-radius:6px;border:1px solid #ffe082">
+      <div class="text-sm" style="margin-bottom:4px;font-weight:600">Deposit Info</div>
+      <div class="text-sm">
+        Deposit per keg: <strong>$${depPerUnit.toFixed(2)}</strong> &mdash;
+        Total deposit: <strong>$${depTotal.toFixed(2)}</strong> &mdash;
+        Already refunded: <strong>$${depRefunded.toFixed(2)}</strong>
+      </div>
+      <div class="text-sm" style="margin-top:8px">
+        Refund for this return: <strong id="deposit-refund-preview">$${(outstanding * depPerUnit).toFixed(2)}</strong>
+      </div>
+    </div>` : '';
   const formHtml = `
     <p class="text-muted text-sm" style="margin-bottom:16px">
       <strong>${esc(productName)} — ${esc(format)}</strong><br>
@@ -568,9 +605,11 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, e
       Outstanding: <strong class="text-danger">${outstanding}</strong>
     </p>
     ${notesHistory}
+    ${depositSection}
     <div class="form-group">
       <label for="f-return-qty">Kegs Returned Now <span class="required">*</span></label>
-      <input class="form-control" type="number" id="f-return-qty" min="1" max="${outstanding}" value="${outstanding}" />
+      <input class="form-control" type="number" id="f-return-qty" min="1" max="${outstanding}" value="${outstanding}"
+        ${depPerUnit > 0 ? `oninput="var q=parseInt(this.value)||0; var el=document.getElementById('deposit-refund-preview'); if(el) el.textContent='$'+(q*${depPerUnit}).toFixed(2)"` : ''} />
     </div>
     <div class="form-group">
       <label for="f-return-notes">Notes</label>
@@ -586,13 +625,22 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, e
     const newReturnedTotal = alreadyReturned + returnQty;
     const newNote = val('f-return-notes') || '';
     const combinedNotes = [existingNotes, newNote].filter(Boolean).join(' | ');
-    await api.put(`/api/keg-tracking/${kegId}`, {
+    const updates = {
       ReturnedQuantity: String(newReturnedTotal),
       ReturnedDate: new Date().toISOString().split('T')[0],
       Notes: combinedNotes,
-    });
+    };
+    if (depPerUnit > 0) {
+      const refundAmount = returnQty * depPerUnit;
+      updates.DepositRefunded = String((depRefunded + refundAmount).toFixed(2));
+    }
+    await api.put(`/api/keg-tracking/${kegId}`, updates);
     modal.close();
-    toast(`${returnQty} keg${returnQty > 1 ? 's' : ''} marked as returned`);
+    let msg = `${returnQty} keg${returnQty > 1 ? 's' : ''} marked as returned`;
+    if (depPerUnit > 0) {
+      msg += ` · $${(returnQty * depPerUnit).toFixed(2)} deposit refunded`;
+    }
+    toast(msg);
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadKegs();
   });
@@ -726,6 +774,7 @@ function openAddAccount() {
       Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
+      ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
@@ -748,6 +797,7 @@ function openEditAccount(id) {
       Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
+      ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();

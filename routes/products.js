@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
 // POST /api/products — create product + auto-create inventory rows at every location
 router.post('/', async (req, res) => {
   try {
-    const { Name, Style, ABV, Format, PricePerUnit, Notes } = req.body;
+    const { Name, Style, ABV, Format, PricePerUnit, DepositAmount, Notes } = req.body;
     if (!Name) return res.status(400).json({ error: 'Name is required' });
 
     const product = {
@@ -29,6 +29,7 @@ router.post('/', async (req, res) => {
       ABV: ABV || '',
       Format: Format || '',
       PricePerUnit: PricePerUnit || '',
+      DepositAmount: DepositAmount || '',
       Notes: Notes || '',
       CreatedAt: new Date().toISOString(),
     };

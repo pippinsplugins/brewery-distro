@@ -72,6 +72,27 @@ router.post('/bulk', async (req, res) => {
 
       // Auto-create keg tracking record for keg-format products
       if (invFormat && invFormat.toLowerCase().includes('keg') && order) {
+        // Determine deposit: check if order has deposits charged and product has a deposit amount
+        let depositPerUnit = '';
+        let depositTotal = '';
+        let depositRefunded = '';
+        const orderDepositAmt = parseFloat(order.DepositAmount) || 0;
+        const productDepositAmt = parseFloat(product.DepositAmount) || 0;
+        if (orderDepositAmt > 0 && productDepositAmt > 0) {
+          depositPerUnit = String(productDepositAmt);
+          depositTotal = String((productDepositAmt * qty).toFixed(2));
+          depositRefunded = '0';
+        } else if (orderDepositAmt > 0) {
+          // Order has deposits but product has no specific amount — check account setting
+          const accounts = await getAllRows('ACCOUNTS');
+          const acct = accounts.find(a => a.ID === order.AccountID);
+          if (acct && acct.ChargeDeposits === 'true' && productDepositAmt > 0) {
+            depositPerUnit = String(productDepositAmt);
+            depositTotal = String((productDepositAmt * qty).toFixed(2));
+            depositRefunded = '0';
+          }
+        }
+
         const kegRecord = {
           ID:               uuidv4(),
           AccountID:        order.AccountID || '',
@@ -81,6 +102,9 @@ router.post('/bulk', async (req, res) => {
           ProductName:      invName,
           Format:           invFormat,
           Quantity:         String(qty),
+          DepositPerUnit:   depositPerUnit,
+          DepositTotal:     depositTotal,
+          DepositRefunded:  depositRefunded,
           DeliveredDate:    movDate,
           ReturnedDate:     '',
           ReturnedQuantity: '0',

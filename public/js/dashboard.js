@@ -194,11 +194,14 @@ async function loadDashboard() {
           : (kegSummary || [])
               .sort((a, b) => b.outstanding - a.outstanding)
               .slice(0, 8)
-              .map(k => `
+              .map(k => {
+                const depLabel = k.depositOutstanding > 0 ? ` · $${parseFloat(k.depositOutstanding).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '';
+                return `
                 <li class="clickable" onclick="loadAccountProfile('${esc(k.accountId)}')">
                   <span class="dash-label">${esc(k.accountName)}</span>
-                  <span class="badge badge-low-stock">${k.outstanding} keg${k.outstanding !== 1 ? 's' : ''}</span>
-                </li>`).join('')}</ul>
+                  <span class="badge badge-low-stock">${k.outstanding} keg${k.outstanding !== 1 ? 's' : ''}${depLabel}</span>
+                </li>`;
+              }).join('')}</ul>
       </div>
     </div>`);
 }
