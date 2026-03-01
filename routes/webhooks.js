@@ -19,8 +19,14 @@
  *   amount          | order_amount   | OrderAmount
  *                   | sale_amount    | SaleAmount      → OrderAmount     (pre-tax total)
  *   tax             | tax_amount     | TaxAmount       → TaxAmount
- *   status          | Status                          → Status          (Pending/Paid/Cancelled)
+ *   status          | Status                          → Status          (Pending/Paid/Cancelled/Pre-Sale)
  *   notes           | Notes          | memo            → Notes
+ *   location        | Location                        → Location        (warehouse / taproom name)
+ *   staff_id        | StaffID                         → StaffID         (our internal staff ID)
+ *   staff_name      | StaffName      | rep
+ *                   | sales_rep                       → staff name lookup
+ *   requested_products | RequestedProducts             → RequestedProducts (free-text product list)
+ *   delivered        | Delivered                       → Delivered       (true/false, default false)
  *   account_id      | AccountID                       → AccountID       (our internal ID)
  *   account_name    | AccountName    | customer_name
  *                   | client_name                     → account name lookup
@@ -78,10 +84,15 @@ function normalise(body) {
     taxAmount:     pick(body, 'TaxAmount',     'tax_amount',    'tax'),
     status:        pick(body, 'Status',        'status'),
     notes:         pick(body, 'Notes',         'notes',         'memo'),
+    location:      pick(body, 'Location',      'location'),
+    staffId:       pick(body, 'StaffID',       'staff_id'),
+    staffName:     pick(body, 'StaffName',     'staff_name',    'rep', 'sales_rep'),
+    requestedProducts: pick(body, 'RequestedProducts', 'requested_products', 'products'),
+    delivered:     pick(body, 'Delivered',      'delivered'),
   };
 }
 
-const VALID_STATUSES = new Set(['Pending', 'Paid', 'Cancelled']);
+const VALID_STATUSES = new Set(['Pending', 'Paid', 'Cancelled', 'Pre-Sale']);
 
 // Append current time to a date-only string so same-day orders sort by creation time.
 function withTimestamp(dateStr) {
@@ -122,6 +133,25 @@ router.post('/order', requireWebhookSecret, async (req, res) => {
       resolvedAccountName = match.Name;
     }
 
+    // Resolve staff (by ID or name lookup)
+    let resolvedStaffId   = f.staffId;
+    let resolvedStaffName = f.staffName;
+
+    if (!resolvedStaffId && resolvedStaffName) {
+      const staff = await getAllRows('STAFF');
+      const match = staff.find(
+        s => s.Name && s.Name.toLowerCase() === resolvedStaffName.toLowerCase()
+      );
+      if (match) {
+        resolvedStaffId   = match.ID;
+        resolvedStaffName = match.Name;
+      }
+    } else if (resolvedStaffId && !resolvedStaffName) {
+      const staff = await getAllRows('STAFF');
+      const match = staff.find(s => s.ID === resolvedStaffId);
+      if (match) resolvedStaffName = match.Name;
+    }
+
     // Date defaults — include timestamp so same-day orders sort by creation time
     const now       = new Date().toISOString();
     const today     = now.split('T')[0];
@@ -138,15 +168,18 @@ router.post('/order', requireWebhookSecret, async (req, res) => {
       ID:            uuidv4(),
       AccountID:     resolvedAccountId,
       AccountName:   resolvedAccountName,
-      StaffID:       '',
-      StaffName:     '',
+      Location:      f.location || '',
+      StaffID:       resolvedStaffId || '',
+      StaffName:     resolvedStaffName || '',
       OrderDate:     orderDate,
       DeliveryDate:  f.deliveryDate || '',
       InvoiceNumber: f.invoiceNumber || '',
       OrderAmount:   f.orderAmount  || '0',
       TaxAmount:     f.taxAmount    || '0',
       Notes:         f.notes        || '',
+      RequestedProducts: f.requestedProducts || '',
       Status:        status,
+      Delivered:     f.delivered === 'true' ? 'true' : 'false',
       CreatedAt:     new Date().toISOString(),
     };
 

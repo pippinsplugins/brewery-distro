@@ -96,7 +96,11 @@ The endpoint accepts flexible field names to accommodate different source system
 - **Amount:** `OrderAmount`, `order_amount`, `SaleAmount`, `sale_amount`, `amount`, or `subtotal`
 - **Tax:** `TaxAmount`, `tax_amount`, or `tax`
 - **Invoice:** `InvoiceNumber` or `invoice_number`
-- **Status:** `Status` or `status` (Pending, Paid, or Cancelled)
+- **Status:** `Status` or `status` (Pending, Paid, Cancelled, or Pre-Sale)
+- **Location:** `Location` or `location`
+- **Staff:** `StaffID`, `staff_id`, `StaffName`, `staff_name`, `rep`, or `sales_rep`
+- **Products:** `RequestedProducts`, `requested_products`, or `products`
+- **Delivered:** `Delivered` or `delivered` (true/false, defaults to false)
 
 ## Data structure
 
