@@ -1,16 +1,14 @@
 'use strict';
 
 /**
- * Zapier Webhook — Order Creation
+ * Webhook — Order Creation
  *
- * Endpoint:  POST /webhooks/zapier/order
+ * Endpoint:  POST /webhooks/order
  * Auth:      Authorization: Bearer <WEBHOOK_SECRET>
  *
- * Zapier setup:
- *   Action:  Webhooks by Zapier → POST
- *   URL:     https://<your-domain>/webhooks/zapier/order
- *   Headers: Authorization: Bearer <your WEBHOOK_SECRET value>
- *   Payload format: JSON (data below)
+ * Send a JSON POST request with the WEBHOOK_SECRET as a Bearer token
+ * in the Authorization header. Works with any HTTP client, automation
+ * platform (Zapier, Make, n8n, etc.), or custom script.
  *
  * Accepted fields (all optional except at least one of account_name / AccountName / AccountID):
  *
@@ -92,9 +90,9 @@ function withTimestamp(dateStr) {
   return dateStr + 'T' + new Date().toISOString().split('T')[1];
 }
 
-// ── POST /webhooks/zapier/order ───────────────────────────────────
+// ── POST /webhooks/order ──────────────────────────────────────────
 
-router.post('/zapier/order', requireWebhookSecret, async (req, res) => {
+router.post('/order', requireWebhookSecret, async (req, res) => {
   try {
     const f = normalise(req.body);
 

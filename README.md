@@ -18,7 +18,7 @@ A web app for managing self-distribution operations for a small microbrewery. Tr
 - **Staff** — Manage sales reps with assignment to accounts and orders.
 - **Multi-Location** — Configure multiple warehouse/taproom locations. Inventory, orders, and the dashboard filter by location.
 - **Map** — Visual map of account locations.
-- **Zapier Webhook** — Accept incoming orders from external systems (POS, accounting) via a webhook endpoint.
+- **Webhooks** — Accept incoming orders from external systems (POS, accounting, Zapier, Make, n8n, etc.) via a webhook endpoint.
 
 ## Setup
 
@@ -52,7 +52,7 @@ PORT=3000                          # Server port (default: 3000)
 DB_PATH=./data/brewery.db         # SQLite database path (default: ./data/brewery.db)
 GOOGLE_ALLOWED_DOMAIN=company.com  # Restrict login to a Google Workspace domain
 GOOGLE_CALLBACK_URL=https://...    # Full OAuth callback URL for production
-WEBHOOK_SECRET=a_long_random_string  # Enables the Zapier webhook endpoint
+WEBHOOK_SECRET=a_long_random_string  # Enables the webhook endpoint
 ```
 
 ### 3. Install and run
@@ -83,11 +83,11 @@ npm run dev   # uses nodemon for auto-reload
 | `DB_PATH` | No | Path to SQLite database file (default: `./data/brewery.db`) |
 | `GOOGLE_ALLOWED_DOMAIN` | No | Restrict sign-in to a single Google Workspace domain |
 | `GOOGLE_CALLBACK_URL` | No | Full OAuth callback URL for production deployments |
-| `WEBHOOK_SECRET` | No | Bearer token for authenticating Zapier webhook calls |
+| `WEBHOOK_SECRET` | No | Bearer token for authenticating webhook calls |
 
-## Zapier webhook
+## Webhooks
 
-When `WEBHOOK_SECRET` is set, the app exposes a `POST /webhooks/zapier/order` endpoint that accepts orders from external systems. Include the secret as a Bearer token in the Authorization header.
+When `WEBHOOK_SECRET` is set, the app exposes a `POST /webhooks/order` endpoint that accepts orders from external systems. Include the secret as a Bearer token in the Authorization header.
 
 The endpoint accepts flexible field names to accommodate different source systems:
 
