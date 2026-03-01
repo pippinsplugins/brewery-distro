@@ -1,6 +1,6 @@
 'use strict';
 
-const STAFF_ROLES = ['Sales Rep', 'Delivery Driver', 'Sales Manager', 'Account Manager', 'Other'];
+const STAFF_ROLES = ['Sales Rep', 'Delivery Driver', 'Sales Manager', 'Account Manager', 'Brewer', 'Brewery Assistant', 'Draft Technician', 'Other'];
 
 function staffForm(member = {}) {
   return `
