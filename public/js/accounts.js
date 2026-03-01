@@ -258,6 +258,7 @@ function renderAccounts() {
                 <button class="btn btn-ghost btn-sm" onclick="loadAccountProfile('${esc(a.ID)}')">View</button>
                 <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(a.ID)}')">+ Log</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditAccount('${esc(a.ID)}')">Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="openMergeAccount('${esc(a.ID)}')">Merge</button>
                 <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(a.Name)}" onclick="deleteAccount('${esc(a.ID)}', this.dataset.name)">Del</button>
               </td>
             </tr>`).join('')}
@@ -464,6 +465,7 @@ async function loadAccountProfile(accountId) {
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
         ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-secondary btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="openMergeAccount('${esc(accountId)}')">Merge</button>
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
@@ -921,4 +923,124 @@ function openBulkEmail() {
       toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
     }
   }, 'Send');
+}
+
+// ── Merge Account ─────────────────────────────────────────────────
+
+async function openMergeAccount(targetId) {
+  if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  const target = state.accounts.find(a => a.ID === targetId);
+  if (!target) { toast('Account not found', 'error'); return; }
+
+  const formHtml = `
+    <p class="text-sm" style="margin-bottom:16px">Merge another account into <strong>${esc(target.Name)}</strong>. All records from the selected account will be transferred here, and the selected account will be deleted.</p>
+    <div class="form-group">
+      <label>Search for account to merge in</label>
+      <div style="position:relative">
+        <input class="form-control" id="merge-search" placeholder="Type to search accounts..." autocomplete="off" />
+        <div id="merge-dropdown" style="position:absolute;top:100%;left:0;right:0;z-index:10;max-height:200px;overflow-y:auto;background:var(--bg-primary);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;display:none"></div>
+      </div>
+    </div>
+    <div id="merge-selected" style="display:none;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px">
+        <span id="merge-selected-name" class="fw-600"></span>
+        <a href="#" id="merge-clear" class="text-sm" style="margin-left:auto" onclick="event.preventDefault();clearMergeSelection()">Clear</a>
+      </div>
+    </div>
+    <div id="merge-preview" style="display:none;margin-bottom:8px">
+      <div style="padding:12px;background:#fff3e0;border-radius:6px;border:1px solid #ffe0b2">
+        <div class="fw-600 text-sm" style="margin-bottom:8px">Records that will be transferred:</div>
+        <div id="merge-preview-counts" class="text-sm"></div>
+        <div class="text-sm text-danger" style="margin-top:8px">The source account will be permanently deleted.</div>
+      </div>
+    </div>`;
+
+  let selectedSourceId = null;
+
+  modal.open('Merge Account', formHtml, async () => {
+    if (!selectedSourceId) { toast('Select an account to merge', 'error'); return; }
+
+    try {
+      const result = await api.post(`/api/accounts/${encodeURIComponent(targetId)}/merge`, { sourceAccountId: selectedSourceId });
+      modal.close();
+      const m = result.merged;
+      const parts = [];
+      if (m.outreach)  parts.push(`${m.outreach} outreach`);
+      if (m.reminders) parts.push(`${m.reminders} reminder${m.reminders !== 1 ? 's' : ''}`);
+      if (m.orders)    parts.push(`${m.orders} order${m.orders !== 1 ? 's' : ''}`);
+      if (m.kegs)      parts.push(`${m.kegs} keg record${m.kegs !== 1 ? 's' : ''}`);
+      if (m.tapHandles) parts.push(`${m.tapHandles} tap handle${m.tapHandles !== 1 ? 's' : ''}`);
+      if (m.emails)    parts.push(`${m.emails} email${m.emails !== 1 ? 's' : ''}`);
+      toast(parts.length > 0 ? 'Merged: ' + parts.join(', ') : 'Accounts merged successfully');
+      state.accounts = [];
+      if (state.view === 'account-profile') loadAccountProfile(targetId);
+      else loadAccounts();
+    } catch (err) {
+      toast('Merge failed: ' + (err.message || 'Unknown error'), 'error');
+    }
+  }, 'Merge Accounts');
+
+  // Style submit button as danger
+  document.getElementById('modal-submit-btn').className = 'btn btn-danger';
+
+  // Wire up search
+  const searchInput = document.getElementById('merge-search');
+  const dropdown = document.getElementById('merge-dropdown');
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase().trim();
+    if (!q) { dropdown.style.display = 'none'; return; }
+    const matches = state.accounts
+      .filter(a => a.ID !== targetId && a.Name.toLowerCase().includes(q))
+      .slice(0, 20);
+    if (matches.length === 0) {
+      dropdown.innerHTML = '<div style="padding:8px 12px" class="text-muted text-sm">No matches</div>';
+    } else {
+      dropdown.innerHTML = matches.map(a =>
+        `<div class="merge-option" style="padding:8px 12px;cursor:pointer" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''" data-id="${esc(a.ID)}">${esc(a.Name)} <span class="text-muted text-sm">${esc(a.City || '')}${a.City && a.State ? ', ' : ''}${esc(a.State || '')}</span></div>`
+      ).join('');
+    }
+    dropdown.style.display = 'block';
+  });
+
+  dropdown.addEventListener('click', async (e) => {
+    const opt = e.target.closest('.merge-option');
+    if (!opt) return;
+    const sourceId = opt.dataset.id;
+    const source = state.accounts.find(a => a.ID === sourceId);
+    if (!source) return;
+
+    selectedSourceId = sourceId;
+    searchInput.style.display = 'none';
+    dropdown.style.display = 'none';
+    document.getElementById('merge-selected').style.display = 'block';
+    document.getElementById('merge-selected-name').textContent = source.Name;
+
+    // Fetch preview
+    document.getElementById('merge-preview').style.display = 'block';
+    document.getElementById('merge-preview-counts').textContent = 'Loading...';
+    try {
+      const p = await api.get(`/api/accounts/${encodeURIComponent(targetId)}/merge-preview?sourceId=${encodeURIComponent(sourceId)}`);
+      const lines = [];
+      if (p.outreach)   lines.push(`${p.outreach} outreach entr${p.outreach === 1 ? 'y' : 'ies'}`);
+      if (p.reminders)  lines.push(`${p.reminders} reminder${p.reminders === 1 ? '' : 's'}`);
+      if (p.orders)     lines.push(`${p.orders} order${p.orders === 1 ? '' : 's'}`);
+      if (p.kegs)       lines.push(`${p.kegs} keg record${p.kegs === 1 ? '' : 's'}`);
+      if (p.tapHandles) lines.push(`${p.tapHandles} tap handle record${p.tapHandles === 1 ? '' : 's'}`);
+      if (p.emails)     lines.push(`${p.emails} email log${p.emails === 1 ? '' : 's'}`);
+      document.getElementById('merge-preview-counts').textContent = lines.length > 0 ? lines.join(', ') : 'No associated records (account metadata will still be merged)';
+    } catch (err) {
+      document.getElementById('merge-preview-counts').textContent = 'Failed to load preview';
+    }
+  });
+
+  // clearMergeSelection is global so the onclick can find it
+  window.clearMergeSelection = () => {
+    selectedSourceId = null;
+    searchInput.style.display = '';
+    searchInput.value = '';
+    dropdown.style.display = 'none';
+    document.getElementById('merge-selected').style.display = 'none';
+    document.getElementById('merge-preview').style.display = 'none';
+  };
 }
