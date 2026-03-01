@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { addRow, updateRow } = require('../sheets');
+const { addRow, updateRow } = require('../db');
 const { isEmailConfigured, sendEmail } = require('../email-service');
 
 const router = express.Router();

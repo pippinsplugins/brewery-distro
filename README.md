@@ -116,13 +116,3 @@ All data is stored in a local SQLite database with these tables:
 | Staff | ID, Name, Email, Phone, Role, Active, Notes, CreatedAt |
 | EmailLog | ID, SenderName, SenderEmail, Recipients, Subject, Body, Type, AccountIDs, Status, Error, CreatedAt |
 | Settings | ID, Key, Value, UpdatedAt |
-
-## Migrating from Google Sheets
-
-If you previously used the Google Sheets-backed version, run the migration script to move your data to SQLite:
-
-```bash
-node migrate-to-sqlite.js
-```
-
-This requires the legacy `SPREADSHEET_ID` and Google service account credentials to be configured in `.env`. The script will create a new SQLite database and import all existing data. A backup of any existing database is created before migration.

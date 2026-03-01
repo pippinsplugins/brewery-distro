@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
+const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
 
 const router = express.Router();
 

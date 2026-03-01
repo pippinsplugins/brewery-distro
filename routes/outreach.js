@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
+const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
 
 const router = express.Router();
 
