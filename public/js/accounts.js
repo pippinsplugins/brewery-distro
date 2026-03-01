@@ -258,7 +258,7 @@ function renderAccounts() {
                 <button class="btn btn-ghost btn-sm" onclick="loadAccountProfile('${esc(a.ID)}')">View</button>
                 <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(a.ID)}')">+ Log</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditAccount('${esc(a.ID)}')">Edit</button>
-                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteAccount('${esc(a.ID)}', '${esc(a.Name)}')">Del</button>
+                <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(a.Name)}" onclick="deleteAccount('${esc(a.ID)}', this.dataset.name)">Del</button>
               </td>
             </tr>`).join('')}
         </tbody>

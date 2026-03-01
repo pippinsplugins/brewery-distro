@@ -129,7 +129,7 @@ function renderProducts() {
               <td>${p.PricePerUnit ? '$' + esc(p.PricePerUnit) : '—'}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm" onclick="openEditProduct('${esc(p.ID)}')">Edit</button>
-                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteProduct('${esc(p.ID)}', '${esc(p.Name)}')">Delete</button>
+                <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(p.Name)}" onclick="deleteProduct('${esc(p.ID)}', this.dataset.name)">Delete</button>
               </td>
             </tr>`).join('')}
         </tbody>
