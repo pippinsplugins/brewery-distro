@@ -151,8 +151,8 @@ function sortAccounts(col) {
   renderAccounts();
 }
 
-async function loadAccounts() {
-  _paginationReset('accounts');
+async function loadAccounts(preservePage = false) {
+  if (!preservePage) _paginationReset('accounts');
   showLoading();
   const [accounts, staff] = await Promise.all([api.get('/api/accounts'), api.get('/api/staff')]);
   state.accounts = accounts;
@@ -810,7 +810,7 @@ function openEditAccount(id) {
     modal.close();
     toast('Account updated');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadAccounts();
+    else loadAccounts(true);
   });
 }
 
