@@ -168,8 +168,10 @@ function migrateInventoryToProducts() {
   const inventoryRows = getAllRows('INVENTORY');
   if (inventoryRows.length === 0) return;
 
-  // Detect old format: has Style data but no ProductID
-  const needsMigration = inventoryRows.some(r => r.Style && !r.ProductID);
+  // Detect any inventory row that has a Name but no ProductID — covers both
+  // the original old-style rows (with Style data) and orphaned rows created by
+  // the pre-fix import flow (Style: '', ProductID: '').
+  const needsMigration = inventoryRows.some(r => r.Name && !r.ProductID);
   if (!needsMigration) return;
 
   console.log('Migrating INVENTORY to PRODUCTS + per-location inventory...');
