@@ -72,23 +72,23 @@ router.post('/bulk', async (req, res) => {
 
       // Auto-create keg tracking record for keg-format products
       if (invFormat && invFormat.toLowerCase().includes('keg') && order) {
-        // Determine deposit: check if order has deposits charged and product has a deposit amount
+        // Determine deposit: check if order has deposits charged; look up rate from settings
         let depositPerUnit = '';
         let depositTotal = '';
         let depositRefunded = '';
         const orderDepositAmt = parseFloat(order.DepositAmount) || 0;
-        const productDepositAmt = parseFloat(product.DepositAmount) || 0;
-        if (orderDepositAmt > 0 && productDepositAmt > 0) {
-          depositPerUnit = String(productDepositAmt);
-          depositTotal = String((productDepositAmt * qty).toFixed(2));
-          depositRefunded = '0';
-        } else if (orderDepositAmt > 0) {
-          // Order has deposits but product has no specific amount — check account setting
-          const accounts = await getAllRows('ACCOUNTS');
-          const acct = accounts.find(a => a.ID === order.AccountID);
-          if (acct && acct.ChargeDeposits === 'true' && productDepositAmt > 0) {
-            depositPerUnit = String(productDepositAmt);
-            depositTotal = String((productDepositAmt * qty).toFixed(2));
+        if (orderDepositAmt > 0) {
+          // Look up global deposit rate for this keg format from settings
+          const settings = await getAllRows('SETTINGS');
+          const depRow = settings.find(s => s.Key === 'kegDeposits');
+          let kegDeposits = {};
+          if (depRow) {
+            try { kegDeposits = JSON.parse(depRow.Value); } catch (e) { /* ignore */ }
+          }
+          const rate = parseFloat(kegDeposits[invFormat]) || 0;
+          if (rate > 0) {
+            depositPerUnit = String(rate);
+            depositTotal = String((rate * qty).toFixed(2));
             depositRefunded = '0';
           }
         }

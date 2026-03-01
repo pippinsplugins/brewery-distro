@@ -23,6 +23,10 @@ router.get('/', async (req, res) => {
       try { settings.accountTags = JSON.parse(settings.accountTags); }
       catch (e) { settings.accountTags = []; }
     }
+    if (settings.kegDeposits) {
+      try { settings.kegDeposits = JSON.parse(settings.kegDeposits); }
+      catch (e) { settings.kegDeposits = {}; }
+    }
     res.json(settings);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -63,6 +67,10 @@ router.put('/', async (req, res) => {
     if (result.accountTags) {
       try { result.accountTags = JSON.parse(result.accountTags); }
       catch (e) { result.accountTags = []; }
+    }
+    if (result.kegDeposits) {
+      try { result.kegDeposits = JSON.parse(result.kegDeposits); }
+      catch (e) { result.kegDeposits = {}; }
     }
     res.json(result);
   } catch (err) {

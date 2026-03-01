@@ -138,7 +138,6 @@ let _ordersDatePreset = '';
 let _ordersDateFrom = '';
 let _ordersDateTo = '';
 let _orderFormInventory = [];
-let _orderFormProducts = []; // product catalog (for deposit amounts)
 let _ordersSort = { col: 'OrderDate', dir: 'desc' };
 let _orderItemCounts = {}; // { orderId: count } for item count badges
 
@@ -253,7 +252,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
   const row = (item, hidden) => {
     const price = parseFloat(item.PricePerUnit || 0);
     const qty = quantities[item.ID] || 0;
-    const dep = parseFloat(item._depositAmount || 0);
+    const dep = getDepositForFormat(item.Format);
     const isKeg = (item.Format || '').toLowerCase().includes('keg');
     return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
       <td class="fw-600">${esc(item.Name)}</td>
@@ -288,18 +287,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
 async function refreshOrderProducts(existingProducts = '', readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
-  const [inventory, products] = await Promise.all([
-    api.get(`/api/inventory${locQuery}`),
-    api.get('/api/products'),
-  ]);
-  _orderFormInventory = inventory;
-  _orderFormProducts = products;
-  // Merge deposit amounts from products onto inventory items
-  const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
-  for (const item of _orderFormInventory) {
-    const prod = productMap[item.ProductID] || {};
-    item._depositAmount = prod.DepositAmount || '';
-  }
+  _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
   const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
   const wrap = document.getElementById('order-products-wrap');
   if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
@@ -310,17 +298,7 @@ async function refreshOrderProducts(existingProducts = '', readOnly = false) {
 async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
-  const [inventory, products] = await Promise.all([
-    api.get(`/api/inventory${locQuery}`),
-    api.get('/api/products'),
-  ]);
-  _orderFormInventory = inventory;
-  _orderFormProducts = products;
-  const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
-  for (const item of _orderFormInventory) {
-    const prod = productMap[item.ProductID] || {};
-    item._depositAmount = prod.DepositAmount || '';
-  }
+  _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
   const wrap = document.getElementById('order-products-wrap');
   if (!wrap) return;
 
@@ -378,9 +356,8 @@ function recalcOrderAmount() {
         hasProducts = true;
         total += qty * parseFloat(item.PricePerUnit || 0);
         if (chargeDeposits) {
-          const isKeg = (item.Format || '').toLowerCase().includes('keg');
-          const dep = parseFloat(item._depositAmount || 0);
-          if (isKeg && dep > 0) depositTotal += qty * dep;
+          const dep = getDepositForFormat(item.Format);
+          if (dep > 0) depositTotal += qty * dep;
         }
       }
     }

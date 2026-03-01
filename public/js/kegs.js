@@ -146,13 +146,14 @@ async function openAddKegs(presetAccountId = '') {
         <input class="form-control" id="f-qty" type="number" min="1" value="1" />
       </div>
       <div class="form-group">
-        <label>Deposit per Keg ($)</label>
-        <input class="form-control" id="f-deposit" type="number" step="0.01" min="0" placeholder="0.00" />
+        <label>Delivered Date</label>
+        <input class="form-control" id="f-date" type="date" value="${today()}" />
       </div>
     </div>
     <div class="form-group">
-      <label>Delivered Date</label>
-      <input class="form-control" id="f-date" type="date" value="${today()}" />
+      <label>Deposit per Keg ($)</label>
+      <input class="form-control" id="f-deposit" type="number" step="0.01" min="0" placeholder="0.00" />
+      <span class="text-muted text-sm">Leave blank to use the global rate from Settings.</span>
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -168,10 +169,12 @@ async function openAddKegs(presetAccountId = '') {
     const qty = parseInt(val('f-qty'));
     if (!qty || qty < 1) { toast('Enter a valid quantity', 'error'); return; }
     const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
+    const manualDeposit = val('f-deposit');
+    const depositPerUnit = manualDeposit || String(getDepositForFormat(format) || '');
     await api.post('/api/keg-tracking', {
       accountId, accountName, productName, format,
       quantity: qty,
-      depositPerUnit: val('f-deposit') || '',
+      depositPerUnit,
       deliveredDate: val('f-date') || today(),
       notes: val('f-notes') || '',
     });
