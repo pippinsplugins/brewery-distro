@@ -10,7 +10,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const requireAuth = require('./middleware/requireAuth');
 
-const { initializeSheets, migrateInventoryToProducts } = require('./sheets');
+const { initializeDatabase, migrateInventoryToProducts } = require('./db');
 const productsRoutes  = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
 const accountsRoutes  = require('./routes/accounts');
@@ -103,7 +103,7 @@ app.get('*', requireAuth, (req, res) => {
 async function start() {
   try {
     console.log('Initializing database...');
-    await initializeSheets();
+    await initializeDatabase();
     await migrateInventoryToProducts();
     console.log('Database initialized successfully.');
     app.listen(PORT, () => {

@@ -7,9 +7,9 @@ require('dotenv').config();
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'brewery.db');
 
-// ── Sheet / table definitions ─────────────────────────────────────────
+// ── Table definitions ─────────────────────────────────────────────────
 
-const SHEETS = {
+const TABLES = {
   PRODUCTS:        'Products',
   INVENTORY:       'Inventory',
   ACCOUNTS:        'Accounts',
@@ -60,10 +60,10 @@ function getDb() {
 
 // ── Initialization ────────────────────────────────────────────────────
 
-function initializeSheets() {
+function initializeDatabase() {
   const db = getDb();
 
-  for (const [key, tableName] of Object.entries(SHEETS)) {
+  for (const [key, tableName] of Object.entries(TABLES)) {
     const columns = HEADERS[key];
 
     // Build column definitions — all TEXT, ID is PRIMARY KEY
@@ -88,14 +88,14 @@ function initializeSheets() {
 
 // ── CRUD operations ───────────────────────────────────────────────────
 
-function getAllRows(sheetKey) {
+function getAllRows(tableKey) {
   const db = getDb();
-  const tableName = SHEETS[sheetKey];
-  const columns = HEADERS[sheetKey];
+  const tableName = TABLES[tableKey];
+  const columns = HEADERS[tableKey];
 
   const rows = db.prepare(`SELECT * FROM "${tableName}"`).all();
 
-  // Convert all values to strings to match previous Google Sheets behavior
+  // Convert all values to strings for consistent API responses
   return rows.map(row => {
     const obj = {};
     for (const col of columns) {
@@ -105,10 +105,10 @@ function getAllRows(sheetKey) {
   });
 }
 
-function addRow(sheetKey, data) {
+function addRow(tableKey, data) {
   const db = getDb();
-  const tableName = SHEETS[sheetKey];
-  const columns = HEADERS[sheetKey];
+  const tableName = TABLES[tableKey];
+  const columns = HEADERS[tableKey];
 
   const presentCols = columns.filter(col => data[col] != null);
   const colNames    = presentCols.map(c => `"${c}"`).join(', ');
@@ -120,10 +120,10 @@ function addRow(sheetKey, data) {
   return data;
 }
 
-function updateRow(sheetKey, id, updates) {
+function updateRow(tableKey, id, updates) {
   const db = getDb();
-  const tableName = SHEETS[sheetKey];
-  const columns = HEADERS[sheetKey];
+  const tableName = TABLES[tableKey];
+  const columns = HEADERS[tableKey];
 
   // Fetch existing row
   const existing = db.prepare(`SELECT * FROM "${tableName}" WHERE "ID" = ?`).get(id);
@@ -150,9 +150,9 @@ function updateRow(sheetKey, id, updates) {
   return merged;
 }
 
-function deleteRow(sheetKey, id) {
+function deleteRow(tableKey, id) {
   const db = getDb();
-  const tableName = SHEETS[sheetKey];
+  const tableName = TABLES[tableKey];
 
   const existing = db.prepare(`SELECT "ID" FROM "${tableName}" WHERE "ID" = ?`).get(id);
   if (!existing) throw new Error(`Record with ID ${id} not found`);
@@ -214,4 +214,4 @@ function migrateInventoryToProducts() {
   console.log('  Updated inventory rows with ProductID references');
 }
 
-module.exports = { initializeSheets, migrateInventoryToProducts, getAllRows, addRow, updateRow, deleteRow, SHEETS, HEADERS };
+module.exports = { initializeDatabase, migrateInventoryToProducts, getAllRows, addRow, updateRow, deleteRow, TABLES, HEADERS };

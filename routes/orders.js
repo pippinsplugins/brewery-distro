@@ -3,7 +3,7 @@
 const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../sheets');
+const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
 const { extractInvoiceData } = require('../lib/pdf-parser');
 
 // Multer setup: memory storage, PDF only, 10MB limit, max 50 files
