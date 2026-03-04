@@ -98,7 +98,8 @@ router.post('/send', async (req, res) => {
 
     res.json({ success: true, messageId: logEntry.ID });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[email] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -173,7 +174,8 @@ router.post('/bulk', async (req, res) => {
 
     res.json({ success: true, messageId: logEntry.ID, sent: bccEmails.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[email] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

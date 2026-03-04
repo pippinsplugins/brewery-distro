@@ -53,6 +53,8 @@ function getDb() {
     fs.mkdirSync(dir, { recursive: true });
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
+    // Foreign keys disabled: schema uses no FK constraints (all IDs are
+    // application-managed TEXT columns with manual cascade deletes).
     _db.pragma('foreign_keys = OFF');
   }
   return _db;

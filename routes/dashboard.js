@@ -76,7 +76,8 @@ router.get('/', async (req, res) => {
       pendingDeliveries,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[dashboard] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

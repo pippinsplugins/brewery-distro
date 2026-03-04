@@ -14,7 +14,8 @@ router.get('/', async (req, res) => {
     if (orderId) items = items.filter(i => i.OrderID === orderId);
     res.json(items);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[order-items] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -30,7 +31,8 @@ router.get('/counts', async (req, res) => {
     }
     res.json(counts);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[order-items] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -55,7 +57,8 @@ router.post('/', async (req, res) => {
     await addRow('ORDER_ITEMS', item);
     res.status(201).json(item);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[order-items] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -86,7 +89,8 @@ router.post('/bulk', async (req, res) => {
 
     res.status(201).json(created);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[order-items] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -104,7 +108,8 @@ router.delete('/', async (req, res) => {
 
     res.json({ success: true, deleted: toDelete.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[order-items] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

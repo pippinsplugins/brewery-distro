@@ -16,7 +16,8 @@ router.get('/', async (req, res) => {
     const accounts = await getAllRows('ACCOUNTS');
     res.json(accounts);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[accounts] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -54,7 +55,8 @@ router.post('/', async (req, res) => {
     await addRow('ACCOUNTS', account);
     res.status(201).json(account);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[accounts] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -66,7 +68,9 @@ router.put('/:id', async (req, res) => {
     const updated = await updateRow('ACCOUNTS', req.params.id, updates);
     res.json(updated);
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[accounts] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -117,7 +121,9 @@ router.delete('/:id', async (req, res) => {
     await deleteRow('ACCOUNTS', id);
     res.json({ success: true });
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[accounts] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -146,7 +152,8 @@ router.get('/:id/merge-preview', async (req, res) => {
       emails:     emailLog.filter(r => (r.AccountIDs || '').split(',').map(s => s.trim()).includes(sourceId)).length,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[accounts] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -261,7 +268,8 @@ router.post('/:id/merge', async (req, res) => {
 
     res.json({ success: true, merged: counts });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[accounts] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
