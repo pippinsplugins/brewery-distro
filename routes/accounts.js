@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName } = req.body;
+    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, BillingContactName, BillingEmail, BillingPhone, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName } = req.body;
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
     const account = {
@@ -35,6 +35,9 @@ router.post('/', async (req, res) => {
       AdditionalEmails: AdditionalEmails || '[]',
       Phone: Phone || '',
       PreferredMethod: PreferredMethod || 'Email',
+      BillingContactName: BillingContactName || '',
+      BillingEmail: BillingEmail || '',
+      BillingPhone: BillingPhone || '',
       Address: Address || '',
       City: City || '',
       State: State || '',
@@ -220,7 +223,7 @@ router.post('/:id/merge', async (req, res) => {
     // Merge account metadata onto target (fill empty fields only)
     const updates = {};
 
-    const fillFields = ['ContactName', 'Email', 'Phone', 'Address', 'City', 'State', 'Zip', 'ABCLicense'];
+    const fillFields = ['ContactName', 'Email', 'Phone', 'BillingContactName', 'BillingEmail', 'BillingPhone', 'Address', 'City', 'State', 'Zip', 'ABCLicense'];
     for (const field of fillFields) {
       if (!target[field] && source[field]) {
         updates[field] = source[field];

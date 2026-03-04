@@ -102,6 +102,22 @@ function accountForm(acct = {}) {
       <span class="text-muted text-sm">Extra email addresses that will also receive emails sent to this account.</span>
     </div>
     <hr class="form-divider" />
+    <div class="form-section-title">Billing Contact</div>
+    <div class="form-group">
+      <label>Billing Contact Name</label>
+      <input class="form-control" id="f-billing-contact" value="${esc(acct.BillingContactName)}" placeholder="Billing contact name" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Billing Email</label>
+        <input class="form-control" id="f-billing-email" type="email" value="${esc(acct.BillingEmail)}" placeholder="billing@venue.com" />
+      </div>
+      <div class="form-group">
+        <label>Billing Phone</label>
+        <input class="form-control" id="f-billing-phone" type="tel" value="${esc(formatPhone(acct.BillingPhone))}" placeholder="(555) 000-0000" onblur="this.value=formatPhone(this.value)" />
+      </div>
+    </div>
+    <hr class="form-divider" />
     <div class="form-section-title">Location</div>
     <div class="form-group">
       <label>Address</label>
@@ -337,6 +353,9 @@ async function loadAccountProfile(accountId) {
     accountHasEmail(acct) ? `<div class="profile-info-item"><span class="profile-info-label">Email</span><span>${esc(acct.Email || '')}${(() => { const ae = parseAdditionalEmails(acct); return ae.length > 0 ? (acct.Email ? '<br>' : '') + ae.map(e => esc(e)).join('<br>') : ''; })()}</span></div>` : '',
     acct.Phone        ? `<div class="profile-info-item"><span class="profile-info-label">Phone</span><span>${esc(formatPhone(acct.Phone))}</span></div>` : '',
     acct.PreferredMethod ? `<div class="profile-info-item"><span class="profile-info-label">Preferred</span><span>${methodBadge(acct.PreferredMethod)}</span></div>` : '',
+    acct.BillingContactName ? `<div class="profile-info-item"><span class="profile-info-label">Billing Contact</span><span>${esc(acct.BillingContactName)}</span></div>` : '',
+    acct.BillingEmail ? `<div class="profile-info-item"><span class="profile-info-label">Billing Email</span><span>${esc(acct.BillingEmail)}</span></div>` : '',
+    acct.BillingPhone ? `<div class="profile-info-item"><span class="profile-info-label">Billing Phone</span><span>${esc(formatPhone(acct.BillingPhone))}</span></div>` : '',
     (acct.Address || acct.City) ? `<div class="profile-info-item"><span class="profile-info-label">Address</span><span>${esc(acct.Address || '')}${acct.Address && (acct.City || acct.State || acct.Zip) ? ', ' : ''}${[acct.City, (acct.State && acct.Zip ? acct.State + ' ' + acct.Zip : acct.State || acct.Zip)].filter(Boolean).map(esc).join(', ')}</span></div>` : '',
     acct.ABCLicense   ? `<div class="profile-info-item"><span class="profile-info-label">ABC License</span><span>${esc(acct.ABCLicense)}</span></div>` : '',
     (() => { let tags = []; try { tags = JSON.parse(acct.Tags || '[]'); } catch (e) {} return tags.length > 0 ? `<div class="profile-info-item"><span class="profile-info-label">Tags</span><span class="tag-badges">${tags.map(t => '<span class="badge badge-tag">' + esc(t) + '</span>').join(' ')}</span></div>` : ''; })(),
@@ -726,6 +745,7 @@ function openAddAccount() {
       Name: name, Type: val('f-type'), Tags: collectSelectedTags(), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
+      BillingContactName: val('f-billing-contact'), BillingEmail: val('f-billing-email'), BillingPhone: val('f-billing-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
@@ -748,6 +768,7 @@ function openEditAccount(id) {
       Name: name, Type: val('f-type'), Tags: collectSelectedTags(), Status: val('f-status'),
       ContactName: val('f-contact'), PreferredMethod: val('f-method'),
       Email: val('f-email'), AdditionalEmails: collectAdditionalEmails(), Phone: val('f-phone'),
+      BillingContactName: val('f-billing-contact'), BillingEmail: val('f-billing-email'), BillingPhone: val('f-billing-phone'),
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
