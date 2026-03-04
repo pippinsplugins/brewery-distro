@@ -17,7 +17,8 @@ router.get('/', async (req, res) => {
     items.sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
     res.json(items);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[outreach] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -49,7 +50,8 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(entry);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[outreach] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -61,7 +63,9 @@ router.put('/:id', async (req, res) => {
     const updated = await updateRow('OUTREACH', req.params.id, updates);
     res.json(updated);
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[outreach] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -70,7 +74,9 @@ router.delete('/:id', async (req, res) => {
     await deleteRow('OUTREACH', req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[outreach] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 

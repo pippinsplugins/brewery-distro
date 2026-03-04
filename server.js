@@ -4,7 +4,15 @@ const express        = require('express');
 const path           = require('path');
 const session        = require('express-session');
 const passport       = require('passport');
+const helmet         = require('helmet');
+const rateLimit      = require('express-rate-limit');
 require('dotenv').config();
+
+// ── Startup guards ───────────────────────────────────────────────────────
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is not set. Exiting.');
+  process.exit(1);
+}
 
 // Auth routes configure the passport strategies as a side-effect of requiring.
 const authRoutes = require('./routes/auth');
@@ -35,12 +43,22 @@ const PORT = process.env.PORT || 3000;
 // which in turn makes secure cookies and OAuth callback URLs work.
 app.set('trust proxy', 1);
 
+// ── Security headers ─────────────────────────────────────────────────────
+app.disable('x-powered-by');
+app.use(helmet());
+
+// ── Rate limiting ────────────────────────────────────────────────────────
+app.use('/auth',     rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
+app.use('/api/email', rateLimit({ windowMs: 60_000, max: 20,  standardHeaders: true, legacyHeaders: false }));
+app.use('/webhooks', rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false }));
+app.use('/api',      rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false }));
+
 // ── Body parsing ──────────────────────────────────────────────────────────
 app.use(express.json());
 
 // ── Session ───────────────────────────────────────────────────────────────
 app.use(session({
-  secret:            process.env.SESSION_SECRET || 'change-me-in-production',
+  secret:            process.env.SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
   rolling:           true, // Reset expiry on every request so active users stay logged in
@@ -48,6 +66,7 @@ app.use(session({
     httpOnly: true,
     // Set secure:true when behind HTTPS in production.
     secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
     maxAge:   24 * 60 * 60 * 1000, // 24 hours
   },
 }));

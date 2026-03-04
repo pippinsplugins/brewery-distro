@@ -36,7 +36,8 @@ router.get('/', async (req, res) => {
     items.sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
     res.json(items);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[reminders] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -68,7 +69,8 @@ router.post('/', async (req, res) => {
     await addRow('REMINDERS', reminder);
     res.status(201).json(reminder);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[reminders] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -103,7 +105,9 @@ router.put('/:id', async (req, res) => {
 
     res.json(updated);
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[reminders] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -112,7 +116,9 @@ router.delete('/:id', async (req, res) => {
     await deleteRow('REMINDERS', req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[reminders] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 

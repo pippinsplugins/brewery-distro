@@ -15,7 +15,8 @@ router.get('/', async (req, res) => {
     rows.sort((a, b) => (b.Date || b.CreatedAt || '').localeCompare(a.Date || a.CreatedAt || ''));
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[stock-movements] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -119,7 +120,8 @@ router.post('/bulk', async (req, res) => {
     await updateRow('ORDERS', orderId, { Delivered: 'true' });
     res.json({ movements, kegRecords });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[stock-movements] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -173,7 +175,8 @@ router.post('/', async (req, res) => {
 
     res.json({ movement, newUnits });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[stock-movements] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

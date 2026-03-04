@@ -15,7 +15,8 @@ router.get('/', async (req, res) => {
     }
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[tap-handles] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -36,7 +37,8 @@ router.get('/summary', async (req, res) => {
     }
     res.json(Object.values(summary));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[tap-handles] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -60,7 +62,8 @@ router.post('/', async (req, res) => {
     await addRow('TAP_HANDLES', record);
     res.json(record);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[tap-handles] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -76,7 +79,9 @@ router.put('/:id', async (req, res) => {
     const updated = await updateRow('TAP_HANDLES', id, updates);
     res.json(updated);
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[tap-handles] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -86,7 +91,9 @@ router.delete('/:id', async (req, res) => {
     await deleteRow('TAP_HANDLES', req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[tap-handles] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 

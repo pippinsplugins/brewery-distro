@@ -37,7 +37,8 @@ router.get('/', async (req, res) => {
     orders.sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
     res.json(orders);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[orders] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -75,7 +76,8 @@ router.post('/', async (req, res) => {
     await addRow('ORDERS', order);
     res.status(201).json(order);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[orders] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -96,7 +98,9 @@ router.put('/:id', async (req, res) => {
     const updated = await updateRow('ORDERS', req.params.id, updates);
     res.json(updated);
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[orders] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -105,7 +109,9 @@ router.delete('/:id', async (req, res) => {
     await deleteRow('ORDERS', req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[orders] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -164,7 +170,8 @@ router.post('/import', upload.array('invoices', 50), async (req, res) => {
 
     res.json(results);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[orders] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -349,7 +356,8 @@ router.post('/import/confirm', async (req, res) => {
 
     res.json({ created, errors, newProductsCreated, newAccountsCreated });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[orders] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

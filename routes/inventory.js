@@ -33,7 +33,8 @@ router.get('/', async (req, res) => {
     items = await enrichInventory(items);
     res.json(items);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[inventory] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -87,7 +88,8 @@ router.post('/', async (req, res) => {
     await addRow('INVENTORY', item);
     res.status(201).json(item);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[inventory] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -100,7 +102,9 @@ router.put('/:id', async (req, res) => {
     const updated = await updateRow('INVENTORY', req.params.id, updates);
     res.json(updated);
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[inventory] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 
@@ -109,7 +113,9 @@ router.delete('/:id', async (req, res) => {
     await deleteRow('INVENTORY', req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[inventory] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
   }
 });
 

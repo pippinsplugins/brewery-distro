@@ -14,17 +14,24 @@ function isEmailConfigured() {
 }
 
 /**
+ * Strip CR/LF from a header value to prevent email header injection.
+ */
+function sanitizeHeader(value) {
+  return String(value).replace(/[\r\n]/g, '');
+}
+
+/**
  * Build a base64url-encoded RFC 2822 email message.
  */
 function buildRawMessage({ from, to, cc, bcc, subject, body }) {
   const lines = [
-    `From: ${from}`,
-    `To: ${to}`,
+    `From: ${sanitizeHeader(from)}`,
+    `To: ${sanitizeHeader(to)}`,
   ];
-  if (cc) lines.push(`Cc: ${cc}`);
-  if (bcc) lines.push(`Bcc: ${bcc}`);
+  if (cc) lines.push(`Cc: ${sanitizeHeader(cc)}`);
+  if (bcc) lines.push(`Bcc: ${sanitizeHeader(bcc)}`);
   lines.push(
-    `Subject: ${subject}`,
+    `Subject: ${sanitizeHeader(subject)}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
     '',

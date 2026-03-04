@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 /**
  * Webhook — Order Creation
  *
@@ -56,7 +58,8 @@ function requireWebhookSecret(req, res, next) {
   const authHeader = req.headers['authorization'] || '';
   const provided = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
-  if (!provided || provided !== secret) {
+  if (!provided || provided.length !== secret.length ||
+      !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret))) {
     return res.status(401).json({ error: 'Unauthorized: invalid or missing Bearer token.' });
   }
 
@@ -187,7 +190,8 @@ router.post('/order', requireWebhookSecret, async (req, res) => {
 
     res.status(201).json({ order });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[webhooks] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

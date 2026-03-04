@@ -29,7 +29,8 @@ router.get('/', async (req, res) => {
     }
     res.json(settings);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -74,7 +75,8 @@ router.put('/', async (req, res) => {
     }
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -131,7 +133,8 @@ router.put('/rename-location', async (req, res) => {
     result._renamed = { inventoryUpdated, ordersUpdated };
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -182,7 +185,8 @@ router.put('/rename-account-tag', async (req, res) => {
     result._renamed = { accountsUpdated };
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

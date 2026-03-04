@@ -87,9 +87,11 @@ router.get('/google/callback',
 );
 
 // Returns the currently authenticated user (or 401).
+// Only expose safe profile fields — never return OAuth tokens.
 router.get('/me', (req, res) => {
   if (req.isAuthenticated && req.isAuthenticated()) {
-    return res.json({ user: req.user });
+    const { id, name, email, photo } = req.user;
+    return res.json({ user: { id, name, email, photo } });
   }
   res.status(401).json({ user: null });
 });
