@@ -329,6 +329,7 @@ const modal = {
     document.getElementById('modal-overlay').classList.add('hidden');
     document.getElementById('modal-box').classList.remove('modal-wide');
     document.getElementById('modal-submit-btn').style.display = '';
+    document.getElementById('modal-cancel-btn').style.display = '';
     document.getElementById('modal-cancel-btn').textContent = 'Cancel';
     modal._onSubmit = null;
     if (typeof destroyMentions === 'function') destroyMentions('f-notes');

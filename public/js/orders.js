@@ -45,6 +45,55 @@ async function retryQboSync(orderId) {
   }
 }
 
+async function promptQboSync(orderId, reloadFn) {
+  // Check if QBO is connected before prompting
+  try {
+    const s = await api.get('/api/qbo/status');
+    if (s.appUrl) _qboAppUrl = s.appUrl;
+    if (!s.connected) {
+      api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'disabled' }).catch(() => {});
+      reloadFn();
+      return;
+    }
+  } catch {
+    reloadFn();
+    return;
+  }
+  // Show prompt with inline buttons (no standard modal submit/cancel)
+  modal.open('Create QuickBooks Invoice?', `
+    <p style="margin-bottom:16px">Would you like to create an invoice in QuickBooks for this order?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="qbo-prompt-skip">Skip</button>
+      <button class="btn btn-primary" id="qbo-prompt-create">Create Invoice</button>
+    </div>
+  `, null, 'Save');
+  // Hide the standard modal footer buttons
+  document.getElementById('modal-submit-btn').style.display = 'none';
+  document.getElementById('modal-cancel-btn').style.display = 'none';
+
+  document.getElementById('qbo-prompt-create').onclick = async () => {
+    modal.close();
+    toast('Creating QuickBooks invoice...');
+    try {
+      const updated = await api.post(`/api/qbo/sync/${orderId}`);
+      if (updated.QboSyncStatus === 'synced') {
+        toast('Invoice created in QuickBooks');
+      } else {
+        toast('QBO sync failed', 'error');
+      }
+    } catch (err) {
+      toast('QBO sync error: ' + err.message, 'error');
+    }
+    reloadFn();
+  };
+  document.getElementById('qbo-prompt-skip').onclick = async () => {
+    modal.close();
+    await api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'skipped' }).catch(() => {});
+    toast('QuickBooks sync skipped');
+    reloadFn();
+  };
+}
+
 function orderForm(order = {}, presetAccountId = '', readOnly = false) {
   const selAcctId = order.AccountID || presetAccountId;
   const dis = readOnly ? ' disabled' : '';
@@ -126,12 +175,6 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
-    ${!order.ID && !readOnly ? `<div class="form-group">
-      <label class="checkbox-label">
-        <input type="checkbox" id="f-qbo-sync" checked />
-        Sync to QuickBooks
-      </label>
-    </div>` : ''}
     ${order.ID ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
@@ -689,8 +732,7 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
-    const qboSync = document.getElementById('f-qbo-sync');
-    const orderData = {
+    const order = await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -700,14 +742,14 @@ async function openAddOrder(presetAccountId = '') {
       DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
       RequestedProducts: products,
-    };
-    if (qboSync && !qboSync.checked) orderData.QboSyncStatus = 'skipped';
-    const order = await api.post('/api/orders', orderData);
+    });
     await saveOrderItems(order.ID);
     modal.close();
     toast('Order logged');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadOrders();
+    const reloadFn = state.view === 'account-profile'
+      ? () => loadAccountProfile(state.accountProfileId)
+      : () => loadOrders();
+    promptQboSync(order.ID, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts();
@@ -870,8 +912,10 @@ async function convertPreSale(id) {
     await saveOrderItems(id);
     modal.close();
     toast('Pre-sale converted to order');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadOrders();
+    const reloadFn = state.view === 'account-profile'
+      ? () => loadAccountProfile(state.accountProfileId)
+      : () => loadOrders();
+    promptQboSync(id, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts(ps.RequestedProducts);
