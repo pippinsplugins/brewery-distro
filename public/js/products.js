@@ -43,8 +43,8 @@ function productForm(product = {}) {
     </div>`;
 }
 
-async function loadProducts() {
-  _paginationReset('products');
+async function loadProducts(preservePage = false) {
+  if (!preservePage) _paginationReset('products');
   showLoading();
   _productsCache = await api.get('/api/products');
   renderProducts();

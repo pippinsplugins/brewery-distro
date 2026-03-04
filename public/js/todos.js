@@ -69,8 +69,8 @@ function todoForm(todo = {}) {
 let _todosCache = [];
 let _todoStatusFilter = 'active';
 
-async function loadTodos() {
-  _paginationReset('todos');
+async function loadTodos(preservePage = false) {
+  if (!preservePage) _paginationReset('todos');
   _todoStatusFilter = (document.getElementById('todo-status') || {}).value || _todoStatusFilter;
   showLoading();
 

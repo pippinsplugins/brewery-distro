@@ -81,17 +81,43 @@ function paginationControls(viewKey, pg, renderFnName) {
 
 function _paginationGo(viewKey, page, renderFnName) {
   _pagination[viewKey].page = page;
+  _paginationSyncHash(viewKey);
   window[renderFnName]();
 }
 
 function _paginationPerPage(viewKey, value, renderFnName) {
   _pagination[viewKey].perPage = parseInt(value);
   _pagination[viewKey].page = 1;
+  _paginationSyncHash(viewKey);
   window[renderFnName]();
 }
 
 function _paginationReset(viewKey) {
   _pagination[viewKey].page = 1;
+}
+
+function _paginationSyncHash(viewKey) {
+  const pg = _pagination[viewKey];
+  const base = window.location.hash.replace(/\?.*$/, '').replace('#', '');
+  if (pg.page > 1 || pg.perPage !== 25) {
+    const params = new URLSearchParams();
+    if (pg.page > 1) params.set('page', pg.page);
+    if (pg.perPage !== 25) params.set('perPage', pg.perPage);
+    history.replaceState(null, '', '#' + base + '?' + params.toString());
+  } else {
+    history.replaceState(null, '', '#' + base);
+  }
+}
+
+function _paginationReadHash() {
+  const hash = window.location.hash.replace('#', '');
+  const qIdx = hash.indexOf('?');
+  if (qIdx === -1) return null;
+  const params = new URLSearchParams(hash.substring(qIdx + 1));
+  const page = parseInt(params.get('page'));
+  const perPage = parseInt(params.get('perPage'));
+  if (!page && !perPage) return null;
+  return { page: page || 1, perPage: perPage || 25 };
 }
 
 // ── Utilities ────────────────────────────────────────────────────

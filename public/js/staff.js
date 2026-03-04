@@ -42,8 +42,8 @@ function staffForm(member = {}) {
 
 let _staffCache = [];
 
-async function loadStaff() {
-  _paginationReset('staff');
+async function loadStaff(preservePage = false) {
+  if (!preservePage) _paginationReset('staff');
   showLoading();
   const [staff, accounts] = await Promise.all([api.get('/api/staff'), api.get('/api/accounts')]);
   state.staff = staff;

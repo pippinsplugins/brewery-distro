@@ -3,8 +3,8 @@
 let _kegsCache = [];
 let _kegsStatusFilter = 'outstanding';
 
-async function loadKegs() {
-  _paginationReset('kegs');
+async function loadKegs(preservePage = false) {
+  if (!preservePage) _paginationReset('kegs');
   showLoading();
   _kegsCache = await api.get('/api/keg-tracking');
   renderKegs();
