@@ -2,8 +2,8 @@
 
 // ── Stock Levels View ────────────────────────────────────────────
 
-async function loadInventory() {
-  _paginationReset('inventory');
+async function loadInventory(preservePage = false) {
+  if (!preservePage) _paginationReset('inventory');
   showLoading();
   const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
   const items = await api.get(`/api/inventory${locParam}`);

@@ -23,7 +23,7 @@ const SUBMENU_VIEWS = {
   map:       'accounts',
 };
 
-function navigate(view, filters = {}) {
+function navigate(view, filters = {}, preservePage = false) {
   state.view = view;
   state.navFilters = filters;
   // Update top-level nav active states
@@ -42,11 +42,31 @@ function navigate(view, filters = {}) {
     const isParent = g.dataset.group === groupName;
     g.classList.toggle('open', isParent);
   });
-  window.location.hash = view;
-  const newHash = '#' + view;
-  if (window.location.hash !== newHash) window.location.hash = view;
+  // Build hash — include pagination params if preserving page
+  let newHash = '#' + view;
+  if (preservePage) {
+    const pgParams = _paginationReadHash();
+    if (pgParams) {
+      const params = new URLSearchParams();
+      if (pgParams.page > 1) params.set('page', pgParams.page);
+      if (pgParams.perPage !== 25) params.set('perPage', pgParams.perPage);
+      const qs = params.toString();
+      if (qs) newHash += '?' + qs;
+    }
+  }
+  if (window.location.hash !== newHash) window.location.hash = newHash;
+  // Restore pagination state from hash if preserving
+  if (preservePage) {
+    const pgParams = _paginationReadHash();
+    // Map view name to pagination key
+    const pgKey = view === 'tap-handles' ? 'tapHandles' : view;
+    if (pgParams && _pagination[pgKey]) {
+      _pagination[pgKey].page = pgParams.page;
+      _pagination[pgKey].perPage = pgParams.perPage;
+    }
+  }
   const loader = VIEW_LOADERS[view];
-  if (loader) loader().catch(err => {
+  if (loader) loader(preservePage).catch(err => {
     toast(err.message, 'error');
     setContent(`<div class="empty-state text-danger" style="padding:40px">Error: ${esc(err.message)}</div>`);
   });
@@ -54,18 +74,20 @@ function navigate(view, filters = {}) {
 
 function handleHashChange() {
   const raw = window.location.hash.replace('#', '');
+  const base = raw.replace(/\?.*$/, '');
   // Account profile: #account/<id>
-  const acctMatch = raw.match(/^account\/(.+)$/);
+  const acctMatch = base.match(/^account\/(.+)$/);
   if (acctMatch) {
     const id = decodeURIComponent(acctMatch[1]);
     if (state.view === 'account-profile' && state.accountProfileId === id) return;
     loadAccountProfile(id);
     return;
   }
-  // Main views
-  const view = VIEW_LOADERS[raw] ? raw : 'dashboard';
+  // Main views — back/forward restores pagination
+  const view = VIEW_LOADERS[base] ? base : 'dashboard';
   if (state.view === view) return;
-  navigate(view);
+  const hasPagination = !!_paginationReadHash();
+  navigate(view, {}, hasPagination);
 }
 
 // ── Location ──────────────────────────────────────────────────────
@@ -214,11 +236,13 @@ async function init() {
 
   // Load view from hash or default to dashboard
   const hash = window.location.hash.replace('#', '');
-  const acctMatch = hash.match(/^account\/(.+)$/);
+  const hashBase = hash.replace(/\?.*$/, '');
+  const acctMatch = hashBase.match(/^account\/(.+)$/);
   if (acctMatch) {
     loadAccountProfile(decodeURIComponent(acctMatch[1]));
   } else {
-    navigate(VIEW_LOADERS[hash] ? hash : 'dashboard');
+    const hasPagination = !!_paginationReadHash();
+    navigate(VIEW_LOADERS[hashBase] ? hashBase : 'dashboard', {}, hasPagination);
   }
 }
 

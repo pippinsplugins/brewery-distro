@@ -58,8 +58,8 @@ function outreachForm(entry = {}, presetAccountId = '') {
     </div>`;
 }
 
-async function loadOutreach() {
-  _paginationReset('outreach');
+async function loadOutreach(preservePage = false) {
+  if (!preservePage) _paginationReset('outreach');
   showLoading();
   const [outreach, accounts, staff] = await Promise.all([api.get('/api/outreach'), api.get('/api/accounts'), api.get('/api/staff')]);
   state.outreach = outreach;

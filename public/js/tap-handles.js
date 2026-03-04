@@ -3,8 +3,8 @@
 let _tapHandlesCache = [];
 let _tapHandlesStatusFilter = 'outstanding';
 
-async function loadTapHandles() {
-  _paginationReset('tapHandles');
+async function loadTapHandles(preservePage = false) {
+  if (!preservePage) _paginationReset('tapHandles');
   showLoading();
   _tapHandlesCache = await api.get('/api/tap-handles');
   renderTapHandles();

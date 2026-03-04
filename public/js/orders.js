@@ -419,8 +419,8 @@ async function saveOrderItems(orderId) {
   }
 }
 
-async function loadOrders() {
-  _paginationReset('orders');
+async function loadOrders(preservePage = false) {
+  if (!preservePage) _paginationReset('orders');
   _ordersDatePreset = '';
   _ordersDateFrom = '';
   _ordersDateTo = '';
