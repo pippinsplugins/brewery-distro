@@ -3,7 +3,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
-const { processMentions } = require('../lib/notifications');
+const { processMentions, processAssignment } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -68,7 +68,9 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('REMINDERS', reminder);
-    processMentions({ newText: reminder.Notes, oldText: '', entityType: 'todo', entityName: reminder.Title, entityId: reminder.ID, accountId: reminder.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
+    const baseUrl = req.protocol + '://' + req.get('host');
+    processMentions({ newText: reminder.Notes, oldText: '', entityType: 'todo', entityName: reminder.Title, entityId: reminder.ID, accountId: reminder.AccountID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    processAssignment({ newStaffId: reminder.StaffID, oldStaffId: '', entityType: 'todo', entityName: reminder.Title, entityId: reminder.ID, accountId: reminder.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
     res.status(201).json(reminder);
   } catch (err) {
     console.error(`[reminders] ${err.message}`);
@@ -80,11 +82,14 @@ router.put('/:id', async (req, res) => {
   try {
     const existing = getRow('REMINDERS', req.params.id);
     const oldNotes = existing?.Notes || '';
+    const oldStaffId = existing?.StaffID || '';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
     const updated = await updateRow('REMINDERS', req.params.id, updates);
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
+    const baseUrl = req.protocol + '://' + req.get('host');
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    processAssignment({ newStaffId: updated.StaffID, oldStaffId, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
 
     // When completing a recurring reminder, spawn the next occurrence
     if (updates.Completed === 'true' && updated.Recurrence && RECURRENCE_VALUES.has(updated.Recurrence) && updated.Recurrence !== 'none') {
