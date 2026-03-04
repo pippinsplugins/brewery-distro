@@ -1501,7 +1501,7 @@ th input[type="checkbox"] {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: 50;
+    z-index: 500;
     min-width: 120px;
     padding: 4px 0;
   }
