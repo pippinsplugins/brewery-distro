@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
-const { processMentions } = require('../lib/notifications');
+const { processMentions, processAssignment } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -54,7 +54,9 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('ACCOUNTS', account);
-    processMentions({ newText: account.Notes, oldText: '', entityType: 'account', entityName: account.Name, entityId: account.ID, accountId: account.ID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
+    const baseUrl = req.protocol + '://' + req.get('host');
+    processMentions({ newText: account.Notes, oldText: '', entityType: 'account', entityName: account.Name, entityId: account.ID, accountId: account.ID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    processAssignment({ newStaffId: account.StaffID, oldStaffId: '', entityType: 'account', entityName: account.Name, entityId: account.ID, accountId: account.ID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
     res.status(201).json(account);
   } catch (err) {
     console.error(`[accounts] ${err.message}`);
@@ -66,11 +68,14 @@ router.put('/:id', async (req, res) => {
   try {
     const existing = getRow('ACCOUNTS', req.params.id);
     const oldNotes = existing?.Notes || '';
+    const oldStaffId = existing?.StaffID || '';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
     const updated = await updateRow('ACCOUNTS', req.params.id, updates);
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'account', entityName: updated.Name, entityId: updated.ID, accountId: updated.ID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
+    const baseUrl = req.protocol + '://' + req.get('host');
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'account', entityName: updated.Name, entityId: updated.ID, accountId: updated.ID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    processAssignment({ newStaffId: updated.StaffID, oldStaffId, entityType: 'account', entityName: updated.Name, entityId: updated.ID, accountId: updated.ID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;

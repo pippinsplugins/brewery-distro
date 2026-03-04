@@ -4,7 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
-const { processMentions } = require('../lib/notifications');
+const { processMentions, processAssignment } = require('../lib/notifications');
 const { extractInvoiceData } = require('../lib/pdf-parser');
 
 // Multer setup: memory storage, PDF only, 10MB limit, max 50 files
@@ -75,7 +75,9 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('ORDERS', order);
-    processMentions({ newText: order.Notes, oldText: '', entityType: 'order', entityName: order.AccountName, entityId: order.ID, accountId: order.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
+    const baseUrl = req.protocol + '://' + req.get('host');
+    processMentions({ newText: order.Notes, oldText: '', entityType: 'order', entityName: order.AccountName, entityId: order.ID, accountId: order.AccountID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    processAssignment({ newStaffId: order.StaffID, oldStaffId: '', entityType: 'order', entityName: order.AccountName, entityId: order.ID, accountId: order.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
     res.status(201).json(order);
   } catch (err) {
     console.error(`[orders] ${err.message}`);
@@ -93,12 +95,15 @@ router.put('/:id', async (req, res) => {
       }
     }
     const oldNotes = existingOrder?.Notes || '';
+    const oldStaffId = existingOrder?.StaffID || '';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
     if (updates.OrderDate) updates.OrderDate = withTimestamp(updates.OrderDate);
     const updated = await updateRow('ORDERS', req.params.id, updates);
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'order', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
+    const baseUrl = req.protocol + '://' + req.get('host');
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'order', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    processAssignment({ newStaffId: updated.StaffID, oldStaffId, entityType: 'order', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;
