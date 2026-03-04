@@ -59,24 +59,25 @@ async function loadMap() {
     });
   }
 
-  // Build tag filter dropdown HTML
+  // Build tag filter bar HTML
   let tagFilterHtml = '';
   if (typeof ACCOUNT_TAGS !== 'undefined' && ACCOUNT_TAGS.length > 0) {
     const opts = ACCOUNT_TAGS.map(t =>
       `<option value="${esc(t)}"${t === selectedTag ? ' selected' : ''}>${esc(t)}</option>`
     ).join('');
-    tagFilterHtml = `<select id="map-tag-filter" class="form-input" onchange="loadMap()" style="min-width:140px">
-      <option value="">All Tags</option>${opts}</select>`;
+    tagFilterHtml = `<div class="filter-bar">
+      <select id="map-tag-filter" onchange="loadMap()">
+        <option value="">All Tags</option>${opts}</select></div>`;
   }
 
   setContent(`
     <div class="content-header">
       <h1>Account Map</h1>
       <div class="header-actions">
-        ${tagFilterHtml}
         <span id="map-status" class="text-muted text-sm"></span>
       </div>
     </div>
+    ${tagFilterHtml}
     <div id="map-container" style="height:calc(100vh - 140px);border-radius:8px;overflow:hidden;border:1px solid var(--border)"></div>`);
 
   // Clean up previous map instance
