@@ -24,7 +24,7 @@ function qboSyncBadge(order) {
     case 'disabled':
       return ' <span class="badge badge-neutral" title="QuickBooks not connected">QBO Off</span>';
     case 'skipped':
-      return ' <span class="badge badge-neutral" title="Auto-sync disabled">QBO Skipped</span>';
+      return ' <span class="badge badge-neutral" title="QBO sync disabled for this order">QBO Disabled</span>';
     default:
       return ' <span class="badge badge-neutral" title="Not synced to QuickBooks">QBO Pending</span>';
   }
@@ -139,7 +139,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}` : ''}
       ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span><button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
       ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">Not Connected</span>' : ''}
-      ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Auto-sync Disabled</span>' : ''}
+      ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Sync Disabled</span>' : ''}
       ${!order.QboSyncStatus ? '<span class="badge badge-neutral">Pending</span>' : ''}
     </div>` : ''}`;
 }
