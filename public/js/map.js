@@ -46,12 +46,34 @@ function accountPopup(acct) {
 
 async function loadMap() {
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
-  const accounts = state.accounts.filter(a => a.Status !== 'Inactive');
+
+  // Read current tag filter before re-rendering DOM
+  const tagFilterEl = document.getElementById('map-tag-filter');
+  const selectedTag = tagFilterEl ? tagFilterEl.value : '';
+
+  let accounts = state.accounts.filter(a => a.Status !== 'Inactive');
+  if (selectedTag) {
+    accounts = accounts.filter(a => {
+      try { return JSON.parse(a.Tags || '[]').includes(selectedTag); }
+      catch { return false; }
+    });
+  }
+
+  // Build tag filter dropdown HTML
+  let tagFilterHtml = '';
+  if (typeof ACCOUNT_TAGS !== 'undefined' && ACCOUNT_TAGS.length > 0) {
+    const opts = ACCOUNT_TAGS.map(t =>
+      `<option value="${esc(t)}"${t === selectedTag ? ' selected' : ''}>${esc(t)}</option>`
+    ).join('');
+    tagFilterHtml = `<select id="map-tag-filter" class="form-input" onchange="loadMap()" style="min-width:140px">
+      <option value="">All Tags</option>${opts}</select>`;
+  }
 
   setContent(`
     <div class="content-header">
       <h1>Account Map</h1>
       <div class="header-actions">
+        ${tagFilterHtml}
         <span id="map-status" class="text-muted text-sm"></span>
       </div>
     </div>
