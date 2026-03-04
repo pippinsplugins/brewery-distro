@@ -2,7 +2,8 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
+const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
+const { processMentions } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -40,6 +41,7 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('OUTREACH', entry);
+    processMentions({ newText: entry.Notes, oldText: '', entityType: 'outreach', entityName: entry.AccountName, entityId: entry.ID, accountId: entry.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
 
     // Update the account's LastContacted field
     try {
@@ -57,10 +59,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const existing = getRow('OUTREACH', req.params.id);
+    const oldNotes = existing?.Notes || '';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
     const updated = await updateRow('OUTREACH', req.params.id, updates);
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'outreach', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;

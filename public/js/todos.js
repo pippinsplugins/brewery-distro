@@ -193,6 +193,7 @@ function openAddTodo(presetAccountId = '') {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadTodos();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 function openEditTodo(id) {
@@ -216,6 +217,7 @@ function openEditTodo(id) {
     toast('Todo updated');
     loadTodos();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 async function completeTodo(id) {
@@ -289,6 +291,7 @@ async function completeTodo(id) {
     const cb     = document.getElementById('f-log-outreach');
     const fields = document.getElementById('outreach-fields');
     if (cb && fields) cb.addEventListener('change', () => { fields.style.display = cb.checked ? '' : 'none'; });
+    if (document.getElementById('f-notes')) initMentions('f-notes');
   }, 0);
 }
 

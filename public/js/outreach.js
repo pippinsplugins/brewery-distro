@@ -184,6 +184,7 @@ function openAddOutreach(presetAccountId = '', presetAccountName = '') {
     else if (state.view === 'accounts') loadAccounts();
     else loadDashboard();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 function openLogOutreach(accountId) {
@@ -204,6 +205,7 @@ function openEditOutreach(id) {
       toast('Entry updated');
       loadOutreach();
     });
+    setTimeout(() => initMentions('f-notes'), 0);
   });
 }
 

@@ -112,6 +112,7 @@ function renderTapHandles() {
 
 async function openDeployTapHandle(presetAccountId = '') {
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   const formHtml = `
     <div class="form-group">
       <label>Account <span class="required">*</span></label>
@@ -151,9 +152,11 @@ async function openDeployTapHandle(presetAccountId = '') {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadTapHandles();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
-function openCollectTapHandle(handleId, totalQty, alreadyCollected, existingNotes) {
+async function openCollectTapHandle(handleId, totalQty, alreadyCollected, existingNotes) {
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   const outstanding = totalQty - alreadyCollected;
   const notesHistory = existingNotes
     ? `<div style="margin-bottom:16px;padding:10px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #e0e0e0">
@@ -196,6 +199,7 @@ function openCollectTapHandle(handleId, totalQty, alreadyCollected, existingNote
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadTapHandles();
   });
+  setTimeout(() => initMentions('f-collect-notes'), 0);
 }
 
 async function deleteTapHandle(id) {

@@ -2,7 +2,8 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
+const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
+const { processMentions } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -60,6 +61,7 @@ router.post('/', async (req, res) => {
       CreatedAt: new Date().toISOString(),
     };
     await addRow('TAP_HANDLES', record);
+    processMentions({ newText: record.Notes, oldText: '', entityType: 'tap-handle', entityName: record.AccountName, entityId: record.ID, accountId: record.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(record);
   } catch (err) {
     console.error(`[tap-handles] ${err.message}`);
@@ -71,12 +73,15 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const id = req.params.id;
+    const existing = getRow('TAP_HANDLES', id);
+    const oldNotes = existing?.Notes || '';
     const updates = {};
     const allowed = ['CollectedDate', 'CollectedQuantity', 'Notes'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
     const updated = await updateRow('TAP_HANDLES', id, updates);
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'tap-handle', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;
