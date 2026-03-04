@@ -1494,14 +1494,12 @@ th input[type="checkbox"] {
 
   .mobile-actions-menu {
     display: none;
-    position: absolute;
-    right: 0;
-    top: 100%;
+    position: fixed;
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: 500;
+    z-index: 1000;
     min-width: 120px;
     padding: 4px 0;
   }

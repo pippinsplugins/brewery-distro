@@ -356,10 +356,16 @@ function refocusSearch(id) {
 // ── Mobile actions "..." menu ──────────────────────────────────────
 function toggleMobileActions(e) {
   e.stopPropagation();
-  const menu = e.currentTarget.nextElementSibling;
+  const btn = e.currentTarget;
+  const menu = btn.nextElementSibling;
   const wasOpen = menu.classList.contains('open');
   document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
-  if (!wasOpen) menu.classList.add('open');
+  if (!wasOpen) {
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = rect.bottom + 4 + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+    menu.classList.add('open');
+  }
 }
 
 document.addEventListener('click', () => {
