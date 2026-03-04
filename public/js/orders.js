@@ -2,6 +2,31 @@
 
 const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
+function qboSyncBadge(order) {
+  if (order.QboSyncStatus === 'synced') {
+    return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO</span>';
+  }
+  if (order.QboSyncStatus === 'failed') {
+    return ` <span class="badge badge-danger" style="cursor:pointer" title="QBO sync failed — click to retry" onclick="event.stopPropagation(); retryQboSync('${esc(order.ID)}')">QBO Failed</span>`;
+  }
+  return '';
+}
+
+async function retryQboSync(orderId) {
+  try {
+    toast('Retrying QuickBooks sync...');
+    const updated = await api.post(`/api/qbo/sync/${orderId}`);
+    if (updated.QboSyncStatus === 'synced') {
+      toast('Synced to QuickBooks');
+    } else {
+      toast('QBO sync failed: ' + (updated.QboSyncStatus || 'unknown'), 'error');
+    }
+    await loadOrders(true);
+  } catch (err) {
+    toast('QBO sync error: ' + err.message, 'error');
+  }
+}
+
 function orderForm(order = {}, presetAccountId = '', readOnly = false) {
   const selAcctId = order.AccountID || presetAccountId;
   const dis = readOnly ? ' disabled' : '';
@@ -82,7 +107,16 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
-    </div>`;
+    </div>
+    ${order.ID && order.QboSyncStatus ? `
+    <hr class="form-divider" />
+    <div class="form-section-title">QuickBooks</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span><span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>` : ''}
+      ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span><button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
+      ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">QBO Not Connected</span>' : ''}
+      ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Auto-sync Disabled</span>' : ''}
+    </div>` : ''}`;
 }
 
 function preSaleForm(ps = {}, presetAccountId = '') {
@@ -577,7 +611,7 @@ function renderOrders() {
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
+                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>

@@ -3,6 +3,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, deleteRow } = require('../db');
+const { syncOrderToQbo } = require('../qbo-service');
 
 const router = express.Router();
 
@@ -88,6 +89,10 @@ router.post('/bulk', async (req, res) => {
     }
 
     res.status(201).json(created);
+
+    // Fire-and-forget QBO sync
+    const orderId = created[0]?.OrderID;
+    if (orderId) syncOrderToQbo(orderId).catch(err => console.error('[qbo]', err));
   } catch (err) {
     console.error(`[order-items] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

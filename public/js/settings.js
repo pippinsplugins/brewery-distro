@@ -116,7 +116,17 @@ function renderSettings() {
           <button class="btn btn-primary" style="margin-top:12px" onclick="saveKegDeposits()">Save</button>
         </div>
       </div>
+
+      <div class="card" id="qbo-settings-card">
+        <div class="card-header"><h3>QuickBooks Online</h3></div>
+        <div style="padding:0 18px 18px" id="qbo-settings-body">
+          <p class="text-sm text-muted">Loading QuickBooks status...</p>
+        </div>
+      </div>
     </div>`);
+
+  // Load QBO status asynchronously
+  loadQboStatus();
 }
 
 function saveCompanyName() {
@@ -267,5 +277,77 @@ function removeAccountTag(index, name) {
     modal.close();
     toast('Tag removed');
     renderSettings();
+  });
+}
+
+// ── QuickBooks Online ─────────────────────────────────────────────
+
+async function loadQboStatus() {
+  const body = document.getElementById('qbo-settings-body');
+  if (!body) return;
+
+  try {
+    const status = await api.get('/api/qbo/status');
+    const autoSync = state.settings.qboAutoSync !== 'false';
+
+    if (!status.configured) {
+      body.innerHTML = `
+        <p class="text-sm text-muted" style="margin-bottom:8px">
+          QuickBooks integration is not configured. Set <code>QBO_CLIENT_ID</code> and <code>QBO_CLIENT_SECRET</code> environment variables to enable.
+        </p>
+        <span class="badge badge-neutral">Not Configured</span>`;
+      return;
+    }
+
+    if (!status.connected) {
+      body.innerHTML = `
+        <p class="text-sm text-muted" style="margin-bottom:12px">
+          Connect your QuickBooks Online account to automatically create invoices when orders are placed.
+        </p>
+        <a class="btn btn-primary" href="/auth/qbo">Connect to QuickBooks</a>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <p class="text-sm text-muted" style="margin-bottom:12px">
+        Connected to QuickBooks Online. Invoices will be automatically created when orders are placed.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span class="badge badge-success">Connected</span>
+        <span class="text-sm text-muted">Company ID: ${esc(status.realmId)}</span>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="checkbox-label">
+          <input type="checkbox" id="qbo-auto-sync" ${autoSync ? 'checked' : ''} onchange="toggleQboAutoSync()" />
+          Auto-sync new orders to QuickBooks
+        </label>
+      </div>
+      <button class="btn btn-ghost text-danger" onclick="disconnectQbo()">Disconnect</button>`;
+  } catch (err) {
+    body.innerHTML = `<p class="text-sm text-danger">Failed to load QuickBooks status.</p>`;
+  }
+}
+
+async function toggleQboAutoSync() {
+  const checked = document.getElementById('qbo-auto-sync')?.checked;
+  try {
+    const updated = await api.put('/api/settings', { qboAutoSync: checked ? 'true' : 'false' });
+    state.settings = updated;
+    toast(checked ? 'Auto-sync enabled' : 'Auto-sync disabled');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function disconnectQbo() {
+  modal.confirm('Disconnect QuickBooks', 'Disconnect from QuickBooks Online? New orders will no longer sync automatically.', async () => {
+    try {
+      await api.post('/api/qbo/disconnect');
+      modal.close();
+      toast('Disconnected from QuickBooks');
+      loadQboStatus();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   });
 }

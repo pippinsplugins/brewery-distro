@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
 const { processMentions, processAssignment } = require('../lib/notifications');
 const { extractInvoiceData } = require('../lib/pdf-parser');
+const { syncOrderToQbo } = require('../qbo-service');
 
 // Multer setup: memory storage, PDF only, 10MB limit, max 50 files
 const upload = multer({
@@ -357,6 +358,9 @@ router.post('/import/confirm', async (req, res) => {
         }
 
         created.push(order);
+
+        // Fire-and-forget QBO sync
+        syncOrderToQbo(order.ID).catch(err => console.error('[qbo]', err));
       } catch (orderErr) {
         errors.push({ filename: def.filename || 'unknown', error: orderErr.message });
       }

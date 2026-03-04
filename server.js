@@ -35,6 +35,7 @@ const tapHandlesRoutes     = require('./routes/tap-handles');
 const emailRoutes          = require('./routes/email');
 const orderItemsRoutes     = require('./routes/order-items');
 const notificationsRoutes  = require('./routes/notifications');
+const qboRoutes            = require('./routes/qbo');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -54,13 +55,13 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:      ["'self'", "'unsafe-inline'", "https://unpkg.com"],
       imgSrc:        ["'self'", "data:", "https:"],
-      connectSrc:    ["'self'", "https://unpkg.com", "https://nominatim.openstreetmap.org"],
+      connectSrc:    ["'self'", "https://unpkg.com", "https://nominatim.openstreetmap.org", "https://appcenter.intuit.com"],
     },
   },
 }));
 
 // ── Rate limiting ────────────────────────────────────────────────────────
-app.use('/auth',     rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
+app.use('/auth',      rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api/email', rateLimit({ windowMs: 60_000, max: 20,  standardHeaders: true, legacyHeaders: false }));
 app.use('/webhooks', rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api',      rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false }));
@@ -92,6 +93,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth routes (public – no authentication required) ─────────────────────
 app.use('/auth', authRoutes);
+app.use('/auth/qbo', qboRoutes.authRouter);
 
 // Serve the login page directly.
 app.get('/login', (req, res) => {
@@ -114,6 +116,7 @@ app.use('/api/tap-handles',     requireAuth, tapHandlesRoutes);
 app.use('/api/email',           requireAuth, emailRoutes);
 app.use('/api/order-items',     requireAuth, orderItemsRoutes);
 app.use('/api/notifications',  requireAuth, notificationsRoutes);
+app.use('/api/qbo',            requireAuth, qboRoutes.apiRouter);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
