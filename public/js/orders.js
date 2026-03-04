@@ -16,13 +16,18 @@ function qboInvoiceUrl(order) {
 }
 
 function qboSyncBadge(order) {
-  if (order.QboSyncStatus === 'synced') {
-    return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO</span>';
+  switch (order.QboSyncStatus) {
+    case 'synced':
+      return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO Synced</span>';
+    case 'failed':
+      return ` <span class="badge badge-danger" style="cursor:pointer" title="QBO sync failed — click to retry" onclick="event.stopPropagation(); retryQboSync('${esc(order.ID)}')">QBO Failed</span>`;
+    case 'disabled':
+      return ' <span class="badge badge-neutral" title="QuickBooks not connected">QBO Off</span>';
+    case 'skipped':
+      return ' <span class="badge badge-neutral" title="Auto-sync disabled">QBO Skipped</span>';
+    default:
+      return ' <span class="badge badge-neutral" title="Not synced to QuickBooks">QBO Pending</span>';
   }
-  if (order.QboSyncStatus === 'failed') {
-    return ` <span class="badge badge-danger" style="cursor:pointer" title="QBO sync failed — click to retry" onclick="event.stopPropagation(); retryQboSync('${esc(order.ID)}')">QBO Failed</span>`;
-  }
-  return '';
 }
 
 async function retryQboSync(orderId) {
@@ -121,14 +126,15 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
-    ${order.ID && order.QboSyncStatus ? `
+    ${order.ID ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}` : ''}
       ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span><button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
-      ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">QBO Not Connected</span>' : ''}
+      ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">Not Connected</span>' : ''}
       ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Auto-sync Disabled</span>' : ''}
+      ${!order.QboSyncStatus ? '<span class="badge badge-neutral">Pending</span>' : ''}
     </div>` : ''}`;
 }
 
