@@ -457,9 +457,12 @@ async function loadAccountProfile(accountId) {
           <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
           <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${outstanding > 0
               ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal)">Return Kegs</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
+            </div>
           </td>
         </tr>`;
       }).join('');
@@ -477,9 +480,12 @@ async function loadAccountProfile(accountId) {
           <td class="text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${outstanding > 0
               ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Collected</span>'}
+            </div>
           </td>
         </tr>`;
       }).join('');
