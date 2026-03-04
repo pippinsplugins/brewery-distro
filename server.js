@@ -54,7 +54,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:      ["'self'", "'unsafe-inline'", "https://unpkg.com"],
       imgSrc:        ["'self'", "data:", "https:"],
-      connectSrc:    ["'self'"],
+      connectSrc:    ["'self'", "https://unpkg.com", "https://nominatim.openstreetmap.org"],
     },
   },
 }));
