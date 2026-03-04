@@ -2,7 +2,7 @@
 
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -62,6 +62,7 @@ apiRouter.get('/status', async (req, res) => {
       configured,
       connected,
       realmId: connected ? tokens.realmId : null,
+      appUrl:  connected ? QBO_APP_URL : null,
     });
   } catch (err) {
     console.error('[qbo]', err.message);

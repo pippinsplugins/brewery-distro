@@ -14,6 +14,10 @@ const BASE_URL = QBO_ENVIRONMENT === 'production'
   ? 'https://quickbooks.api.intuit.com'
   : 'https://sandbox-quickbooks.api.intuit.com';
 
+const QBO_APP_URL = QBO_ENVIRONMENT === 'production'
+  ? 'https://app.qbo.intuit.com'
+  : 'https://app.sandbox.qbo.intuit.com';
+
 // ── Configuration check ──────────────────────────────────────────
 
 function isQboConfigured() {
@@ -180,17 +184,59 @@ async function findOrCreateCustomer(account) {
   return qboCustomerId;
 }
 
+// ── Product item management ──────────────────────────────────────
+
+// Cache the QBO Item ID for the generic product so we only look it up once per process
+let _qboProductItemId = null;
+
+async function getOrCreateProductItem() {
+  if (_qboProductItemId) return _qboProductItemId;
+
+  // Look for an existing NonInventory item named "Product Sale"
+  const query = `SELECT * FROM Item WHERE Name = 'Product Sale' AND Type = 'NonInventory'`;
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+  if (result.QueryResponse && result.QueryResponse.Item && result.QueryResponse.Item.length > 0) {
+    _qboProductItemId = String(result.QueryResponse.Item[0].Id);
+    return _qboProductItemId;
+  }
+
+  // Look for an existing item named "Product Sale" of any type
+  const query2 = `SELECT * FROM Item WHERE Name = 'Product Sale'`;
+  const result2 = await qboApiRequest('GET', `query?query=${encodeURIComponent(query2)}`);
+  if (result2.QueryResponse && result2.QueryResponse.Item && result2.QueryResponse.Item.length > 0) {
+    _qboProductItemId = String(result2.QueryResponse.Item[0].Id);
+    return _qboProductItemId;
+  }
+
+  // Create a generic NonInventory item
+  // First we need an income account — find one of type "Income"
+  const acctQuery = `SELECT * FROM Account WHERE AccountType = 'Income' MAXRESULTS 1`;
+  const acctResult = await qboApiRequest('GET', `query?query=${encodeURIComponent(acctQuery)}`);
+  const incomeAccount = acctResult.QueryResponse?.Account?.[0];
+  if (!incomeAccount) throw new Error('No income account found in QBO — cannot create product item');
+
+  const item = await qboApiRequest('POST', 'item', {
+    Name:            'Product Sale',
+    Type:            'NonInventory',
+    IncomeAccountRef: { value: String(incomeAccount.Id) },
+  });
+  _qboProductItemId = String(item.Item.Id);
+  return _qboProductItemId;
+}
+
 // ── Invoice creation ─────────────────────────────────────────────
 
 async function createInvoice(order, lineItems, account) {
   const customerId = await findOrCreateCustomer(account);
+  const productItemId = await getOrCreateProductItem();
 
-  // Build QBO line items using Description-based lines (no QBO Items needed)
+  // Build QBO line items referencing the generic product item
   const lines = lineItems.map((li, idx) => ({
     DetailType:          'SalesItemLineDetail',
     Amount:              parseFloat(li.LineTotal || 0),
     Description:         [li.ProductName, li.Format].filter(Boolean).join(' — '),
     SalesItemLineDetail: {
+      ItemRef:   { value: productItemId },
       UnitPrice: parseFloat(li.UnitPrice || 0),
       Qty:       parseFloat(li.Quantity  || 0),
     },
@@ -208,6 +254,7 @@ async function createInvoice(order, lineItems, account) {
       Amount:              depositAmount,
       Description:         'Keg Deposits',
       SalesItemLineDetail: {
+        ItemRef:   { value: productItemId },
         UnitPrice: depositAmount,
         Qty:       1,
       },
@@ -215,11 +262,15 @@ async function createInvoice(order, lineItems, account) {
     });
   }
 
+  // Determine bill email: prefer BillingEmail, fall back to account Email
+  const billEmail = account.BillingEmail || account.Email;
+
   const invoiceBody = {
     CustomerRef: { value: customerId },
     Line:        lines,
     DocNumber:   order.InvoiceNumber || undefined,
     TxnDate:     order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
+    BillEmail:   billEmail ? { Address: billEmail } : undefined,
   };
 
   // Add tax amount if present
@@ -301,4 +352,5 @@ module.exports = {
   clearTokens,
   getValidToken,
   syncOrderToQbo,
+  QBO_APP_URL,
 };

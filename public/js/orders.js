@@ -2,6 +2,19 @@
 
 const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
+let _qboAppUrl = '';
+(async () => {
+  try {
+    const s = await api.get('/api/qbo/status');
+    if (s.appUrl) _qboAppUrl = s.appUrl;
+  } catch { /* ignore — QBO not configured */ }
+})();
+
+function qboInvoiceUrl(order) {
+  if (!_qboAppUrl || !order.QboInvoiceId) return '';
+  return `${_qboAppUrl}/app/invoice?txnId=${encodeURIComponent(order.QboInvoiceId)}`;
+}
+
 function qboSyncBadge(order) {
   if (order.QboSyncStatus === 'synced') {
     return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO</span>';
@@ -111,8 +124,8 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     ${order.ID && order.QboSyncStatus ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span><span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}` : ''}
       ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span><button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
       ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">QBO Not Connected</span>' : ''}
       ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Auto-sync Disabled</span>' : ''}
