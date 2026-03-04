@@ -3,7 +3,8 @@
 const express = require('express');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
+const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
+const { processMentions } = require('../lib/notifications');
 const { extractInvoiceData } = require('../lib/pdf-parser');
 
 // Multer setup: memory storage, PDF only, 10MB limit, max 50 files
@@ -74,6 +75,7 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('ORDERS', order);
+    processMentions({ newText: order.Notes, oldText: '', entityType: 'order', entityName: order.AccountName, entityId: order.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
     res.status(201).json(order);
   } catch (err) {
     console.error(`[orders] ${err.message}`);
@@ -83,19 +85,20 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const existingOrder = getRow('ORDERS', req.params.id);
     // Prevent un-delivering an already-delivered order
     if (req.body.Delivered === 'false') {
-      const orders = await getAllRows('ORDERS');
-      const existing = orders.find(o => o.ID === req.params.id);
-      if (existing && existing.Delivered === 'true') {
+      if (existingOrder && existingOrder.Delivered === 'true') {
         return res.status(400).json({ error: 'Delivered orders cannot be un-delivered' });
       }
     }
+    const oldNotes = existingOrder?.Notes || '';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
     if (updates.OrderDate) updates.OrderDate = withTimestamp(updates.OrderDate);
     const updated = await updateRow('ORDERS', req.params.id, updates);
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'order', entityName: updated.AccountName, entityId: updated.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;

@@ -2,7 +2,8 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
+const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
+const { processMentions } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -67,6 +68,7 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('REMINDERS', reminder);
+    processMentions({ newText: reminder.Notes, oldText: '', entityType: 'todo', entityName: reminder.Title, entityId: reminder.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
     res.status(201).json(reminder);
   } catch (err) {
     console.error(`[reminders] ${err.message}`);
@@ -76,10 +78,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const existing = getRow('REMINDERS', req.params.id);
+    const oldNotes = existing?.Notes || '';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
     const updated = await updateRow('REMINDERS', req.params.id, updates);
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
 
     // When completing a recurring reminder, spawn the next occurrence
     if (updates.Completed === 'true' && updated.Recurrence && RECURRENCE_VALUES.has(updated.Recurrence) && updated.Recurrence !== 'none') {

@@ -331,6 +331,7 @@ const modal = {
     document.getElementById('modal-submit-btn').style.display = '';
     document.getElementById('modal-cancel-btn').textContent = 'Cancel';
     modal._onSubmit = null;
+    if (typeof destroyMentions === 'function') destroyMentions('f-notes');
     if (modal._trapFocus) {
       document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);
       modal._trapFocus = null;

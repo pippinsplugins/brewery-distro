@@ -647,6 +647,7 @@ async function openAddOrder(presetAccountId = '') {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts();
   initOrderDepositCheckbox(presetAccountId);
 }
@@ -686,6 +687,7 @@ async function openEditOrder(id) {
       loadOrders();
     });
   }
+  setTimeout(() => initMentions('f-notes'), 0);
   // Prefer order items (with correct InventoryID) over text-matching RequestedProducts
   const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
   if (orderItems && orderItems.length > 0) {
@@ -731,6 +733,7 @@ async function openAddPreSale(presetAccountId = '') {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 async function openEditPreSale(id) {
@@ -756,6 +759,7 @@ async function openEditPreSale(id) {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 async function convertPreSale(id) {
@@ -806,6 +810,7 @@ async function convertPreSale(id) {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts(ps.RequestedProducts);
 }
 

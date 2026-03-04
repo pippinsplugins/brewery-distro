@@ -34,6 +34,7 @@ const kegTrackingRoutes    = require('./routes/keg-tracking');
 const tapHandlesRoutes     = require('./routes/tap-handles');
 const emailRoutes          = require('./routes/email');
 const orderItemsRoutes     = require('./routes/order-items');
+const notificationsRoutes  = require('./routes/notifications');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -112,6 +113,7 @@ app.use('/api/keg-tracking',    requireAuth, kegTrackingRoutes);
 app.use('/api/tap-handles',     requireAuth, tapHandlesRoutes);
 app.use('/api/email',           requireAuth, emailRoutes);
 app.use('/api/order-items',     requireAuth, orderItemsRoutes);
+app.use('/api/notifications',  requireAuth, notificationsRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {

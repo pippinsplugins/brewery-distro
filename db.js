@@ -23,6 +23,7 @@ const TABLES = {
   TAP_HANDLES:     'TapHandles',
   EMAIL_LOG:       'EmailLog',
   ORDER_ITEMS:     'OrderItems',
+  NOTIFICATIONS:   'Notifications',
 };
 
 // HEADERS defines every column each table should have.
@@ -41,6 +42,7 @@ const HEADERS = {
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
   ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'UnitPrice', 'LineTotal', 'CreatedAt'],
+  NOTIFICATIONS:   ['ID', 'Type', 'Channel', 'RecipientStaffID', 'RecipientName', 'RecipientEmail', 'SenderName', 'SenderEmail', 'EntityType', 'EntityID', 'EntityName', 'Message', 'Status', 'Error', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────
@@ -152,6 +154,19 @@ function updateRow(tableKey, id, updates) {
   return merged;
 }
 
+function getRow(tableKey, id) {
+  const db = getDb();
+  const tableName = TABLES[tableKey];
+  const columns = HEADERS[tableKey];
+  const row = db.prepare(`SELECT * FROM "${tableName}" WHERE "ID" = ?`).get(id);
+  if (!row) return null;
+  const obj = {};
+  for (const col of columns) {
+    obj[col] = row[col] != null ? String(row[col]) : '';
+  }
+  return obj;
+}
+
 function deleteRow(tableKey, id) {
   const db = getDb();
   const tableName = TABLES[tableKey];
@@ -218,4 +233,4 @@ function migrateInventoryToProducts() {
   console.log('  Updated inventory rows with ProductID references');
 }
 
-module.exports = { initializeDatabase, migrateInventoryToProducts, getAllRows, addRow, updateRow, deleteRow, TABLES, HEADERS };
+module.exports = { initializeDatabase, migrateInventoryToProducts, getAllRows, getRow, addRow, updateRow, deleteRow, TABLES, HEADERS };

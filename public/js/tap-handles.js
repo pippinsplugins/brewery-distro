@@ -151,6 +151,7 @@ async function openDeployTapHandle(presetAccountId = '') {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadTapHandles();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 function openCollectTapHandle(handleId, totalQty, alreadyCollected, existingNotes) {
@@ -196,6 +197,7 @@ function openCollectTapHandle(handleId, totalQty, alreadyCollected, existingNote
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadTapHandles();
   });
+  setTimeout(() => initMentions('f-collect-notes'), 0);
 }
 
 async function deleteTapHandle(id) {

@@ -184,4 +184,5 @@ async function openAddKegs(presetAccountId = '') {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadKegs();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }

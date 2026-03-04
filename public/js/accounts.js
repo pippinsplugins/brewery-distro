@@ -702,6 +702,7 @@ function profileEditOutreach(id) {
       toast('Entry updated');
       loadAccountProfile(state.accountProfileId);
     });
+    setTimeout(() => initMentions('f-notes'), 0);
   });
 }
 
@@ -736,6 +737,7 @@ function profileEditTodo(id) {
       toast('Todo updated');
       loadAccountProfile(state.accountProfileId);
     });
+    setTimeout(() => initMentions('f-notes'), 0);
   });
 }
 
@@ -792,6 +794,7 @@ function profileEditOrder(id) {
         loadAccountProfile(state.accountProfileId);
       });
     }
+    setTimeout(() => initMentions('f-notes'), 0);
     const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
     if (orderItems && orderItems.length > 0) {
       await refreshOrderProductsFromItems(orderItems, isPaid);
@@ -831,6 +834,7 @@ function openAddAccount() {
     toast('Account added');
     loadAccounts();
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 function openEditAccount(id) {
@@ -856,6 +860,7 @@ function openEditAccount(id) {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadAccounts(true);
   });
+  setTimeout(() => initMentions('f-notes'), 0);
 }
 
 async function deleteAccount(id, name) {
