@@ -124,6 +124,7 @@ function initMentions(inputId) {
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       if (filtered.length > 0) {
         e.preventDefault();
+        e.stopPropagation();
         selectStaff(filtered[activeIndex]);
       }
     } else if (e.key === 'Escape') {
