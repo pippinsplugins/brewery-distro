@@ -499,12 +499,15 @@ async function loadAccountProfile(accountId) {
           <p class="subtitle">${esc(acct.Type)} &mdash; ${statusBadge(acct.Status)}${(() => { let tags = []; try { tags = JSON.parse(acct.Tags || '[]'); } catch(e) {} return tags.length > 0 ? ' &mdash; ' + tags.map(t => '<span class="badge badge-tag">' + esc(t) + '</span>').join(' ') : ''; })()}</p>
         </div>
       </div>
-      <div class="view-header-actions">
+      <div class="view-header-actions profile-header-actions">
+        <button class="btn btn-ghost btn-sm profile-action-more mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+        <div class="mobile-actions-menu">
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
-        ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-secondary btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
+        ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-ghost btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openMergeAccount('${esc(accountId)}')">Merge</button>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
