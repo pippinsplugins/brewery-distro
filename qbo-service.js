@@ -322,8 +322,9 @@ async function syncOrderToQbo(orderId) {
       return;
     }
 
-    // Skip if already synced
+    // Skip if already synced or explicitly opted out
     if (order.QboSyncStatus === 'synced' && order.QboInvoiceId) return;
+    if (order.QboSyncStatus === 'skipped') return;
 
     const account = getRow('ACCOUNTS', order.AccountID);
     if (!account) {

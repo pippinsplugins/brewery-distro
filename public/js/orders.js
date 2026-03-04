@@ -126,6 +126,12 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
+    ${!order.ID && !readOnly ? `<div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-qbo-sync" checked />
+        Sync to QuickBooks
+      </label>
+    </div>` : ''}
     ${order.ID ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
@@ -683,7 +689,8 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
-    const order = await api.post('/api/orders', {
+    const qboSync = document.getElementById('f-qbo-sync');
+    const orderData = {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -693,7 +700,9 @@ async function openAddOrder(presetAccountId = '') {
       DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
       RequestedProducts: products,
-    });
+    };
+    if (qboSync && !qboSync.checked) orderData.QboSyncStatus = 'skipped';
+    const order = await api.post('/api/orders', orderData);
     await saveOrderItems(order.ID);
     modal.close();
     toast('Order logged');
