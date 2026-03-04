@@ -130,8 +130,11 @@ function renderOutreach() {
               <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
               <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                <div class="mobile-actions-menu">
                 <button class="btn btn-ghost btn-sm" onclick="openEditOutreach('${esc(o.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOutreach('${esc(o.ID)}')">Del</button>
+                </div>
               </td>
             </tr>`).join('')}
         </tbody>

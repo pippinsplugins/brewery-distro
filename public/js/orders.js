@@ -825,18 +825,6 @@ async function markOrderPaid(id) {
   loadOrders();
 }
 
-function toggleMobileActions(e) {
-  e.stopPropagation();
-  const menu = e.currentTarget.nextElementSibling;
-  const wasOpen = menu.classList.contains('open');
-  document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
-  if (!wasOpen) menu.classList.add('open');
-}
-
-document.addEventListener('click', () => {
-  document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
-});
-
 async function toggleDelivered(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;

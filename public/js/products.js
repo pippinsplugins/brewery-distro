@@ -128,8 +128,11 @@ function renderProducts() {
               <td>${esc(p.Format) || '—'}</td>
               <td>${p.PricePerUnit ? '$' + esc(p.PricePerUnit) : '—'}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                <div class="mobile-actions-menu">
                 <button class="btn btn-ghost btn-sm" onclick="openEditProduct('${esc(p.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(p.Name)}" onclick="deleteProduct('${esc(p.ID)}', this.dataset.name)">Delete</button>
+                </div>
               </td>
             </tr>`).join('')}
         </tbody>

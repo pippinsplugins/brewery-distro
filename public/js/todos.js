@@ -152,12 +152,15 @@ function renderTodos() {
               <td class="text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                <div class="mobile-actions-menu">
                 ${r.Completed !== 'true'
                   ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeTodo('${esc(r.ID)}')">Done</button>`
                   : `<button class="btn btn-ghost btn-sm" onclick="reopenTodo('${esc(r.ID)}')">Reopen</button>`
                 }
                 <button class="btn btn-ghost btn-sm" onclick="openEditTodo('${esc(r.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteTodo('${esc(r.ID)}')">Del</button>
+                </div>
               </td>
             </tr>`).join('')}
         </tbody>

@@ -353,6 +353,19 @@ function refocusSearch(id) {
   if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
 }
 
+// ── Mobile actions "..." menu ──────────────────────────────────────
+function toggleMobileActions(e) {
+  e.stopPropagation();
+  const menu = e.currentTarget.nextElementSibling;
+  const wasOpen = menu.classList.contains('open');
+  document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
+  if (!wasOpen) menu.classList.add('open');
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
+});
+
 function accountOptions(selectedId = '') {
   return state.accounts
     .filter(a => a.Status !== 'Inactive')

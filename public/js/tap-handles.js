@@ -65,10 +65,13 @@ function renderTapHandles() {
           <td class="text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${outstanding > 0
               ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Collected</span>'}
             <button class="btn btn-ghost btn-sm text-danger" onclick="deleteTapHandle('${esc(h.ID)}')">Del</button>
+            </div>
           </td>
         </tr>`;
       }).join('');
