@@ -69,7 +69,7 @@ function renderKegs() {
           <td class="text-sm">${esc(k.Format)}</td>
           <td class="mobile-hide text-sm">${formatDate(k.DeliveredDate)}</td>
           <td class="text-center">${qty}</td>
-          <td class="text-center">${returned}</td>
+          <td class="mobile-hide text-center">${returned}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="mobile-hide text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
           <td class="mobile-hide text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
@@ -108,7 +108,7 @@ function renderKegs() {
       <table>
         <thead><tr>
           <th>Account</th><th>Product</th><th>Format</th><th class="mobile-hide">Delivered</th>
-          <th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th class="mobile-hide">Deposit</th><th class="mobile-hide">Refunded</th><th>Actions</th>
+          <th class="text-center">Qty</th><th class="mobile-hide text-center">Returned</th><th class="text-center">Outstanding</th><th class="mobile-hide">Deposit</th><th class="mobile-hide">Refunded</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
