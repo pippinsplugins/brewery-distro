@@ -117,8 +117,8 @@ function renderOutreach() {
       <table>
         <thead>
           <tr>
-            <th>Account</th><th>Date</th><th>Method</th><th>Notes</th>
-            <th>Follow-up</th><th>Actions</th>
+            <th>Account</th><th>Date</th><th class="mobile-hide">Method</th><th class="mobile-hide">Notes</th>
+            <th class="mobile-hide">Follow-up</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -126,9 +126,9 @@ function renderOutreach() {
             pg.rows.map(o => `<tr>
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(o.AccountID)}')">${esc(o.AccountName)}</span></td>
               <td>${formatDate(o.Date)}</td>
-              <td>${methodBadge(o.Method)}</td>
-              <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
-              <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
+              <td class="mobile-hide">${methodBadge(o.Method)}</td>
+              <td class="mobile-hide text-sm note-cell">${truncateNote(o.Notes)}</td>
+              <td class="mobile-hide text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                 <div class="mobile-actions-menu">
