@@ -1492,9 +1492,15 @@ th input[type="checkbox"] {
   .td-actions > .btn { display: none; }
   .td-actions .mobile-actions-toggle { display: inline-flex; }
 
-  /* ── Profile header: collapse secondary actions into ... menu ── */
+  /* ── Profile header: keep actions top-right, collapse into ... menu ── */
+  .view-header:has(.profile-header-actions) {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
   .profile-header-actions {
     position: relative;
+    flex-shrink: 0;
   }
 
   .profile-header-actions > .btn-ghost { display: none; }
