@@ -566,7 +566,7 @@ function renderOrders() {
         <thead>
           <tr>
             ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th>Invoice #</th>
-            ${ordTh('Order Amt','Amount')}<th>Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th>Delivered</th><th>Actions</th>
+            ${ordTh('Order Amt','Amount')}<th class="mobile-hide">Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th class="mobile-hide">Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -579,10 +579,10 @@ function renderOrders() {
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
                 <td class="text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
                 <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
-                <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
+                <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
                 <td>${orderStatusBadge(s.Status)}</td>
-                <td class="text-center">${isPreSale ? '—'
+                <td class="mobile-hide text-center">${isPreSale ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
@@ -600,9 +600,11 @@ function renderOrders() {
           <tr class="table-totals">
             <td colspan="3" class="text-muted text-sm">${pg.total} records</td>
             <td>${fmtMoney(totalOrder)}</td>
-            <td>${fmtMoney(totalTax)}</td>
+            <td class="mobile-hide">${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
-            <td colspan="3"></td>
+            <td></td>
+            <td class="mobile-hide"></td>
+            <td></td>
           </tr>
         </tfoot>` : ''}
       </table>
