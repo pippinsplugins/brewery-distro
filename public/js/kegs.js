@@ -67,16 +67,19 @@ function renderKegs() {
           <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(k.AccountID)}')">${esc(k.AccountName)}</span></td>
           <td>${esc(k.ProductName)}</td>
           <td class="text-sm">${esc(k.Format)}</td>
-          <td class="text-sm">${formatDate(k.DeliveredDate)}</td>
+          <td class="mobile-hide text-sm">${formatDate(k.DeliveredDate)}</td>
           <td class="text-center">${qty}</td>
-          <td class="text-center">${returned}</td>
+          <td class="mobile-hide text-center">${returned}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
-          <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
-          <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
+          <td class="mobile-hide text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
+          <td class="mobile-hide text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${outstanding > 0
               ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal)">Return</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
+            </div>
           </td>
         </tr>`;
       }).join('');
@@ -104,8 +107,8 @@ function renderKegs() {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Account</th><th>Product</th><th>Format</th><th>Delivered</th>
-          <th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Deposit</th><th>Refunded</th><th>Actions</th>
+          <th>Account</th><th>Product</th><th>Format</th><th class="mobile-hide">Delivered</th>
+          <th class="text-center">Qty</th><th class="mobile-hide text-center">Returned</th><th class="text-center">Outstanding</th><th class="mobile-hide">Deposit</th><th class="mobile-hide">Refunded</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>

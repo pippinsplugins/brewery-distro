@@ -565,8 +565,8 @@ function renderOrders() {
       <table>
         <thead>
           <tr>
-            ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th>Invoice #</th>
-            ${ordTh('Order Amt','Amount')}<th>Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th>Delivered</th><th>Actions</th>
+            ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th class="mobile-hide">Invoice #</th>
+            <th class="mobile-hide sortable-th${_ordersSort.col === 'Amount' ? ' sorted' : ''}" onclick="sortOrders('Amount')">Order Amt${_ordersSort.col === 'Amount' ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th class="mobile-hide">Delivered</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -577,20 +577,23 @@ function renderOrders() {
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
-                <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
-                <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
+                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
+                <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
+                <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
                 <td>${orderStatusBadge(s.Status)}</td>
-                <td class="text-center">${isPreSale ? '—'
+                <td class="mobile-hide text-center">${isPreSale ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
                 <td class="td-actions">
+                  <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                  <div class="mobile-actions-menu">
                   ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>`}
+                  </div>
                 </td>
               </tr>`;
             }).join('')}
@@ -598,11 +601,15 @@ function renderOrders() {
         ${pg.total > 1 ? `
         <tfoot>
           <tr class="table-totals">
-            <td colspan="3" class="text-muted text-sm">${pg.total} records</td>
-            <td>${fmtMoney(totalOrder)}</td>
-            <td>${fmtMoney(totalTax)}</td>
+            <td class="text-muted text-sm">${pg.total} records</td>
+            <td></td>
+            <td class="mobile-hide"></td>
+            <td class="mobile-hide">${fmtMoney(totalOrder)}</td>
+            <td class="mobile-hide">${fmtMoney(totalTax)}</td>
             <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
-            <td colspan="3"></td>
+            <td></td>
+            <td class="mobile-hide"></td>
+            <td></td>
           </tr>
         </tfoot>` : ''}
       </table>

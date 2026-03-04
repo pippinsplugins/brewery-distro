@@ -632,6 +632,11 @@ tbody td {
   display: flex;
   gap: 4px;
   white-space: nowrap;
+  position: relative;
+}
+
+.mobile-actions-toggle {
+  display: none;
 }
 
 /* ── Badges ────────────────────────────────────────────── */
@@ -1392,7 +1397,7 @@ th input[type="checkbox"] {
   }
 
   .modal-body {
-    max-height: 70vh;
+    max-height: 80vh;
     padding: 16px;
   }
 
@@ -1444,6 +1449,85 @@ th input[type="checkbox"] {
   .btn-sm {
     padding: 4px 8px;
     font-size: 11.5px;
+  }
+
+  /* ── Hide non-essential table columns ── */
+  .mobile-hide { display: none !important; }
+
+  /* ── Action buttons: wrap instead of overflow ── */
+  .td-actions {
+    flex-wrap: wrap;
+  }
+
+  /* ── Filter bar: stack vertically ── */
+  .filter-bar {
+    flex-direction: column;
+  }
+
+  .filter-bar input,
+  .filter-bar select {
+    width: 100%;
+  }
+
+  /* ── Form touch targets ── */
+  .form-control,
+  select,
+  textarea {
+    min-height: 40px;
+  }
+
+  /* ── Profile section header: allow wrapping ── */
+  .profile-section-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── View header actions: wrap with smaller gap ── */
+  .view-header-actions {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* ── Mobile actions menu (... toggle) ── */
+  .td-actions > .btn { display: none; }
+  .td-actions .mobile-actions-toggle { display: inline-flex; }
+
+  /* ── Profile header: keep actions top-right, collapse into ... menu ── */
+  .view-header:has(.profile-header-actions) {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .profile-header-actions {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .profile-header-actions > .btn-ghost { display: none; }
+  .profile-header-actions > .profile-action-more { display: inline-flex; }
+
+  .mobile-actions-menu {
+    display: none;
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    min-width: 120px;
+    padding: 4px 0;
+  }
+
+  .mobile-actions-menu.open { display: block; }
+
+  .mobile-actions-menu .btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border-radius: 0;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 }
 

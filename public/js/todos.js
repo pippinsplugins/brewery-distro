@@ -137,27 +137,30 @@ function renderTodos() {
       <table>
         <thead>
           <tr>
-            <th>Due</th><th>Status</th><th>Title</th><th>Account</th>
-            <th>Type</th><th>Assigned To</th><th>Priority</th><th>Actions</th>
+            <th>Due</th><th class="mobile-hide">Status</th><th>Title</th><th>Account</th>
+            <th>Type</th><th class="mobile-hide">Assigned To</th><th class="mobile-hide">Priority</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No todos found.</td></tr>` :
             pg.rows.map(r => `<tr>
               <td>${formatDate(r.DueDate)}</td>
-              <td>${urgencyBadge(r.DueDate, r.Completed)}</td>
+              <td class="mobile-hide">${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
               <td class="text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
               <td class="text-sm">${typeBadge(r.Type)}</td>
-              <td class="text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
-              <td>${priorityBadge(r.Priority)}</td>
+              <td class="mobile-hide text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
+              <td class="mobile-hide">${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                <div class="mobile-actions-menu">
                 ${r.Completed !== 'true'
                   ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeTodo('${esc(r.ID)}')">Done</button>`
                   : `<button class="btn btn-ghost btn-sm" onclick="reopenTodo('${esc(r.ID)}')">Reopen</button>`
                 }
                 <button class="btn btn-ghost btn-sm" onclick="openEditTodo('${esc(r.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteTodo('${esc(r.ID)}')">Del</button>
+                </div>
               </td>
             </tr>`).join('')}
         </tbody>

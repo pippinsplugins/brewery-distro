@@ -261,8 +261,8 @@ function renderAccounts() {
         <thead>
           <tr>
             ${state.emailConfigured ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
-            <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Type</th><th>Contact</th>
-            <th>Preferred</th><th>Sales Rep</th><th>Status</th><th class="sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
+            <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Type</th><th>Contact</th>
+            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Sales Rep</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -270,18 +270,21 @@ function renderAccounts() {
             pg.rows.map(a => `<tr>
               ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span>${(() => { let t = []; try { t = JSON.parse(a.Tags || '[]'); } catch(e) {} return t.length > 0 ? '<div class="tag-badges">' + t.map(x => '<span class="badge badge-tag">' + esc(x) + '</span>').join(' ') + '</div>' : ''; })()}</td>
-              <td>${esc(a.Type)}</td>
+              <td class="mobile-hide">${esc(a.Type)}</td>
               <td>${esc(a.ContactName) || '—'}</td>
-              <td>${methodBadge(a.PreferredMethod)}</td>
-              <td class="text-sm">${esc(a.StaffName) || '<span class="text-muted">—</span>'}</td>
+              <td class="mobile-hide">${methodBadge(a.PreferredMethod)}</td>
+              <td class="mobile-hide text-sm">${esc(a.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td>${statusBadge(a.Status)}</td>
-              <td class="text-sm text-muted">${formatDate(a.LastContacted)}</td>
+              <td class="mobile-hide text-sm text-muted">${formatDate(a.LastContacted)}</td>
               <td class="td-actions">
+                <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                <div class="mobile-actions-menu">
                 <button class="btn btn-ghost btn-sm" onclick="loadAccountProfile('${esc(a.ID)}')">View</button>
                 <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(a.ID)}')">+ Log</button>
                 <button class="btn btn-ghost btn-sm" onclick="openEditAccount('${esc(a.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm" onclick="openMergeAccount('${esc(a.ID)}')">Merge</button>
                 <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(a.Name)}" onclick="deleteAccount('${esc(a.ID)}', this.dataset.name)">Del</button>
+                </div>
               </td>
             </tr>`).join('')}
         </tbody>
@@ -388,8 +391,11 @@ async function loadAccountProfile(accountId) {
         <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
         <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
         <td class="td-actions">
+          <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+          <div class="mobile-actions-menu">
           <button class="btn btn-ghost btn-sm" onclick="profileEditOutreach('${esc(o.ID)}')">Edit</button>
           <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOutreach('${esc(o.ID)}')">Del</button>
+          </div>
         </td>
       </tr>`).join('');
 
@@ -402,11 +408,14 @@ async function loadAccountProfile(accountId) {
         <td>${priorityBadge(t.Priority)}</td>
         <td class="text-sm text-muted">${esc(t.Notes) || '—'}</td>
         <td class="td-actions">
+          <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+          <div class="mobile-actions-menu">
           ${t.Completed !== 'true'
             ? `<button class="btn btn-ghost btn-sm" onclick="profileCompleteTodo('${esc(t.ID)}')">Done</button>`
             : `<button class="btn btn-ghost btn-sm" onclick="profileReopenTodo('${esc(t.ID)}')">Reopen</button>`}
           <button class="btn btn-ghost btn-sm" onclick="profileEditTodo('${esc(t.ID)}')">Edit</button>
           <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteTodo('${esc(t.ID)}')">Del</button>
+          </div>
         </td>
       </tr>`).join('');
 
@@ -428,10 +437,13 @@ async function loadAccountProfile(accountId) {
             ? '<input type="checkbox" checked disabled />'
             : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="profileEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
             : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
             <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>`}
+            </div>
           </td>
         </tr>`;
       }).join('');
@@ -464,9 +476,12 @@ async function loadAccountProfile(accountId) {
           <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
           <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${outstanding > 0
               ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal)">Return Kegs</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
+            </div>
           </td>
         </tr>`;
       }).join('');
@@ -484,9 +499,12 @@ async function loadAccountProfile(accountId) {
           <td class="text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
             ${outstanding > 0
               ? `<button class="btn btn-ghost btn-sm" onclick="openCollectTapHandle('${esc(h.ID)}', ${qty}, ${collected}, '${esc(h.Notes || '')}')">Collect</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Collected</span>'}
+            </div>
           </td>
         </tr>`;
       }).join('');
@@ -500,12 +518,15 @@ async function loadAccountProfile(accountId) {
           <p class="subtitle">${esc(acct.Type)} &mdash; ${statusBadge(acct.Status)}${(() => { let tags = []; try { tags = JSON.parse(acct.Tags || '[]'); } catch(e) {} return tags.length > 0 ? ' &mdash; ' + tags.map(t => '<span class="badge badge-tag">' + esc(t) + '</span>').join(' ') : ''; })()}</p>
         </div>
       </div>
-      <div class="view-header-actions">
+      <div class="view-header-actions profile-header-actions">
+        <button class="btn btn-ghost btn-sm profile-action-more mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+        <div class="mobile-actions-menu">
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
-        ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-secondary btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
+        ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-ghost btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openMergeAccount('${esc(accountId)}')">Merge</button>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
       </div>
     </div>
