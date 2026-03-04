@@ -243,10 +243,23 @@ async function createInvoice(order, lineItems, account) {
     LineNum: idx + 1,
   }));
 
-  // Add tax as a separate line if present
+  // Add tax as a line item (TxnTaxDetail.TotalTax is read-only in QBO)
   const taxAmount = parseFloat(order.TaxAmount || 0);
+  if (taxAmount > 0) {
+    lines.push({
+      DetailType:          'SalesItemLineDetail',
+      Amount:              taxAmount,
+      Description:         'Tax',
+      SalesItemLineDetail: {
+        ItemRef:   { value: productItemId },
+        UnitPrice: taxAmount,
+        Qty:       1,
+      },
+      LineNum: lines.length + 1,
+    });
+  }
 
-  // Add deposit as a separate description line if present
+  // Add deposit as a separate line if present
   const depositAmount = parseFloat(order.DepositAmount || 0);
   if (depositAmount > 0) {
     lines.push({
@@ -272,13 +285,6 @@ async function createInvoice(order, lineItems, account) {
     TxnDate:     order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     BillEmail:   billEmail ? { Address: billEmail } : undefined,
   };
-
-  // Add tax amount if present
-  if (taxAmount > 0) {
-    invoiceBody.TxnTaxDetail = {
-      TotalTax: taxAmount,
-    };
-  }
 
   // Remove undefined values
   Object.keys(invoiceBody).forEach(k => invoiceBody[k] === undefined && delete invoiceBody[k]);
