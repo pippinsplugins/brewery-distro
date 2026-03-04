@@ -31,51 +31,12 @@ function initMentions(inputId) {
   }
 
   function positionDropdown() {
-    // Create an off-screen mirror to calculate caret position
-    const isInput = el.tagName === 'INPUT';
-    if (isInput) {
-      const rect = el.getBoundingClientRect();
-      dropdown.style.position = 'fixed';
-      dropdown.style.left = rect.left + 'px';
-      dropdown.style.top = (rect.bottom + 2) + 'px';
-      dropdown.style.width = rect.width + 'px';
-      return;
-    }
-    // For textarea, approximate position using a mirror div
-    const mirror = document.createElement('div');
-    const cs = getComputedStyle(el);
-    const props = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
-      'paddingTop', 'paddingLeft', 'paddingRight', 'borderTopWidth', 'borderLeftWidth',
-      'boxSizing', 'whiteSpace', 'wordWrap', 'overflowWrap'];
-    props.forEach(p => { mirror.style[p] = cs[p]; });
-    mirror.style.position = 'absolute';
-    mirror.style.visibility = 'hidden';
-    mirror.style.width = cs.width;
-    mirror.style.whiteSpace = 'pre-wrap';
-    mirror.style.wordWrap = 'break-word';
-
-    const textBefore = el.value.substring(0, el.selectionStart);
-    mirror.textContent = textBefore;
-    const marker = document.createElement('span');
-    marker.textContent = '|';
-    mirror.appendChild(marker);
-    document.body.appendChild(mirror);
-
-    const elRect = el.getBoundingClientRect();
-    const markerRect = marker.getBoundingClientRect();
-    const mirrorRect = mirror.getBoundingClientRect();
-
-    const caretLeft = markerRect.left - mirrorRect.left;
-    const caretTop = markerRect.top - mirrorRect.top;
-
+    const rect = el.getBoundingClientRect();
     dropdown.style.position = 'fixed';
-    dropdown.style.left = (elRect.left + caretLeft) + 'px';
-    dropdown.style.top = (elRect.top + caretTop + parseInt(cs.lineHeight || cs.fontSize)) + 'px';
-    dropdown.style.width = 'auto';
-    dropdown.style.minWidth = '180px';
-    dropdown.style.maxWidth = '280px';
-
-    document.body.removeChild(mirror);
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = (rect.bottom + 2) + 'px';
+    dropdown.style.minWidth = Math.min(rect.width, 280) + 'px';
+    dropdown.style.maxWidth = '320px';
   }
 
   function renderDropdown() {
