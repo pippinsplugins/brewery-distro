@@ -45,7 +45,16 @@ app.set('trust proxy', 1);
 
 // ── Security headers ─────────────────────────────────────────────────────
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", "data:", "https:"],
+    },
+  },
+}));
 
 // ── Rate limiting ────────────────────────────────────────────────────────
 app.use('/auth',     rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
