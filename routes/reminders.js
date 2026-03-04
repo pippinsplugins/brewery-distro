@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('REMINDERS', reminder);
-    processMentions({ newText: reminder.Notes, oldText: '', entityType: 'todo', entityName: reminder.Title, entityId: reminder.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: reminder.Notes, oldText: '', entityType: 'todo', entityName: reminder.Title, entityId: reminder.ID, accountId: reminder.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.status(201).json(reminder);
   } catch (err) {
     console.error(`[reminders] ${err.message}`);
@@ -84,7 +84,7 @@ router.put('/:id', async (req, res) => {
     delete updates.ID;
     delete updates.CreatedAt;
     const updated = await updateRow('REMINDERS', req.params.id, updates);
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
 
     // When completing a recurring reminder, spawn the next occurrence
     if (updates.Completed === 'true' && updated.Recurrence && RECURRENCE_VALUES.has(updated.Recurrence) && updated.Recurrence !== 'none') {

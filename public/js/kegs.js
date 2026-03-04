@@ -122,6 +122,7 @@ const KEG_FORMATS = ['1/6 Keg', '1/4 Keg', '1/2 Keg'];
 
 async function openAddKegs(presetAccountId = '') {
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   const formHtml = `
     <div class="form-group">
       <label>Account <span class="required">*</span></label>

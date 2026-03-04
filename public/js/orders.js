@@ -653,6 +653,7 @@ async function openAddOrder(presetAccountId = '') {
 }
 
 async function openEditOrder(id) {
+  if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
   const isPaid = order.Status === 'Paid';

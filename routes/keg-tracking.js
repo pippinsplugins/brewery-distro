@@ -75,7 +75,7 @@ router.post('/', async (req, res) => {
       CreatedAt: new Date().toISOString(),
     };
     await addRow('KEG_TRACKING', record);
-    processMentions({ newText: record.Notes, oldText: '', entityType: 'keg', entityName: record.AccountName, entityId: record.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: record.Notes, oldText: '', entityType: 'keg', entityName: record.AccountName, entityId: record.ID, accountId: record.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(record);
   } catch (err) {
     console.error(`[keg-tracking] ${err.message}`);

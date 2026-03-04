@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
       CreatedAt: new Date().toISOString(),
     };
     await addRow('TAP_HANDLES', record);
-    processMentions({ newText: record.Notes, oldText: '', entityType: 'tap-handle', entityName: record.AccountName, entityId: record.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: record.Notes, oldText: '', entityType: 'tap-handle', entityName: record.AccountName, entityId: record.ID, accountId: record.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(record);
   } catch (err) {
     console.error(`[tap-handles] ${err.message}`);
@@ -81,7 +81,7 @@ router.put('/:id', async (req, res) => {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
     const updated = await updateRow('TAP_HANDLES', id, updates);
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'tap-handle', entityName: updated.AccountName, entityId: updated.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'tap-handle', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;

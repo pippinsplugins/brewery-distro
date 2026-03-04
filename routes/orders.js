@@ -75,7 +75,7 @@ router.post('/', async (req, res) => {
     };
 
     await addRow('ORDERS', order);
-    processMentions({ newText: order.Notes, oldText: '', entityType: 'order', entityName: order.AccountName, entityId: order.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: order.Notes, oldText: '', entityType: 'order', entityName: order.AccountName, entityId: order.ID, accountId: order.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.status(201).json(order);
   } catch (err) {
     console.error(`[orders] ${err.message}`);
@@ -98,7 +98,7 @@ router.put('/:id', async (req, res) => {
     delete updates.CreatedAt;
     if (updates.OrderDate) updates.OrderDate = withTimestamp(updates.OrderDate);
     const updated = await updateRow('ORDERS', req.params.id, updates);
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'order', entityName: updated.AccountName, entityId: updated.ID, user: req.user, mentionerName: req.user.name }).catch(err => console.error('[notifications]', err));
+    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'order', entityName: updated.AccountName, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl: req.protocol + '://' + req.get('host') }).catch(err => console.error('[notifications]', err));
     res.json(updated);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;
