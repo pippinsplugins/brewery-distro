@@ -85,20 +85,20 @@ function renderStaff() {
       <table>
         <thead>
           <tr>
-            <th>Name</th><th>Role</th><th>Email</th><th>Phone</th>
-            <th>Accounts</th><th>Status</th><th>Notes</th><th>Actions</th>
+            <th>Name</th><th class="mobile-hide">Role</th><th>Email</th><th class="mobile-hide">Phone</th>
+            <th class="mobile-hide">Accounts</th><th class="mobile-hide">Status</th><th class="mobile-hide">Notes</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No staff found. Add your first team member!</td></tr>` :
             pg.rows.map(s => `<tr>
               <td class="fw-600"><span class="td-link" onclick="openEditStaff('${esc(s.ID)}')">${esc(s.Name)}</span></td>
-              <td>${esc(s.Role) || '—'}</td>
+              <td class="mobile-hide">${esc(s.Role) || '—'}</td>
               <td class="text-sm">${esc(s.Email) || '—'}</td>
-              <td class="text-sm">${s.Phone ? esc(formatPhone(s.Phone)) : '—'}</td>
-              <td><span class="badge badge-prospect">${acctCounts[s.ID] || 0} account${(acctCounts[s.ID] || 0) !== 1 ? 's' : ''}</span></td>
-              <td><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
-              <td class="text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
+              <td class="mobile-hide text-sm">${s.Phone ? esc(formatPhone(s.Phone)) : '—'}</td>
+              <td class="mobile-hide"><span class="badge badge-prospect">${acctCounts[s.ID] || 0} account${(acctCounts[s.ID] || 0) !== 1 ? 's' : ''}</span></td>
+              <td class="mobile-hide"><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
+              <td class="mobile-hide text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                 <div class="mobile-actions-menu">
