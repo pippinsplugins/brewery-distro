@@ -46,7 +46,29 @@ function accountPopup(acct) {
 
 async function loadMap() {
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
-  const accounts = state.accounts.filter(a => a.Status !== 'Inactive');
+
+  // Read current tag filter before re-rendering DOM
+  const tagFilterEl = document.getElementById('map-tag-filter');
+  const selectedTag = tagFilterEl ? tagFilterEl.value : '';
+
+  let accounts = state.accounts.filter(a => a.Status !== 'Inactive');
+  if (selectedTag) {
+    accounts = accounts.filter(a => {
+      try { return JSON.parse(a.Tags || '[]').includes(selectedTag); }
+      catch { return false; }
+    });
+  }
+
+  // Build tag filter bar HTML
+  let tagFilterHtml = '';
+  if (typeof ACCOUNT_TAGS !== 'undefined' && ACCOUNT_TAGS.length > 0) {
+    const opts = ACCOUNT_TAGS.map(t =>
+      `<option value="${esc(t)}"${t === selectedTag ? ' selected' : ''}>${esc(t)}</option>`
+    ).join('');
+    tagFilterHtml = `<div class="filter-bar">
+      <select id="map-tag-filter" onchange="loadMap()">
+        <option value="">All Tags</option>${opts}</select></div>`;
+  }
 
   setContent(`
     <div class="content-header">
@@ -55,6 +77,7 @@ async function loadMap() {
         <span id="map-status" class="text-muted text-sm"></span>
       </div>
     </div>
+    ${tagFilterHtml}
     <div id="map-container" style="height:calc(100vh - 140px);border-radius:8px;overflow:hidden;border:1px solid var(--border)"></div>`);
 
   // Clean up previous map instance
