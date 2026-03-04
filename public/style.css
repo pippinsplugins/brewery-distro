@@ -632,6 +632,11 @@ tbody td {
   display: flex;
   gap: 4px;
   white-space: nowrap;
+  position: relative;
+}
+
+.mobile-actions-toggle {
+  display: none;
 }
 
 /* ── Badges ────────────────────────────────────────────── */
@@ -1481,6 +1486,36 @@ th input[type="checkbox"] {
   .view-header-actions {
     gap: 6px;
     flex-wrap: wrap;
+  }
+
+  /* ── Mobile actions menu (... toggle) ── */
+  .td-actions > .btn { display: none; }
+  .td-actions .mobile-actions-toggle { display: inline-flex; }
+
+  .mobile-actions-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 50;
+    min-width: 120px;
+    padding: 4px 0;
+  }
+
+  .mobile-actions-menu.open { display: block; }
+
+  .mobile-actions-menu .btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border-radius: 0;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 }
 
