@@ -302,7 +302,7 @@ async function loadQboStatus() {
     if (!status.connected) {
       body.innerHTML = `
         <p class="text-sm text-muted" style="margin-bottom:12px">
-          Connect your QuickBooks Online account to automatically create invoices when orders are placed.
+          Connect your QuickBooks Online account to create invoices in QuickBooks when saving orders.
         </p>
         <a class="btn btn-primary" href="/auth/qbo">Connect to QuickBooks</a>`;
       return;
@@ -310,7 +310,7 @@ async function loadQboStatus() {
 
     body.innerHTML = `
       <p class="text-sm text-muted" style="margin-bottom:12px">
-        Connected to QuickBooks Online. Invoices will be automatically created when orders are placed.
+        Connected to QuickBooks Online. You will be prompted to create a QuickBooks invoice after saving an order.
       </p>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
         <span class="badge badge-success">Connected</span>
