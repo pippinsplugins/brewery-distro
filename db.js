@@ -266,10 +266,12 @@ function migrateProductFormatsToInventory() {
   }
 
   // Phase 2: Merge same-name products into one, keeping formats as variations
-  // Group products by Name+Style+ABV (the identity minus format)
+  // Group products by Name only — variants of the same product may differ in
+  // Style/ABV (one entry filled in, another not), so those aren't part of the key.
   const groups = new Map(); // key → [product, ...]
   for (const p of products) {
-    const key = [p.Name || '', p.Style || '', p.ABV || ''].map(s => s.toLowerCase().trim()).join('|||');
+    const key = (p.Name || '').toLowerCase().trim();
+    if (!key) continue;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(p);
   }
@@ -279,10 +281,22 @@ function migrateProductFormatsToInventory() {
   for (const [, group] of groups) {
     if (group.length <= 1) continue; // nothing to merge
 
-    // Pick survivor: prefer the one with the earliest CreatedAt, or first
-    group.sort((a, b) => (a.CreatedAt || '').localeCompare(b.CreatedAt || ''));
+    // Pick survivor: prefer the one with the most data (Style+ABV filled), then earliest CreatedAt
+    group.sort((a, b) => {
+      const aScore = (a.Style ? 1 : 0) + (a.ABV ? 1 : 0);
+      const bScore = (b.Style ? 1 : 0) + (b.ABV ? 1 : 0);
+      if (bScore !== aScore) return bScore - aScore; // more data first
+      return (a.CreatedAt || '').localeCompare(b.CreatedAt || '');
+    });
     const survivor = group[0];
     const duplicates = group.slice(1);
+
+    // Inherit any missing fields from duplicates into the survivor
+    for (const dup of duplicates) {
+      if (!survivor.Style && dup.Style) survivor.Style = dup.Style;
+      if (!survivor.ABV && dup.ABV) survivor.ABV = dup.ABV;
+      if (!survivor.Notes && dup.Notes) survivor.Notes = dup.Notes;
+    }
 
     // Re-read inventory to get up-to-date state (Phase 1 may have updated it)
     const currentInventory = getAllRows('INVENTORY');
@@ -321,10 +335,15 @@ function migrateProductFormatsToInventory() {
       deletedProducts++;
     }
 
-    // Clear Format/PricePerUnit on the survivor (they live on inventory now)
-    if (survivor.Format || survivor.PricePerUnit) {
-      updateRow('PRODUCTS', survivor.ID, { Format: '', PricePerUnit: '' });
-    }
+    // Update survivor: clear Format/PricePerUnit (they live on inventory now),
+    // and persist any fields inherited from duplicates (Style, ABV, Notes)
+    updateRow('PRODUCTS', survivor.ID, {
+      Format: '',
+      PricePerUnit: '',
+      Style: survivor.Style || '',
+      ABV: survivor.ABV || '',
+      Notes: survivor.Notes || '',
+    });
 
     mergedProducts++;
   }
