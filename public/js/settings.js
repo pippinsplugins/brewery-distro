@@ -116,7 +116,17 @@ function renderSettings() {
           <button class="btn btn-primary" style="margin-top:12px" onclick="saveKegDeposits()">Save</button>
         </div>
       </div>
+
+      <div class="card" id="qbo-settings-card">
+        <div class="card-header"><h3>QuickBooks Online</h3></div>
+        <div style="padding:0 18px 18px" id="qbo-settings-body">
+          <p class="text-sm text-muted">Loading QuickBooks status...</p>
+        </div>
+      </div>
     </div>`);
+
+  // Load QBO status asynchronously
+  loadQboStatus();
 }
 
 function saveCompanyName() {
@@ -267,5 +277,97 @@ function removeAccountTag(index, name) {
     modal.close();
     toast('Tag removed');
     renderSettings();
+  });
+}
+
+// ── QuickBooks Online ─────────────────────────────────────────────
+
+async function loadQboStatus() {
+  const body = document.getElementById('qbo-settings-body');
+  if (!body) return;
+
+  try {
+    const status = await api.get('/api/qbo/status');
+
+    if (!status.configured) {
+      body.innerHTML = `
+        <p class="text-sm text-muted" style="margin-bottom:8px">
+          QuickBooks integration is not configured. Set <code>QBO_CLIENT_ID</code> and <code>QBO_CLIENT_SECRET</code> environment variables to enable.
+        </p>
+        <span class="badge badge-neutral">Not Configured</span>`;
+      return;
+    }
+
+    if (!status.connected) {
+      body.innerHTML = `
+        <p class="text-sm text-muted" style="margin-bottom:12px">
+          Connect your QuickBooks Online account to create invoices in QuickBooks when saving orders.
+        </p>
+        <a class="btn btn-primary" href="/auth/qbo">Connect to QuickBooks</a>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <p class="text-sm text-muted" style="margin-bottom:12px">
+        Connected to QuickBooks Online. You will be prompted to create a QuickBooks invoice after saving an order.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span class="badge badge-success">Connected</span>
+        <span class="text-sm text-muted">Company ID: ${esc(status.realmId)}</span>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Tax Code</label>
+        <select class="form-control" id="qbo-tax-code" onchange="saveQboTaxCode()" disabled>
+          <option value="">Loading tax codes...</option>
+        </select>
+        <p class="text-sm text-muted" style="margin-top:4px">Select which QuickBooks tax code to apply to invoices.</p>
+      </div>
+      <button class="btn btn-ghost text-danger" onclick="disconnectQbo()">Disconnect</button>`;
+
+    // Load tax codes into the dropdown
+    loadQboTaxCodes();
+  } catch (err) {
+    body.innerHTML = `<p class="text-sm text-danger">Failed to load QuickBooks status.</p>`;
+  }
+}
+
+async function loadQboTaxCodes() {
+  const sel = document.getElementById('qbo-tax-code');
+  if (!sel) return;
+  try {
+    const codes = await api.get('/api/qbo/tax-codes');
+    const saved = state.settings.qboTaxCodeId || '';
+    sel.innerHTML = '<option value="">None (no tax applied)</option>' +
+      codes.map(c =>
+        `<option value="${esc(c.id)}" ${saved === c.id ? 'selected' : ''}>${esc(c.name)}${c.rate ? ` (${c.rate}%)` : ''}</option>`
+      ).join('');
+    sel.disabled = false;
+  } catch {
+    sel.innerHTML = '<option value="">Failed to load tax codes</option>';
+  }
+}
+
+async function saveQboTaxCode() {
+  const taxCodeId = document.getElementById('qbo-tax-code')?.value || '';
+  try {
+    await api.post('/api/qbo/tax-code', { taxCodeId });
+    const updated = await api.get('/api/settings');
+    state.settings = updated;
+    toast('Tax code saved');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function disconnectQbo() {
+  modal.confirm('Disconnect QuickBooks', 'Disconnect from QuickBooks Online? New orders will no longer sync automatically.', async () => {
+    try {
+      await api.post('/api/qbo/disconnect');
+      modal.close();
+      toast('Disconnected from QuickBooks');
+      loadQboStatus();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   });
 }

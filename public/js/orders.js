@@ -2,6 +2,100 @@
 
 const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
+let _qboAppUrl = '';
+(async () => {
+  try {
+    const s = await api.get('/api/qbo/status');
+    if (s.appUrl) _qboAppUrl = s.appUrl;
+  } catch { /* ignore — QBO not configured */ }
+})();
+
+function qboInvoiceUrl(order) {
+  if (!_qboAppUrl || !order.QboInvoiceId) return '';
+  return `${_qboAppUrl}/app/invoice?txnId=${encodeURIComponent(order.QboInvoiceId)}`;
+}
+
+function qboSyncBadge(order) {
+  switch (order.QboSyncStatus) {
+    case 'synced':
+      return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO Synced</span>';
+    case 'failed':
+      return ` <span class="badge badge-danger" style="cursor:pointer" title="${esc(order.QboSyncError || 'QBO sync failed')} — click to retry" onclick="event.stopPropagation(); retryQboSync('${esc(order.ID)}')">QBO Failed</span>`;
+    case 'disabled':
+      return ' <span class="badge badge-neutral" title="QuickBooks not connected">QBO Off</span>';
+    case 'skipped':
+      return ' <span class="badge badge-neutral" title="QBO sync disabled for this order">QBO Disabled</span>';
+    default:
+      // No badge for pre-integration orders that are already paid/delivered
+      if (!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') return '';
+      return ' <span class="badge badge-neutral" title="Not synced to QuickBooks">QBO Pending</span>';
+  }
+}
+
+async function retryQboSync(orderId) {
+  try {
+    toast('Retrying QuickBooks sync...');
+    const updated = await api.post(`/api/qbo/sync/${orderId}`);
+    if (updated.QboSyncStatus === 'synced') {
+      toast('Synced to QuickBooks');
+    } else {
+      toast('QBO sync failed: ' + (updated.QboSyncError || 'unknown error'), 'error');
+    }
+    await loadOrders(true);
+  } catch (err) {
+    toast('QBO sync error: ' + err.message, 'error');
+  }
+}
+
+async function promptQboSync(orderId, reloadFn) {
+  // Check if QBO is connected before prompting
+  try {
+    const s = await api.get('/api/qbo/status');
+    if (s.appUrl) _qboAppUrl = s.appUrl;
+    if (!s.connected) {
+      api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'disabled' }).catch(() => {});
+      reloadFn();
+      return;
+    }
+  } catch {
+    reloadFn();
+    return;
+  }
+  // Show prompt with inline buttons (no standard modal submit/cancel)
+  modal.open('Create QuickBooks Invoice?', `
+    <p style="margin-bottom:16px">Would you like to create an invoice in QuickBooks for this order?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="qbo-prompt-skip">Skip</button>
+      <button class="btn btn-primary" id="qbo-prompt-create">Create Invoice</button>
+    </div>
+  `, null, 'Save');
+  // Hide the standard modal footer buttons
+  document.getElementById('modal-submit-btn').style.display = 'none';
+  document.getElementById('modal-cancel-btn').style.display = 'none';
+
+  document.getElementById('qbo-prompt-create').onclick = async () => {
+    modal.close();
+    toast('Creating QuickBooks invoice...');
+    try {
+      const updated = await api.post(`/api/qbo/sync/${orderId}`);
+      if (updated.QboSyncStatus === 'synced') {
+        toast('Invoice created in QuickBooks');
+      } else {
+        toast('QBO sync failed: ' + (updated.QboSyncError || 'unknown error'), 'error');
+      }
+    } catch (err) {
+      toast('QBO sync error: ' + err.message, 'error');
+    }
+    reloadFn();
+  };
+  document.getElementById('qbo-prompt-skip').onclick = async () => {
+    modal.close();
+    await api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'skipped' }).catch(() => {});
+    toast('QuickBooks sync skipped');
+    reloadFn();
+  };
+}
+
 function orderForm(order = {}, presetAccountId = '', readOnly = false) {
   const selAcctId = order.AccountID || presetAccountId;
   const dis = readOnly ? ' disabled' : '';
@@ -82,7 +176,17 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
-    </div>`;
+    </div>
+    ${order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
+    <hr class="form-divider" />
+    <div class="form-section-title">QuickBooks</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}` : ''}
+      ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span>${order.QboSyncError ? `<span class="text-sm text-danger">${esc(order.QboSyncError)}</span>` : ''}<button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
+      ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">Not Connected</span>' : ''}
+      ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Sync Disabled</span>' : ''}
+      ${!order.QboSyncStatus ? '<span class="badge badge-neutral">Pending</span>' : ''}
+    </div>` : ''}`;
 }
 
 function preSaleForm(ps = {}, presetAccountId = '') {
@@ -577,7 +681,7 @@ function renderOrders() {
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
+                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -644,8 +748,10 @@ async function openAddOrder(presetAccountId = '') {
     await saveOrderItems(order.ID);
     modal.close();
     toast('Order logged');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadOrders();
+    const reloadFn = state.view === 'account-profile'
+      ? () => loadAccountProfile(state.accountProfileId)
+      : () => loadOrders();
+    promptQboSync(order.ID, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts();
@@ -808,8 +914,10 @@ async function convertPreSale(id) {
     await saveOrderItems(id);
     modal.close();
     toast('Pre-sale converted to order');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadOrders();
+    const reloadFn = state.view === 'account-profile'
+      ? () => loadAccountProfile(state.accountProfileId)
+      : () => loadOrders();
+    promptQboSync(id, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts(ps.RequestedProducts);
