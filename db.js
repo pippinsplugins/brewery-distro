@@ -234,15 +234,19 @@ function migrateInventoryToProducts() {
 }
 
 // ── Product Formats → Inventory migration (one-time, idempotent) ──────
-// Copies Format and PricePerUnit from each Product to its linked Inventory rows,
-// but only where the inventory row's own values are empty.
+// 1. Copies Format and PricePerUnit from each Product to its linked Inventory
+//    rows (where the inventory row's own values are empty).
+// 2. Merges products that share the same Name+Style+ABV into a single product,
+//    re-pointing inventory rows from duplicates to the surviving product and
+//    preserving each format as a variation on inventory rows.
 
 function migrateProductFormatsToInventory() {
   const products = getAllRows('PRODUCTS');
   const inventory = getAllRows('INVENTORY');
-  if (products.length === 0 || inventory.length === 0) return;
+  if (products.length === 0) return;
 
-  let updated = 0;
+  // Phase 1: Copy Format/PricePerUnit from products down to inventory rows
+  let copiedCount = 0;
   for (const inv of inventory) {
     if (!inv.ProductID) continue;
     const product = products.find(p => p.ID === inv.ProductID);
@@ -254,11 +258,79 @@ function migrateProductFormatsToInventory() {
 
     if (Object.keys(updates).length > 0) {
       updateRow('INVENTORY', inv.ID, updates);
-      updated++;
+      copiedCount++;
     }
   }
-  if (updated > 0) {
-    console.log(`  Migrated Format/PricePerUnit to ${updated} inventory rows`);
+  if (copiedCount > 0) {
+    console.log(`  Migrated Format/PricePerUnit to ${copiedCount} inventory rows`);
+  }
+
+  // Phase 2: Merge same-name products into one, keeping formats as variations
+  // Group products by Name+Style+ABV (the identity minus format)
+  const groups = new Map(); // key → [product, ...]
+  for (const p of products) {
+    const key = [p.Name || '', p.Style || '', p.ABV || ''].map(s => s.toLowerCase().trim()).join('|||');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+
+  let mergedProducts = 0;
+  let deletedProducts = 0;
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue; // nothing to merge
+
+    // Pick survivor: prefer the one with the earliest CreatedAt, or first
+    group.sort((a, b) => (a.CreatedAt || '').localeCompare(b.CreatedAt || ''));
+    const survivor = group[0];
+    const duplicates = group.slice(1);
+
+    // Re-read inventory to get up-to-date state (Phase 1 may have updated it)
+    const currentInventory = getAllRows('INVENTORY');
+
+    for (const dup of duplicates) {
+      // Find inventory rows pointing to the duplicate
+      const dupInvRows = currentInventory.filter(i => i.ProductID === dup.ID);
+
+      for (const inv of dupInvRows) {
+        // Check if the survivor already has an inventory row at this location+format
+        const fmt = inv.Format || dup.Format || '';
+        const existingAtLoc = currentInventory.find(i =>
+          i.ProductID === survivor.ID &&
+          i.Location === inv.Location &&
+          (i.Format || '') === fmt
+        );
+
+        if (existingAtLoc) {
+          // Merge units into the existing row and delete the duplicate inventory row
+          const mergedUnits = parseInt(existingAtLoc.Units || '0') + parseInt(inv.Units || '0');
+          updateRow('INVENTORY', existingAtLoc.ID, { Units: String(mergedUnits) });
+          deleteRow('INVENTORY', inv.ID);
+        } else {
+          // Re-point to the survivor product
+          updateRow('INVENTORY', inv.ID, {
+            ProductID: survivor.ID,
+            ProductName: survivor.Name,
+            Format: fmt,
+            PricePerUnit: inv.PricePerUnit || dup.PricePerUnit || '',
+          });
+        }
+      }
+
+      // Delete the duplicate product row
+      deleteRow('PRODUCTS', dup.ID);
+      deletedProducts++;
+    }
+
+    // Clear Format/PricePerUnit on the survivor (they live on inventory now)
+    if (survivor.Format || survivor.PricePerUnit) {
+      updateRow('PRODUCTS', survivor.ID, { Format: '', PricePerUnit: '' });
+    }
+
+    mergedProducts++;
+  }
+
+  if (mergedProducts > 0) {
+    console.log(`  Merged ${mergedProducts} product groups (deleted ${deletedProducts} duplicate product rows)`);
   }
 }
 
