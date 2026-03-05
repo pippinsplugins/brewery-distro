@@ -224,42 +224,70 @@ async function getOrCreateProductItem() {
   return _qboProductItemId;
 }
 
+// ── Tax code / rate lookup ────────────────────────────────────────
+
+let _qboTaxInfo = null;
+
+async function getTaxInfo() {
+  if (_qboTaxInfo) return _qboTaxInfo;
+
+  // Find the first active taxable TaxCode (the one that applies tax, not "NON")
+  const codeResult = await qboApiRequest('GET',
+    `query?query=${encodeURIComponent("SELECT * FROM TaxCode WHERE Active = true MAXRESULTS 10")}`);
+  const taxCodes = codeResult.QueryResponse?.TaxCode || [];
+  // Pick the first code that is not the non-taxable code
+  const taxableCode = taxCodes.find(c => c.Name !== 'NON' && c.Active !== false);
+  if (!taxableCode) return null;
+
+  // Extract the tax rate ID from the code's purchase/sales rate detail
+  const rateList = taxableCode.SalesTaxRateList?.TaxRateDetail || [];
+  const rateRef = rateList[0]?.TaxRateRef;
+  if (!rateRef) return null;
+
+  // Look up the actual rate to get the percentage
+  const rateResult = await qboApiRequest('GET',
+    `query?query=${encodeURIComponent(`SELECT * FROM TaxRate WHERE Id = '${rateRef.value}'`)}`);
+  const rate = rateResult.QueryResponse?.TaxRate?.[0];
+
+  _qboTaxInfo = {
+    taxCodeId:  String(taxableCode.Id),
+    taxRateId:  String(rateRef.value),
+    taxPercent: rate ? parseFloat(rate.RateValue || 0) : 0,
+  };
+  return _qboTaxInfo;
+}
+
 // ── Invoice creation ─────────────────────────────────────────────
 
 async function createInvoice(order, lineItems, account) {
   const customerId = await findOrCreateCustomer(account);
   const productItemId = await getOrCreateProductItem();
+  const taxInfo = await getTaxInfo();
+
+  const taxAmount = parseFloat(order.TaxAmount || 0);
+  const hasTax = taxAmount > 0 && taxInfo;
 
   // Build QBO line items referencing the generic product item
-  const lines = lineItems.map((li, idx) => ({
-    DetailType:          'SalesItemLineDetail',
-    Amount:              parseFloat(li.LineTotal || 0),
-    Description:         [li.ProductName, li.Format].filter(Boolean).join(' — '),
-    SalesItemLineDetail: {
-      ItemRef:   { value: productItemId },
-      UnitPrice: parseFloat(li.UnitPrice || 0),
-      Qty:       parseFloat(li.Quantity  || 0),
-    },
-    LineNum: idx + 1,
-  }));
-
-  // Add tax as a line item (TxnTaxDetail.TotalTax is read-only in QBO)
-  const taxAmount = parseFloat(order.TaxAmount || 0);
-  if (taxAmount > 0) {
-    lines.push({
+  const lines = lineItems.map((li, idx) => {
+    const line = {
       DetailType:          'SalesItemLineDetail',
-      Amount:              taxAmount,
-      Description:         'Tax',
+      Amount:              parseFloat(li.LineTotal || 0),
+      Description:         [li.ProductName, li.Format].filter(Boolean).join(' — '),
       SalesItemLineDetail: {
         ItemRef:   { value: productItemId },
-        UnitPrice: taxAmount,
-        Qty:       1,
+        UnitPrice: parseFloat(li.UnitPrice || 0),
+        Qty:       parseFloat(li.Quantity  || 0),
       },
-      LineNum: lines.length + 1,
-    });
-  }
+      LineNum: idx + 1,
+    };
+    // Mark product lines as taxable when tax applies
+    if (hasTax) {
+      line.SalesItemLineDetail.TaxCodeRef = { value: 'TAX' };
+    }
+    return line;
+  });
 
-  // Add deposit as a separate line if present
+  // Add deposit as a separate line if present (non-taxable)
   const depositAmount = parseFloat(order.DepositAmount || 0);
   if (depositAmount > 0) {
     lines.push({
@@ -270,6 +298,7 @@ async function createInvoice(order, lineItems, account) {
         ItemRef:   { value: productItemId },
         UnitPrice: depositAmount,
         Qty:       1,
+        TaxCodeRef: { value: 'NON' },
       },
       LineNum: lines.length + 1,
     });
@@ -285,6 +314,28 @@ async function createInvoice(order, lineItems, account) {
     TxnDate:     order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     BillEmail:   billEmail ? { Address: billEmail } : undefined,
   };
+
+  // Apply native QBO tax
+  if (hasTax) {
+    const netTaxable = lines
+      .filter(l => l.SalesItemLineDetail?.TaxCodeRef?.value === 'TAX')
+      .reduce((sum, l) => sum + (l.Amount || 0), 0);
+
+    invoiceBody.TxnTaxDetail = {
+      TxnTaxCodeRef: { value: taxInfo.taxCodeId },
+      TotalTax:       taxAmount,
+      TaxLine: [{
+        Amount:     taxAmount,
+        DetailType: 'TaxLineDetail',
+        TaxLineDetail: {
+          TaxRateRef:       { value: taxInfo.taxRateId },
+          PercentBased:     true,
+          TaxPercent:       taxInfo.taxPercent,
+          NetAmountTaxable: netTaxable,
+        },
+      }],
+    };
+  }
 
   // Remove undefined values
   Object.keys(invoiceBody).forEach(k => invoiceBody[k] === undefined && delete invoiceBody[k]);
