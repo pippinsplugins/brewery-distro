@@ -322,7 +322,17 @@ async function loadQboStatus() {
           Auto-sync new orders to QuickBooks
         </label>
       </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Tax Code</label>
+        <select class="form-control" id="qbo-tax-code" onchange="saveQboTaxCode()" disabled>
+          <option value="">Loading tax codes...</option>
+        </select>
+        <p class="text-sm text-muted" style="margin-top:4px">Select which QuickBooks tax code to apply to invoices.</p>
+      </div>
       <button class="btn btn-ghost text-danger" onclick="disconnectQbo()">Disconnect</button>`;
+
+    // Load tax codes into the dropdown
+    loadQboTaxCodes();
   } catch (err) {
     body.innerHTML = `<p class="text-sm text-danger">Failed to load QuickBooks status.</p>`;
   }
@@ -334,6 +344,34 @@ async function toggleQboAutoSync() {
     const updated = await api.put('/api/settings', { qboAutoSync: checked ? 'true' : 'false' });
     state.settings = updated;
     toast(checked ? 'Auto-sync enabled' : 'Auto-sync disabled');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function loadQboTaxCodes() {
+  const sel = document.getElementById('qbo-tax-code');
+  if (!sel) return;
+  try {
+    const codes = await api.get('/api/qbo/tax-codes');
+    const saved = state.settings.qboTaxCodeId || '';
+    sel.innerHTML = '<option value="">None (no tax applied)</option>' +
+      codes.map(c =>
+        `<option value="${esc(c.id)}" ${saved === c.id ? 'selected' : ''}>${esc(c.name)}${c.rate ? ` (${c.rate}%)` : ''}</option>`
+      ).join('');
+    sel.disabled = false;
+  } catch {
+    sel.innerHTML = '<option value="">Failed to load tax codes</option>';
+  }
+}
+
+async function saveQboTaxCode() {
+  const taxCodeId = document.getElementById('qbo-tax-code')?.value || '';
+  try {
+    await api.post('/api/qbo/tax-code', { taxCodeId });
+    const updated = await api.get('/api/settings');
+    state.settings = updated;
+    toast('Tax code saved');
   } catch (err) {
     toast(err.message, 'error');
   }

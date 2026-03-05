@@ -226,20 +226,56 @@ async function getOrCreateProductItem() {
 
 // ── Tax code / rate lookup ────────────────────────────────────────
 
+async function fetchTaxCodes() {
+  const codeResult = await qboApiRequest('GET',
+    `query?query=${encodeURIComponent("SELECT * FROM TaxCode WHERE Active = true MAXRESULTS 50")}`);
+  const taxCodes = (codeResult.QueryResponse?.TaxCode || [])
+    .filter(c => c.Name !== 'NON');
+
+  // Enrich each code with its rate percentage
+  const enriched = [];
+  for (const code of taxCodes) {
+    const rateDetail = code.SalesTaxRateList?.TaxRateDetail?.[0];
+    const rateRef = rateDetail?.TaxRateRef;
+    let ratePercent = 0;
+    if (rateRef) {
+      try {
+        const rateResult = await qboApiRequest('GET',
+          `query?query=${encodeURIComponent(`SELECT * FROM TaxRate WHERE Id = '${rateRef.value}'`)}`);
+        ratePercent = parseFloat(rateResult.QueryResponse?.TaxRate?.[0]?.RateValue || 0);
+      } catch { /* ignore */ }
+    }
+    enriched.push({
+      id:      String(code.Id),
+      name:    code.Name || '',
+      rate:    ratePercent,
+      rateId:  rateRef ? String(rateRef.value) : '',
+    });
+  }
+  return enriched;
+}
+
 let _qboTaxInfo = null;
 
 async function getTaxInfo() {
   if (_qboTaxInfo) return _qboTaxInfo;
 
-  // Find the first active taxable TaxCode (the one that applies tax, not "NON")
+  // Use the user-selected tax code from settings, or fall back to first available
+  const settings = await getAllRows('SETTINGS');
+  const savedCodeId = settings.find(r => r.Key === 'qboTaxCodeId')?.Value || '';
+
   const codeResult = await qboApiRequest('GET',
-    `query?query=${encodeURIComponent("SELECT * FROM TaxCode WHERE Active = true MAXRESULTS 10")}`);
-  const taxCodes = codeResult.QueryResponse?.TaxCode || [];
-  // Pick the first code that is not the non-taxable code
-  const taxableCode = taxCodes.find(c => c.Name !== 'NON' && c.Active !== false);
+    `query?query=${encodeURIComponent("SELECT * FROM TaxCode WHERE Active = true MAXRESULTS 50")}`);
+  const taxCodes = (codeResult.QueryResponse?.TaxCode || [])
+    .filter(c => c.Name !== 'NON');
+
+  // Pick the saved code, or fall back to the first taxable one
+  const taxableCode = savedCodeId
+    ? taxCodes.find(c => String(c.Id) === savedCodeId) || taxCodes[0]
+    : taxCodes[0];
   if (!taxableCode) return null;
 
-  // Extract the tax rate ID from the code's purchase/sales rate detail
+  // Extract the tax rate ID from the code's sales rate detail
   const rateList = taxableCode.SalesTaxRateList?.TaxRateDetail || [];
   const rateRef = rateList[0]?.TaxRateRef;
   if (!rateRef) return null;
@@ -255,6 +291,11 @@ async function getTaxInfo() {
     taxPercent: rate ? parseFloat(rate.RateValue || 0) : 0,
   };
   return _qboTaxInfo;
+}
+
+// Clear cached tax info when user changes the setting
+function clearTaxInfoCache() {
+  _qboTaxInfo = null;
 }
 
 // ── Invoice creation ─────────────────────────────────────────────
@@ -410,5 +451,7 @@ module.exports = {
   clearTokens,
   getValidToken,
   syncOrderToQbo,
+  fetchTaxCodes,
+  clearTaxInfoCache,
   QBO_APP_URL,
 };

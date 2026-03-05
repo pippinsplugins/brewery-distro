@@ -2,7 +2,7 @@
 
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, QBO_APP_URL } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -78,6 +78,39 @@ apiRouter.post('/disconnect', async (req, res) => {
   } catch (err) {
     console.error('[qbo]', err.message);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/qbo/tax-codes — list available tax codes from QBO
+apiRouter.get('/tax-codes', async (req, res) => {
+  try {
+    const codes = await fetchTaxCodes();
+    res.json(codes);
+  } catch (err) {
+    console.error('[qbo]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/qbo/tax-code — save selected tax code ID
+apiRouter.post('/tax-code', async (req, res) => {
+  try {
+    const { taxCodeId } = req.body;
+    const { v4: uuidv4 } = require('uuid');
+    const { getAllRows, addRow, updateRow } = require('../db');
+    const rows = await getAllRows('SETTINGS');
+    const existing = rows.find(r => r.Key === 'qboTaxCodeId');
+    const now = new Date().toISOString().split('T')[0];
+    if (existing) {
+      await updateRow('SETTINGS', existing.ID, { Value: taxCodeId || '', UpdatedAt: now });
+    } else {
+      await addRow('SETTINGS', { ID: uuidv4(), Key: 'qboTaxCodeId', Value: taxCodeId || '', UpdatedAt: now });
+    }
+    clearTaxInfoCache();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[qbo]', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
