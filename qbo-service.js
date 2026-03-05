@@ -232,24 +232,24 @@ async function fetchTaxCodes() {
   const taxCodes = (codeResult.QueryResponse?.TaxCode || [])
     .filter(c => c.Name !== 'NON');
 
-  // Enrich each code with its rate percentage
+  // Enrich each code with its combined rate percentage (sum of all components)
   const enriched = [];
   for (const code of taxCodes) {
-    const rateDetail = code.SalesTaxRateList?.TaxRateDetail?.[0];
-    const rateRef = rateDetail?.TaxRateRef;
-    let ratePercent = 0;
-    if (rateRef) {
+    const rateDetails = code.SalesTaxRateList?.TaxRateDetail || [];
+    let totalPercent = 0;
+    for (const detail of rateDetails) {
+      const ref = detail?.TaxRateRef;
+      if (!ref) continue;
       try {
         const rateResult = await qboApiRequest('GET',
-          `query?query=${encodeURIComponent(`SELECT * FROM TaxRate WHERE Id = '${rateRef.value}'`)}`);
-        ratePercent = parseFloat(rateResult.QueryResponse?.TaxRate?.[0]?.RateValue || 0);
+          `query?query=${encodeURIComponent(`SELECT * FROM TaxRate WHERE Id = '${ref.value}'`)}`);
+        totalPercent += parseFloat(rateResult.QueryResponse?.TaxRate?.[0]?.RateValue || 0);
       } catch { /* ignore */ }
     }
     enriched.push({
-      id:      String(code.Id),
-      name:    code.Name || '',
-      rate:    ratePercent,
-      rateId:  rateRef ? String(rateRef.value) : '',
+      id:   String(code.Id),
+      name: code.Name || '',
+      rate: Math.round(totalPercent * 100) / 100,
     });
   }
   return enriched;
