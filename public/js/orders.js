@@ -103,7 +103,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Account <span class="required">*</span></label>
-        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox()">
+        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox()">
           <option value="">-- Select Account --</option>
           ${accountOptions(selAcctId)}
         </select>
@@ -152,6 +152,12 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         <input type="checkbox" id="f-charge-deposits" onchange="toggleOrderDeposits()" ${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'checked' : ''} />
         Charge keg deposits for this order
       </label>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-charge-tax" onchange="toggleOrderTax()" ${order.TaxAmount && parseFloat(order.TaxAmount) > 0 ? 'checked' : ''} />
+        Charge tax for this order
+      </label>
     </div>`}
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
@@ -162,7 +168,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Order Amount ($) <span class="required">*</span></label>
-        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00"${dis} />
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00"${dis} oninput="recalcTaxFromAmount()" />
       </div>
       <div class="form-group">
         <label>Tax Amount ($)</label>
@@ -263,6 +269,46 @@ function initOrderDepositCheckbox(presetAccountId) {
     cb.checked = acct.ChargeDeposits === 'true';
     toggleOrderDeposits();
   }
+}
+
+function toggleOrderTax() {
+  const checked = document.getElementById('f-charge-tax')?.checked;
+  const taxEl = document.getElementById('f-tax');
+  const rate = getTaxRate();
+  if (taxEl) {
+    if (checked && rate > 0) {
+      taxEl.readOnly = true;
+      taxEl.style.background = '#f5f5f5';
+    } else {
+      taxEl.readOnly = false;
+      taxEl.style.background = '';
+    }
+  }
+  if (!checked && taxEl) {
+    taxEl.value = '';
+  }
+  recalcOrderAmount();
+}
+
+function initOrderTaxCheckbox(presetAccountId) {
+  const acctId = presetAccountId || val('f-account');
+  if (!acctId) return;
+  const acct = state.accounts.find(a => a.ID === acctId);
+  const cb = document.getElementById('f-charge-tax');
+  if (cb && acct) {
+    cb.checked = acct.Taxable === 'true';
+    toggleOrderTax();
+  }
+}
+
+function recalcTaxFromAmount() {
+  const checked = document.getElementById('f-charge-tax')?.checked;
+  if (!checked) return;
+  const rate = getTaxRate();
+  if (rate <= 0) return;
+  const amount = parseFloat(val('f-amount')) || 0;
+  const taxEl = document.getElementById('f-tax');
+  if (taxEl) taxEl.value = amount > 0 ? (amount * rate / 100).toFixed(2) : '';
 }
 
 function sortOrders(col) {
@@ -472,6 +518,14 @@ function recalcOrderAmount() {
   }
   const depEl = document.getElementById('f-deposit-amount');
   if (depEl) depEl.value = chargeDeposits && depositTotal > 0 ? depositTotal.toFixed(2) : '';
+  // Auto-calculate tax if charge-tax is checked
+  const chargeTax = document.getElementById('f-charge-tax')?.checked;
+  const taxRate = getTaxRate();
+  if (chargeTax && taxRate > 0) {
+    const orderAmount = parseFloat(val('f-amount')) || 0;
+    const taxEl = document.getElementById('f-tax');
+    if (taxEl) taxEl.value = orderAmount > 0 ? (orderAmount * taxRate / 100).toFixed(2) : '';
+  }
 }
 
 function collectOrderProducts() {
@@ -756,6 +810,7 @@ async function openAddOrder(presetAccountId = '') {
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts();
   initOrderDepositCheckbox(presetAccountId);
+  initOrderTaxCheckbox(presetAccountId);
 }
 
 async function openEditOrder(id) {
@@ -801,6 +856,15 @@ async function openEditOrder(id) {
     await refreshOrderProductsFromItems(orderItems, isPaid);
   } else {
     await refreshOrderProducts(order.RequestedProducts, isPaid);
+  }
+  // Set tax field readonly state for non-paid orders with auto-calculated tax
+  if (!isPaid) {
+    const chargeTaxCb = document.getElementById('f-charge-tax');
+    const taxEl = document.getElementById('f-tax');
+    if (chargeTaxCb && chargeTaxCb.checked && getTaxRate() > 0 && taxEl) {
+      taxEl.readOnly = true;
+      taxEl.style.background = '#f5f5f5';
+    }
   }
 }
 
@@ -921,6 +985,8 @@ async function convertPreSale(id) {
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts(ps.RequestedProducts);
+  initOrderDepositCheckbox(ps.AccountID);
+  initOrderTaxCheckbox(ps.AccountID);
 }
 
 async function cancelPreSale(id) {
