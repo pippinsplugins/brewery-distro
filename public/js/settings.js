@@ -17,6 +17,11 @@ function getDepositForFormat(format) {
   return parseFloat(deposits[format]) || 0;
 }
 
+function getTaxRate() {
+  if (!state.settings || !state.settings.taxRate) return 0;
+  return parseFloat(state.settings.taxRate) || 0;
+}
+
 function renderSettings() {
   const s = state.settings;
   const companyName = s.companyName || '';
@@ -114,6 +119,26 @@ function renderSettings() {
               </div>
             </div>`).join('')}
           <button class="btn btn-primary" style="margin-top:12px" onclick="saveKegDeposits()">Save</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Tax Rate</h3></div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Set the tax rate for orders. Accounts can be marked as taxable, and orders for those accounts will auto-calculate tax.
+          </p>
+          <div class="form-row" style="align-items:center;margin-bottom:8px">
+            <div style="flex:1">
+              <div style="position:relative">
+                <input class="form-control" id="settings-tax-rate"
+                  type="number" step="0.01" min="0" max="100" value="${esc(s.taxRate || '')}" placeholder="0.00"
+                  style="padding-right:30px" />
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text-muted)">%</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveTaxRate()">Save</button>
         </div>
       </div>
 
@@ -218,6 +243,19 @@ function saveKegDeposits() {
   api.put('/api/settings', { kegDeposits: deposits }).then(updated => {
     state.settings = updated;
     toast('Keg deposit rates saved');
+  }).catch(err => toast(err.message, 'error'));
+}
+
+// ── Tax Rate ──────────────────────────────────────────────────────
+
+function saveTaxRate() {
+  const v = val('settings-tax-rate');
+  const rate = parseFloat(v) || 0;
+  if (rate < 0 || rate > 100) { toast('Tax rate must be between 0 and 100', 'error'); return; }
+  const value = rate > 0 ? rate.toString() : '';
+  api.put('/api/settings', { taxRate: value }).then(updated => {
+    state.settings = updated;
+    toast('Tax rate saved');
   }).catch(err => toast(err.message, 'error'));
 }
 
