@@ -430,11 +430,16 @@ async function syncOrderToQbo(orderId) {
     const lineItems = allItems.filter(i => i.OrderID === orderId);
 
     const invoice = await createInvoice(order, lineItems, account);
-    await updateRow('ORDERS', orderId, {
+    const updates = {
       QboInvoiceId:  String(invoice.Id),
       QboSyncStatus: 'synced',
       QboSyncError:  '',
-    });
+    };
+    // Store the QBO invoice number on the order
+    if (invoice.DocNumber) {
+      updates.InvoiceNumber = invoice.DocNumber;
+    }
+    await updateRow('ORDERS', orderId, updates);
 
     console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${invoice.Id}`);
   } catch (err) {
