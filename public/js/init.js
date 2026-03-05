@@ -204,8 +204,7 @@ async function init() {
       e.preventDefault();
       if (el.classList.contains('has-submenu')) {
         const group = el.closest('.nav-group');
-        if (group) group.classList.toggle('open');
-        return;                        // toggle only; let subitems handle navigation
+        if (group) group.classList.add('open');
       }
       navigate(el.dataset.view);
       closeSidebar();
