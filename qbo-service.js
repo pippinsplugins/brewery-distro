@@ -420,8 +420,9 @@ async function syncOrderToQbo(orderId) {
 
     const account = getRow('ACCOUNTS', order.AccountID);
     if (!account) {
-      console.error(`[qbo] Account ${order.AccountID} not found for order ${orderId}`);
-      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed' });
+      const msg = `Account ${order.AccountID} not found`;
+      console.error(`[qbo] ${msg}`);
+      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed', QboSyncError: msg });
       return;
     }
 
@@ -432,13 +433,14 @@ async function syncOrderToQbo(orderId) {
     await updateRow('ORDERS', orderId, {
       QboInvoiceId:  String(invoice.Id),
       QboSyncStatus: 'synced',
+      QboSyncError:  '',
     });
 
     console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${invoice.Id}`);
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
     try {
-      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed' });
+      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed', QboSyncError: err.message });
     } catch { /* ignore update error */ }
   }
 }
