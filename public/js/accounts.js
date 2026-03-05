@@ -865,7 +865,7 @@ function openEditAccount(id) {
     });
     modal.close();
     toast('Account updated');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    if (state.view === 'account-profile') loadAccountProfile(id);
     else loadAccounts(true);
   });
   setTimeout(() => initMentions('f-notes'), 0);

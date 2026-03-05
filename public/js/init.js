@@ -73,6 +73,9 @@ function navigate(view, filters = {}, preservePage = false) {
 }
 
 function handleHashChange() {
+  // Don't navigate while a modal is open — preserve the return-to state
+  // so save handlers branch correctly (list vs. profile reload).
+  if (!document.getElementById('modal-overlay').classList.contains('hidden')) return;
   const raw = window.location.hash.replace('#', '');
   const base = raw.replace(/\?.*$/, '');
   // Account profile: #account/<id>
