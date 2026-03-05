@@ -18,7 +18,7 @@ if (!process.env.SESSION_SECRET) {
 const authRoutes = require('./routes/auth');
 const requireAuth = require('./middleware/requireAuth');
 
-const { initializeDatabase, migrateInventoryToProducts } = require('./db');
+const { initializeDatabase, migrateInventoryToProducts, migrateProductFormatsToInventory } = require('./db');
 const productsRoutes  = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
 const accountsRoutes  = require('./routes/accounts');
@@ -137,6 +137,7 @@ async function start() {
     console.log('Initializing database...');
     await initializeDatabase();
     await migrateInventoryToProducts();
+    await migrateProductFormatsToInventory();
     console.log('Database initialized successfully.');
     app.listen(PORT, () => {
       console.log(`Brewery Distribution app running at http://localhost:${PORT}`);

@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
       return {
         ...inv,
         Name: inv.ProductName || product.Name || inv.Name || '',
-        Format: product.Format || inv.Format || '',
+        Format: inv.Format || product.Format || '',
       };
     });
 

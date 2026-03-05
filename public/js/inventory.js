@@ -126,13 +126,38 @@ function renderInventory() {
 }
 
 async function openAddInventory() {
-  // Show products not yet at this location
-  const [allProducts, locationInventory] = await Promise.all([
-    api.get('/api/products'),
+  // Show product+format combos not yet at this location
+  const [allInventory, locationInventory, allProducts] = await Promise.all([
+    api.get('/api/inventory'),
     api.get(`/api/inventory?location=${encodeURIComponent(state.location)}`),
+    api.get('/api/products'),
   ]);
-  const existingProductIds = new Set(locationInventory.map(i => i.ProductID).filter(Boolean));
-  const available = allProducts.filter(p => !existingProductIds.has(p.ID));
+
+  // Build set of existing combos at this location: "ProductID|||Format"
+  const existingCombos = new Set(
+    locationInventory.map(i => `${i.ProductID}|||${i.Format || ''}`).filter(k => k.startsWith(''))
+  );
+
+  // Build all globally known combos from inventory (deduplicated)
+  const globalCombos = new Map(); // key → { productId, productName, format, pricePerUnit }
+  for (const inv of allInventory) {
+    if (!inv.ProductID) continue;
+    const key = `${inv.ProductID}|||${inv.Format || ''}`;
+    if (!globalCombos.has(key)) {
+      const product = allProducts.find(p => p.ID === inv.ProductID);
+      globalCombos.set(key, {
+        productId: inv.ProductID,
+        productName: inv.ProductName || (product ? product.Name : '') || inv.Name || '',
+        format: inv.Format || '',
+        pricePerUnit: inv.PricePerUnit || '',
+      });
+    }
+  }
+
+  // Filter out combos already at this location
+  const available = [...globalCombos.entries()]
+    .filter(([key]) => !existingCombos.has(key))
+    .map(([key, val]) => ({ key, ...val }));
 
   if (available.length === 0) {
     modal.open('Add Product to Location', `
@@ -142,17 +167,24 @@ async function openAddInventory() {
     return;
   }
 
+  // Sort alphabetically by display label
+  available.sort((a, b) => {
+    const la = a.format ? `${a.productName} (${a.format})` : a.productName;
+    const lb = b.format ? `${b.productName} (${b.format})` : b.productName;
+    return la.localeCompare(lb);
+  });
+
   modal.open('Add Product to Location', `
     <p class="text-muted text-sm" style="margin-bottom:16px">
       Adding product to <strong>${esc(state.location)}</strong>
     </p>
     <div class="form-group">
       <label>Product <span class="required">*</span></label>
-      <select class="form-control" id="f-product">
+      <select class="form-control" id="f-product-combo">
         <option value="">-- Select Product --</option>
-        ${available.sort((a, b) => a.Name.localeCompare(b.Name)).map(p => {
-          const label = p.Format ? `${p.Name} (${p.Format})` : p.Name;
-          return `<option value="${esc(p.ID)}">${esc(label)}</option>`;
+        ${available.map(c => {
+          const label = c.format ? `${c.productName} (${c.format})` : c.productName;
+          return `<option value="${esc(c.key)}">${esc(label)}</option>`;
         }).join('')}
       </select>
     </div>
@@ -160,11 +192,15 @@ async function openAddInventory() {
       <label>Low-Stock Alert Threshold</label>
       <input class="form-control" id="f-threshold" type="number" min="0" value="5" />
     </div>`, async () => {
-    const productId = val('f-product');
-    if (!productId) { toast('Please select a product', 'error'); return; }
+    const comboKey = val('f-product-combo');
+    if (!comboKey) { toast('Please select a product', 'error'); return; }
+    const combo = available.find(c => c.key === comboKey);
+    if (!combo) { toast('Invalid selection', 'error'); return; }
     await api.post('/api/inventory', {
-      ProductID: productId,
+      ProductID: combo.productId,
       Location: state.location,
+      Format: combo.format,
+      PricePerUnit: combo.pricePerUnit,
       LowStockThreshold: val('f-threshold'),
     });
     modal.close();

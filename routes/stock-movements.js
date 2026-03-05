@@ -49,7 +49,7 @@ router.post('/bulk', async (req, res) => {
       if (!inv) continue;
       const product = productMap[inv.ProductID] || {};
       const invName = inv.ProductName || product.Name || inv.Name || '';
-      const invFormat = product.Format || inv.Format || '';
+      const invFormat = inv.Format || product.Format || '';
 
       const movement = {
         ID:            uuidv4(),
@@ -147,7 +147,7 @@ router.post('/', async (req, res) => {
     const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
     const product = productMap[inv.ProductID] || {};
     const invName = inv.ProductName || product.Name || inv.Name || '';
-    const invFormat = product.Format || inv.Format || '';
+    const invFormat = inv.Format || product.Format || '';
 
     // received = add stock; write-off and adjustment = remove stock
     const delta     = type === 'received' ? qty : -qty;

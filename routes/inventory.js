@@ -19,8 +19,8 @@ async function enrichInventory(items) {
       Name: inv.ProductName || product.Name || inv.Name || '',
       Style: product.Style || inv.Style || '',
       ABV: product.ABV || inv.ABV || '',
-      Format: product.Format || inv.Format || '',
-      PricePerUnit: product.PricePerUnit || inv.PricePerUnit || '',
+      Format: inv.Format || product.Format || '',
+      PricePerUnit: inv.PricePerUnit || product.PricePerUnit || '',
     };
   });
 }
@@ -71,15 +71,17 @@ router.post('/', async (req, res) => {
     const product = products.find(p => p.ID === ProductID);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    // Check if already exists at this location
+    // Check if already exists at this location (Format-aware)
     const inventory = await getAllRows('INVENTORY');
-    const existing = inventory.find(i => i.ProductID === ProductID && i.Location === Location);
+    const existing = inventory.find(i => i.ProductID === ProductID && i.Location === Location && (i.Format || '') === (Format || ''));
     if (existing) return res.status(400).json({ error: 'Product already exists at this location' });
 
     const item = {
       ID: uuidv4(),
       ProductID,
       ProductName: product.Name,
+      Format: Format || '',
+      PricePerUnit: PricePerUnit || '',
       Location,
       Units: '0',
       LowStockThreshold: LowStockThreshold !== undefined ? String(LowStockThreshold) : '5',

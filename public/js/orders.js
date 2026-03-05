@@ -145,8 +145,6 @@ function toggleOrderDeposits() {
   const checked = document.getElementById('f-charge-deposits')?.checked;
   const depGroup = document.getElementById('deposit-amount-group');
   if (depGroup) depGroup.style.display = checked ? 'block' : 'none';
-  // Toggle deposit column visibility in product picker
-  document.querySelectorAll('.deposit-col').forEach(el => el.style.display = checked ? '' : 'none');
   recalcOrderAmount();
 }
 
@@ -241,58 +239,114 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
       </div>`;
   }
 
-  const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
-  const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
-  // Out-of-stock items that are already on this order should always be visible
-  const oosWithQty = outOfStock.filter(i => quantities[i.ID] > 0);
-  const oosHidden = outOfStock.filter(i => !quantities[i.ID]);
+  // Editable: use line-item builder
+  return orderProductsHtml();
+}
 
-  const showDeposits = document.getElementById('f-charge-deposits')?.checked;
-  const depDisplay = showDeposits ? '' : 'display:none';
-  const row = (item, hidden) => {
-    const price = parseFloat(item.PricePerUnit || 0);
-    const qty = quantities[item.ID] || 0;
-    const dep = getDepositForFormat(item.Format);
-    const isKeg = (item.Format || '').toLowerCase().includes('keg');
-    return `<tr data-product-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
-      <td class="fw-600">${esc(item.Name)}</td>
-      <td class="text-sm">${esc(item.Format) || '—'}</td>
-      <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
-      <td class="text-sm deposit-col" style="${depDisplay}">${isKeg && dep ? '$' + dep.toFixed(2) : '—'}</td>
-      <td class="text-sm">${esc(item.Units)}</td>
-      <td><input class="form-control" type="number" min="0" value="${qty}"
-           id="op-qty-${item.ID}" style="width:80px"
-           onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" /></td>
-    </tr>`;
-  };
-
+function orderProductsHtml() {
   return `
-    <div class="table-wrap" style="margin-bottom:8px">
-      <table>
-        <thead><tr><th>Product</th><th>Format</th><th>Price</th><th class="deposit-col" style="${depDisplay}">Deposit</th><th>In Stock</th><th>Qty</th></tr></thead>
-        <tbody>
-          ${inStock.map(i => row(i, false)).join('')}
-          ${oosWithQty.map(i => row(i, false)).join('')}
-          ${oosHidden.map(i => row(i, true)).join('')}
-        </tbody>
-      </table>
-    </div>
-    ${oosHidden.length ? `<label style="cursor:pointer;font-size:0.85rem">
-      <input type="checkbox" id="op-show-oos" style="margin-right:6px"
-        onchange="document.querySelectorAll('#order-products-wrap tr[data-product-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
-      Show out-of-stock products (${oosHidden.length})
-    </label>` : ''}`;
+    <div id="order-line-items"></div>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="addOrderLineItem()" style="margin-top:4px">+ Add Product</button>`;
+}
+
+function _buildProductOptions(selectedId) {
+  const items = [..._orderFormInventory].sort((a, b) => {
+    const la = (a.Name || '').toLowerCase();
+    const lb = (b.Name || '').toLowerCase();
+    return la.localeCompare(lb) || (a.Format || '').localeCompare(b.Format || '');
+  });
+  let html = '<option value="">-- Select Product --</option>';
+  for (const item of items) {
+    const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+    const stock = parseInt(item.Units || '0');
+    const stockLabel = stock > 0 ? ` [${stock} in stock]` : ' [out of stock]';
+    const sel = item.ID === selectedId ? ' selected' : '';
+    html += `<option value="${esc(item.ID)}"${sel}>${esc(label)}${stockLabel}</option>`;
+  }
+  return html;
+}
+
+function addOrderLineItem(inventoryId, qty) {
+  const wrap = document.getElementById('order-line-items');
+  if (!wrap) return;
+
+  const item = inventoryId ? _orderFormInventory.find(i => i.ID === inventoryId) : null;
+  const price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+  const lineQty = qty || 1;
+  const lineTotal = price * lineQty;
+
+  const div = document.createElement('div');
+  div.className = 'order-line-item';
+  div.setAttribute('data-inventory-id', inventoryId || '');
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap';
+  div.innerHTML = `
+    <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:180px">
+      ${_buildProductOptions(inventoryId || '')}
+    </select>
+    <span class="line-item-price text-sm" style="min-width:60px">${price ? '$' + price.toFixed(2) : '—'}</span>
+    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:70px"
+      onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
+    <span class="line-item-total text-sm fw-600" style="min-width:70px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)">&times;</button>`;
+  wrap.appendChild(div);
+  recalcOrderAmount();
+}
+
+function removeOrderLineItem(btn) {
+  const row = btn.closest('.order-line-item');
+  if (row) row.remove();
+  recalcOrderAmount();
+}
+
+function onLineItemProductChange(select) {
+  const row = select.closest('.order-line-item');
+  if (!row) return;
+  const invId = select.value;
+  row.setAttribute('data-inventory-id', invId);
+  const item = _orderFormInventory.find(i => i.ID === invId);
+  const price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+  const priceEl = row.querySelector('.line-item-price');
+  if (priceEl) priceEl.textContent = price ? '$' + price.toFixed(2) : '—';
+  recalcOrderAmount();
+}
+
+function getOrderLineItems() {
+  const rows = document.querySelectorAll('#order-line-items .order-line-item');
+  const items = [];
+  rows.forEach(row => {
+    const invId = row.getAttribute('data-inventory-id');
+    const qtyEl = row.querySelector('.line-item-qty');
+    const qty = parseInt(qtyEl?.value) || 0;
+    if (invId && qty > 0) {
+      items.push({ inventoryId: invId, qty });
+    }
+  });
+  return items;
 }
 
 async function refreshOrderProducts(existingProducts = '', readOnly = false) {
   const location = val('f-location');
   const locQuery = location ? `?location=${encodeURIComponent(location)}` : '';
   _orderFormInventory = await api.get(`/api/inventory${locQuery}`);
-  const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
   const wrap = document.getElementById('order-products-wrap');
-  if (wrap) wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, readOnly);
+  if (!wrap) return;
+
+  if (readOnly) {
+    const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
+    wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities, true);
+    return;
+  }
+
+  // Editable mode: render line-item builder
+  wrap.innerHTML = orderProductsHtml();
+  if (existingProducts) {
+    const quantities = parseRequestedProducts(existingProducts, _orderFormInventory);
+    for (const [invId, qty] of Object.entries(quantities)) {
+      if (qty > 0) addOrderLineItem(invId, qty);
+    }
+  }
   // Only auto-recalc if not restoring existing quantities (preserve manually set amount)
-  if (!existingProducts && !readOnly) recalcOrderAmount();
+  if (!existingProducts) recalcOrderAmount();
 }
 
 async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
@@ -308,14 +362,13 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
     return;
   }
 
-  // Editable mode: build quantities from InventoryID for the product picker
-  const quantities = {};
+  // Editable mode: render line-item builder and populate from order items
+  wrap.innerHTML = orderProductsHtml();
   for (const item of orderItems) {
     if (item.InventoryID) {
-      quantities[item.InventoryID] = (parseInt(quantities[item.InventoryID]) || 0) + parseInt(item.Quantity || 0);
+      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0));
     }
   }
-  wrap.innerHTML = productPickerHtml(_orderFormInventory, quantities);
 }
 
 function orderItemsReadOnlyHtml(orderItems) {
@@ -348,20 +401,31 @@ function recalcOrderAmount() {
   let depositTotal = 0;
   let hasProducts = false;
   const chargeDeposits = document.getElementById('f-charge-deposits')?.checked;
-  for (const item of _orderFormInventory) {
-    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
-    if (qtyEl) {
-      const qty = parseInt(qtyEl.value) || 0;
-      if (qty > 0) {
-        hasProducts = true;
-        total += qty * parseFloat(item.PricePerUnit || 0);
-        if (chargeDeposits) {
-          const dep = getDepositForFormat(item.Format);
-          if (dep > 0) depositTotal += qty * dep;
-        }
+  for (const { inventoryId, qty } of getOrderLineItems()) {
+    if (qty > 0) {
+      const item = _orderFormInventory.find(i => i.ID === inventoryId);
+      if (!item) continue;
+      hasProducts = true;
+      total += qty * parseFloat(item.PricePerUnit || 0);
+      if (chargeDeposits) {
+        const dep = getDepositForFormat(item.Format);
+        if (dep > 0) depositTotal += qty * dep;
       }
     }
   }
+  // Update line item totals
+  document.querySelectorAll('#order-line-items .order-line-item').forEach(row => {
+    const invId = row.getAttribute('data-inventory-id');
+    const qtyEl = row.querySelector('.line-item-qty');
+    const totalEl = row.querySelector('.line-item-total');
+    if (invId && qtyEl && totalEl) {
+      const item = _orderFormInventory.find(i => i.ID === invId);
+      const price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+      const lineQty = parseInt(qtyEl.value) || 0;
+      const lineTotal = price * lineQty;
+      totalEl.textContent = lineTotal > 0 ? '$' + lineTotal.toFixed(2) : '';
+    }
+  });
   if (hasProducts) {
     const amountEl = document.getElementById('f-amount');
     if (amountEl) amountEl.value = total.toFixed(2);
@@ -372,14 +436,12 @@ function recalcOrderAmount() {
 
 function collectOrderProducts() {
   const selected = [];
-  for (const item of _orderFormInventory) {
-    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
-    if (qtyEl) {
-      const qty = parseInt(qtyEl.value) || 0;
-      if (qty > 0) {
-        const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
-        selected.push(`${qty}x ${label}`);
-      }
+  for (const { inventoryId, qty } of getOrderLineItems()) {
+    if (qty > 0) {
+      const item = _orderFormInventory.find(i => i.ID === inventoryId);
+      if (!item) continue;
+      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      selected.push(`${qty}x ${label}`);
     }
   }
   return selected.join(', ');
@@ -387,21 +449,19 @@ function collectOrderProducts() {
 
 function collectOrderItems() {
   const items = [];
-  for (const item of _orderFormInventory) {
-    const qtyEl = document.getElementById(`op-qty-${item.ID}`);
-    if (qtyEl) {
-      const qty = parseInt(qtyEl.value) || 0;
-      if (qty > 0) {
-        const price = parseFloat(item.PricePerUnit || 0);
-        items.push({
-          InventoryID: item.ID,
-          ProductName: item.Name,
-          Format: item.Format || '',
-          Quantity: qty,
-          UnitPrice: price.toFixed(2),
-          LineTotal: (qty * price).toFixed(2),
-        });
-      }
+  for (const { inventoryId, qty } of getOrderLineItems()) {
+    if (qty > 0) {
+      const item = _orderFormInventory.find(i => i.ID === inventoryId);
+      if (!item) continue;
+      const price = parseFloat(item.PricePerUnit || 0);
+      items.push({
+        InventoryID: item.ID,
+        ProductName: item.Name,
+        Format: item.Format || '',
+        Quantity: qty,
+        UnitPrice: price.toFixed(2),
+        LineTotal: (qty * price).toFixed(2),
+      });
     }
   }
   return items;

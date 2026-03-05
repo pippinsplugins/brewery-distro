@@ -233,4 +233,33 @@ function migrateInventoryToProducts() {
   console.log('  Updated inventory rows with ProductID references');
 }
 
-module.exports = { initializeDatabase, migrateInventoryToProducts, getAllRows, getRow, addRow, updateRow, deleteRow, TABLES, HEADERS };
+// ── Product Formats → Inventory migration (one-time, idempotent) ──────
+// Copies Format and PricePerUnit from each Product to its linked Inventory rows,
+// but only where the inventory row's own values are empty.
+
+function migrateProductFormatsToInventory() {
+  const products = getAllRows('PRODUCTS');
+  const inventory = getAllRows('INVENTORY');
+  if (products.length === 0 || inventory.length === 0) return;
+
+  let updated = 0;
+  for (const inv of inventory) {
+    if (!inv.ProductID) continue;
+    const product = products.find(p => p.ID === inv.ProductID);
+    if (!product) continue;
+
+    const updates = {};
+    if (!inv.Format && product.Format) updates.Format = product.Format;
+    if (!inv.PricePerUnit && product.PricePerUnit) updates.PricePerUnit = product.PricePerUnit;
+
+    if (Object.keys(updates).length > 0) {
+      updateRow('INVENTORY', inv.ID, updates);
+      updated++;
+    }
+  }
+  if (updated > 0) {
+    console.log(`  Migrated Format/PricePerUnit to ${updated} inventory rows`);
+  }
+}
+
+module.exports = { initializeDatabase, migrateInventoryToProducts, migrateProductFormatsToInventory, getAllRows, getRow, addRow, updateRow, deleteRow, TABLES, HEADERS };
