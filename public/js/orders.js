@@ -26,6 +26,8 @@ function qboSyncBadge(order) {
     case 'skipped':
       return ' <span class="badge badge-neutral" title="QBO sync disabled for this order">QBO Disabled</span>';
     default:
+      // No badge for pre-integration orders that are already paid/delivered
+      if (!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') return '';
       return ' <span class="badge badge-neutral" title="Not synced to QuickBooks">QBO Pending</span>';
   }
 }
@@ -175,7 +177,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
-    ${order.ID ? `
+    ${order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
