@@ -288,7 +288,6 @@ async function loadQboStatus() {
 
   try {
     const status = await api.get('/api/qbo/status');
-    const autoSync = state.settings.qboAutoSync !== 'false';
 
     if (!status.configured) {
       body.innerHTML = `
@@ -317,12 +316,6 @@ async function loadQboStatus() {
         <span class="text-sm text-muted">Company ID: ${esc(status.realmId)}</span>
       </div>
       <div class="form-group" style="margin-bottom:12px">
-        <label class="checkbox-label">
-          <input type="checkbox" id="qbo-auto-sync" ${autoSync ? 'checked' : ''} onchange="toggleQboAutoSync()" />
-          Auto-sync new orders to QuickBooks
-        </label>
-      </div>
-      <div class="form-group" style="margin-bottom:12px">
         <label>Tax Code</label>
         <select class="form-control" id="qbo-tax-code" onchange="saveQboTaxCode()" disabled>
           <option value="">Loading tax codes...</option>
@@ -335,17 +328,6 @@ async function loadQboStatus() {
     loadQboTaxCodes();
   } catch (err) {
     body.innerHTML = `<p class="text-sm text-danger">Failed to load QuickBooks status.</p>`;
-  }
-}
-
-async function toggleQboAutoSync() {
-  const checked = document.getElementById('qbo-auto-sync')?.checked;
-  try {
-    const updated = await api.put('/api/settings', { qboAutoSync: checked ? 'true' : 'false' });
-    state.settings = updated;
-    toast(checked ? 'Auto-sync enabled' : 'Auto-sync disabled');
-  } catch (err) {
-    toast(err.message, 'error');
   }
 }
 

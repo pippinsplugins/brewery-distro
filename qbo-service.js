@@ -400,14 +400,6 @@ async function syncOrderToQbo(orderId) {
       return;
     }
 
-    // Check auto-sync setting
-    const settings = await getAllRows('SETTINGS');
-    const autoSync = settings.find(r => r.Key === 'qboAutoSync');
-    if (autoSync && autoSync.Value === 'false') {
-      await updateRow('ORDERS', orderId, { QboSyncStatus: 'skipped' });
-      return;
-    }
-
     const order = getRow('ORDERS', orderId);
     if (!order) {
       console.error(`[qbo] Order ${orderId} not found`);
