@@ -36,6 +36,7 @@ const emailRoutes          = require('./routes/email');
 const orderItemsRoutes     = require('./routes/order-items');
 const notificationsRoutes  = require('./routes/notifications');
 const qboRoutes            = require('./routes/qbo');
+const reportsRoutes        = require('./routes/reports');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -117,6 +118,7 @@ app.use('/api/email',           requireAuth, emailRoutes);
 app.use('/api/order-items',     requireAuth, orderItemsRoutes);
 app.use('/api/notifications',  requireAuth, notificationsRoutes);
 app.use('/api/qbo',            requireAuth, qboRoutes.apiRouter);
+app.use('/api/reports',        requireAuth, reportsRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
