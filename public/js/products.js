@@ -44,22 +44,22 @@ function addVariationRow(format, price) {
   if (!wrap) return;
   const id = _variationCounter++;
   const div = document.createElement('div');
-  div.className = 'form-row variation-row';
+  div.className = 'variation-row';
   div.id = `var-row-${id}`;
-  div.style.alignItems = 'flex-end';
+  div.style.cssText = 'display:flex;gap:12px;align-items:flex-end;margin-bottom:8px';
   div.innerHTML = `
-    <div class="form-group" style="flex:1">
+    <div class="form-group" style="flex:1;margin-bottom:0">
       <label>Format</label>
       <select class="form-control" id="var-format-${id}">
         <option value="">-- Select --</option>
         ${FORMATS.map(f => `<option value="${f}" ${format === f ? 'selected' : ''}>${f}</option>`).join('')}
       </select>
     </div>
-    <div class="form-group" style="flex:1">
+    <div class="form-group" style="flex:1;margin-bottom:0">
       <label>Price ($)</label>
       <input class="form-control" id="var-price-${id}" type="number" step="0.01" min="0" value="${esc(price)}" placeholder="0.00" />
     </div>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeVariationRow(this)" style="margin-bottom:12px">&times;</button>`;
+    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeVariationRow(this)" style="padding:8px;line-height:1">&times;</button>`;
   wrap.appendChild(div);
 }
 
