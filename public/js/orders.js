@@ -53,17 +53,17 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         </select>
       </div>
     </div>
-    ${readOnly ? '' : `<div class="form-group">
-      <label class="checkbox-label">
-        <input type="checkbox" id="f-charge-deposits" onchange="toggleOrderDeposits()" ${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'checked' : ''} />
-        Charge keg deposits for this order
-      </label>
-    </div>`}
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
     <div id="order-products-wrap">
       <p class="text-muted text-sm">Loading products...</p>
     </div>
+    ${readOnly ? '' : `<div class="form-group" id="deposit-checkbox-group" style="display:none;margin-top:8px">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-charge-deposits" onchange="toggleOrderDeposits()" ${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'checked' : ''} />
+        Charge keg deposits for this order
+      </label>
+    </div>`}
     <hr class="form-divider" />
     <div class="form-row">
       <div class="form-group">
@@ -414,6 +414,7 @@ function recalcOrderAmount() {
   let total = 0;
   let depositTotal = 0;
   let hasProducts = false;
+  let hasKegs = false;
   const chargeDeposits = document.getElementById('f-charge-deposits')?.checked;
   for (const { inventoryId, qty } of getOrderLineItems()) {
     if (qty > 0) {
@@ -421,12 +422,16 @@ function recalcOrderAmount() {
       if (!item) continue;
       hasProducts = true;
       total += qty * parseFloat(item.PricePerUnit || 0);
+      if ((item.Format || '').toLowerCase().includes('keg')) hasKegs = true;
       if (chargeDeposits) {
         const dep = getDepositForFormat(item.Format);
         if (dep > 0) depositTotal += qty * dep;
       }
     }
   }
+  // Show/hide deposit checkbox based on whether any line item is a keg
+  const depCbGroup = document.getElementById('deposit-checkbox-group');
+  if (depCbGroup) depCbGroup.style.display = hasKegs ? '' : 'none';
   // Update line item totals
   document.querySelectorAll('#order-line-items .order-line-item').forEach(row => {
     const invId = row.getAttribute('data-inventory-id');
