@@ -16,6 +16,7 @@ function qboInvoiceUrl(order) {
 }
 
 function qboSyncBadge(order) {
+  if (!_qboAppUrl) return '';
   switch (order.QboSyncStatus) {
     case 'synced':
       return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO Synced</span>';
@@ -183,7 +184,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
-    ${order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
+    ${_qboAppUrl && order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
