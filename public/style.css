@@ -652,6 +652,9 @@ tbody td {
   white-space: nowrap;
 }
 
+.badge-success   { background: var(--success-bg); color: var(--success-text); }
+.badge-danger    { background: var(--danger-bg);  color: var(--danger-text); }
+.badge-neutral   { background: var(--neutral-bg); color: var(--neutral-text); }
 .badge-active    { background: var(--success-bg); color: var(--success-text); }
 .badge-prospect  { background: var(--info-bg);    color: var(--info-text); }
 .badge-inactive  { background: var(--neutral-bg); color: var(--neutral-text); }

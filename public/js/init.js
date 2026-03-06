@@ -73,6 +73,9 @@ function navigate(view, filters = {}, preservePage = false) {
 }
 
 function handleHashChange() {
+  // Don't navigate while a modal is open — preserve the return-to state
+  // so save handlers branch correctly (list vs. profile reload).
+  if (!document.getElementById('modal-overlay').classList.contains('hidden')) return;
   const raw = window.location.hash.replace('#', '');
   const base = raw.replace(/\?.*$/, '');
   // Account profile: #account/<id>
@@ -201,8 +204,7 @@ async function init() {
       e.preventDefault();
       if (el.classList.contains('has-submenu')) {
         const group = el.closest('.nav-group');
-        if (group) group.classList.toggle('open');
-        return;                        // toggle only; let subitems handle navigation
+        if (group) group.classList.add('open');
       }
       navigate(el.dataset.view);
       closeSidebar();

@@ -2,6 +2,100 @@
 
 const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
+let _qboAppUrl = '';
+(async () => {
+  try {
+    const s = await api.get('/api/qbo/status');
+    if (s.appUrl) _qboAppUrl = s.appUrl;
+  } catch { /* ignore — QBO not configured */ }
+})();
+
+function qboInvoiceUrl(order) {
+  if (!_qboAppUrl || !order.QboInvoiceId) return '';
+  return `${_qboAppUrl}/app/invoice?txnId=${encodeURIComponent(order.QboInvoiceId)}`;
+}
+
+function qboSyncBadge(order) {
+  switch (order.QboSyncStatus) {
+    case 'synced':
+      return ' <span class="badge badge-success" title="Synced to QuickBooks">QBO Synced</span>';
+    case 'failed':
+      return ` <span class="badge badge-danger" style="cursor:pointer" title="${esc(order.QboSyncError || 'QBO sync failed')} — click to retry" onclick="event.stopPropagation(); retryQboSync('${esc(order.ID)}')">QBO Failed</span>`;
+    case 'disabled':
+      return ' <span class="badge badge-neutral" title="QuickBooks not connected">QBO Off</span>';
+    case 'skipped':
+      return ' <span class="badge badge-neutral" title="QBO sync disabled for this order">QBO Disabled</span>';
+    default:
+      // No badge for pre-integration orders that are already paid/delivered
+      if (!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') return '';
+      return ' <span class="badge badge-neutral" title="Not synced to QuickBooks">QBO Pending</span>';
+  }
+}
+
+async function retryQboSync(orderId) {
+  try {
+    toast('Retrying QuickBooks sync...');
+    const updated = await api.post(`/api/qbo/sync/${orderId}`);
+    if (updated.QboSyncStatus === 'synced') {
+      toast('Synced to QuickBooks');
+    } else {
+      toast('QBO sync failed: ' + (updated.QboSyncError || 'unknown error'), 'error');
+    }
+    await loadOrders(true);
+  } catch (err) {
+    toast('QBO sync error: ' + err.message, 'error');
+  }
+}
+
+async function promptQboSync(orderId, reloadFn) {
+  // Check if QBO is connected before prompting
+  try {
+    const s = await api.get('/api/qbo/status');
+    if (s.appUrl) _qboAppUrl = s.appUrl;
+    if (!s.connected) {
+      api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'disabled' }).catch(() => {});
+      reloadFn();
+      return;
+    }
+  } catch {
+    reloadFn();
+    return;
+  }
+  // Show prompt with inline buttons (no standard modal submit/cancel)
+  modal.open('Create QuickBooks Invoice?', `
+    <p style="margin-bottom:16px">Would you like to create an invoice in QuickBooks for this order?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="qbo-prompt-skip">Skip</button>
+      <button class="btn btn-primary" id="qbo-prompt-create">Create Invoice</button>
+    </div>
+  `, null, 'Save');
+  // Hide the standard modal footer buttons
+  document.getElementById('modal-submit-btn').style.display = 'none';
+  document.getElementById('modal-cancel-btn').style.display = 'none';
+
+  document.getElementById('qbo-prompt-create').onclick = async () => {
+    modal.close();
+    toast('Creating QuickBooks invoice...');
+    try {
+      const updated = await api.post(`/api/qbo/sync/${orderId}`);
+      if (updated.QboSyncStatus === 'synced') {
+        toast('Invoice created in QuickBooks');
+      } else {
+        toast('QBO sync failed: ' + (updated.QboSyncError || 'unknown error'), 'error');
+      }
+    } catch (err) {
+      toast('QBO sync error: ' + err.message, 'error');
+    }
+    reloadFn();
+  };
+  document.getElementById('qbo-prompt-skip').onclick = async () => {
+    modal.close();
+    await api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'skipped' }).catch(() => {});
+    toast('QuickBooks sync skipped');
+    reloadFn();
+  };
+}
+
 function orderForm(order = {}, presetAccountId = '', readOnly = false) {
   const selAcctId = order.AccountID || presetAccountId;
   const dis = readOnly ? ' disabled' : '';
@@ -9,7 +103,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Account <span class="required">*</span></label>
-        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox()">
+        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox()">
           <option value="">-- Select Account --</option>
           ${accountOptions(selAcctId)}
         </select>
@@ -53,6 +147,12 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         </select>
       </div>
     </div>
+    ${readOnly ? '' : `<div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-charge-tax" onchange="toggleOrderTax()" ${order.TaxAmount && parseFloat(order.TaxAmount) > 0 ? 'checked' : ''} />
+        Charge tax for this order
+      </label>
+    </div>`}
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
     <div id="order-products-wrap">
@@ -68,7 +168,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Order Amount ($) <span class="required">*</span></label>
-        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00"${dis} />
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00"${dis} oninput="recalcTaxFromAmount()" />
       </div>
       <div class="form-group">
         <label>Tax Amount ($)</label>
@@ -82,7 +182,17 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
-    </div>`;
+    </div>
+    ${order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
+    <hr class="form-divider" />
+    <div class="form-section-title">QuickBooks</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}` : ''}
+      ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span>${order.QboSyncError ? `<span class="text-sm text-danger">${esc(order.QboSyncError)}</span>` : ''}<button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
+      ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">Not Connected</span>' : ''}
+      ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Sync Disabled</span>' : ''}
+      ${!order.QboSyncStatus ? '<span class="badge badge-neutral">Pending</span>' : ''}
+    </div>` : ''}`;
 }
 
 function preSaleForm(ps = {}, presetAccountId = '') {
@@ -157,6 +267,46 @@ function initOrderDepositCheckbox(presetAccountId) {
     cb.checked = acct.ChargeDeposits === 'true';
     toggleOrderDeposits();
   }
+}
+
+function toggleOrderTax() {
+  const checked = document.getElementById('f-charge-tax')?.checked;
+  const taxEl = document.getElementById('f-tax');
+  const rate = getTaxRate();
+  if (taxEl) {
+    if (checked && rate > 0) {
+      taxEl.readOnly = true;
+      taxEl.style.background = '#f5f5f5';
+    } else {
+      taxEl.readOnly = false;
+      taxEl.style.background = '';
+    }
+  }
+  if (!checked && taxEl) {
+    taxEl.value = '';
+  }
+  recalcOrderAmount();
+}
+
+function initOrderTaxCheckbox(presetAccountId) {
+  const acctId = presetAccountId || val('f-account');
+  if (!acctId) return;
+  const acct = state.accounts.find(a => a.ID === acctId);
+  const cb = document.getElementById('f-charge-tax');
+  if (cb && acct) {
+    cb.checked = acct.Taxable === 'true';
+    toggleOrderTax();
+  }
+}
+
+function recalcTaxFromAmount() {
+  const checked = document.getElementById('f-charge-tax')?.checked;
+  if (!checked) return;
+  const rate = getTaxRate();
+  if (rate <= 0) return;
+  const amount = parseFloat(val('f-amount')) || 0;
+  const taxEl = document.getElementById('f-tax');
+  if (taxEl) taxEl.value = amount > 0 ? (amount * rate / 100).toFixed(2) : '';
 }
 
 function sortOrders(col) {
@@ -451,6 +601,14 @@ function recalcOrderAmount() {
   }
   const depEl = document.getElementById('f-deposit-amount');
   if (depEl) depEl.value = chargeDeposits && depositTotal > 0 ? depositTotal.toFixed(2) : '';
+  // Auto-calculate tax if charge-tax is checked
+  const chargeTax = document.getElementById('f-charge-tax')?.checked;
+  const taxRate = getTaxRate();
+  if (chargeTax && taxRate > 0) {
+    const orderAmount = parseFloat(val('f-amount')) || 0;
+    const taxEl = document.getElementById('f-tax');
+    if (taxEl) taxEl.value = orderAmount > 0 ? (orderAmount * taxRate / 100).toFixed(2) : '';
+  }
 }
 
 function collectOrderProducts() {
@@ -656,7 +814,7 @@ function renderOrders() {
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}</td>
+                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -723,12 +881,15 @@ async function openAddOrder(presetAccountId = '') {
     await saveOrderItems(order.ID);
     modal.close();
     toast('Order logged');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadOrders();
+    const reloadFn = state.view === 'account-profile'
+      ? () => loadAccountProfile(state.accountProfileId)
+      : () => loadOrders();
+    promptQboSync(order.ID, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts();
   initOrderDepositCheckbox(presetAccountId);
+  initOrderTaxCheckbox(presetAccountId);
 }
 
 async function openEditOrder(id) {
@@ -774,6 +935,15 @@ async function openEditOrder(id) {
     await refreshOrderProductsFromItems(orderItems, isPaid);
   } else {
     await refreshOrderProducts(order.RequestedProducts, isPaid);
+  }
+  // Set tax field readonly state for non-paid orders with auto-calculated tax
+  if (!isPaid) {
+    const chargeTaxCb = document.getElementById('f-charge-tax');
+    const taxEl = document.getElementById('f-tax');
+    if (chargeTaxCb && chargeTaxCb.checked && getTaxRate() > 0 && taxEl) {
+      taxEl.readOnly = true;
+      taxEl.style.background = '#f5f5f5';
+    }
   }
 }
 
@@ -887,11 +1057,15 @@ async function convertPreSale(id) {
     await saveOrderItems(id);
     modal.close();
     toast('Pre-sale converted to order');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else loadOrders();
+    const reloadFn = state.view === 'account-profile'
+      ? () => loadAccountProfile(state.accountProfileId)
+      : () => loadOrders();
+    promptQboSync(id, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts(ps.RequestedProducts);
+  initOrderDepositCheckbox(ps.AccountID);
+  initOrderTaxCheckbox(ps.AccountID);
 }
 
 async function cancelPreSale(id) {

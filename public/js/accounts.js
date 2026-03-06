@@ -147,6 +147,12 @@ function accountForm(acct = {}) {
         Charge keg deposits for this account
       </label>
     </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-taxable" ${acct.Taxable === 'true' ? 'checked' : ''} />
+        Charge tax for this account
+      </label>
+    </div>
     <hr class="form-divider" />
     <div class="form-group">
       <label>Notes</label>
@@ -828,6 +834,7 @@ function openAddAccount() {
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
+      Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
@@ -853,11 +860,12 @@ function openEditAccount(id) {
       Address: val('f-address'), City: val('f-city'), State: val('f-state'), Zip: val('f-zip'),
       ABCLicense: val('f-abc-license'),
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
+      Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
     });
     modal.close();
     toast('Account updated');
-    if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    if (state.view === 'account-profile') loadAccountProfile(id);
     else loadAccounts(true);
   });
   setTimeout(() => initMentions('f-notes'), 0);

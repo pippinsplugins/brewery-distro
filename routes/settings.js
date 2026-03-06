@@ -14,6 +14,8 @@ router.get('/', async (req, res) => {
     for (const row of rows) {
       settings[row.Key] = row.Value;
     }
+    // Strip sensitive data
+    delete settings.qboTokens;
     // Parse JSON values
     if (settings.locations) {
       try { settings.locations = JSON.parse(settings.locations); }
@@ -61,6 +63,7 @@ router.put('/', async (req, res) => {
     for (const row of updated) {
       result[row.Key] = row.Value;
     }
+    delete result.qboTokens;
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
@@ -122,6 +125,7 @@ router.put('/rename-location', async (req, res) => {
     const updated = await getAllRows('SETTINGS');
     const result = {};
     for (const row of updated) result[row.Key] = row.Value;
+    delete result.qboTokens;
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
@@ -174,6 +178,7 @@ router.put('/rename-account-tag', async (req, res) => {
     const updated = await getAllRows('SETTINGS');
     const result = {};
     for (const row of updated) result[row.Key] = row.Value;
+    delete result.qboTokens;
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
