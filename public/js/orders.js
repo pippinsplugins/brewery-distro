@@ -246,7 +246,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
 function orderProductsHtml() {
   return `
     <div id="order-line-items"></div>
-    <button type="button" class="btn btn-ghost btn-sm" onclick="addOrderLineItem()" style="margin-top:4px">+ Add Product</button>`;
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addOrderLineItem()" style="margin-top:8px">+ Add Product</button>`;
 }
 
 function _buildProductOptions(selectedId) {
