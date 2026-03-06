@@ -250,18 +250,32 @@ function orderProductsHtml() {
 }
 
 function _buildProductOptions(selectedId) {
-  const items = [..._orderFormInventory].sort((a, b) => {
+  const sortByName = (a, b) => {
     const la = (a.Name || '').toLowerCase();
     const lb = (b.Name || '').toLowerCase();
     return la.localeCompare(lb) || (a.Format || '').localeCompare(b.Format || '');
-  });
+  };
+  const inStock = _orderFormInventory.filter(i => parseInt(i.Units || '0') > 0).sort(sortByName);
+  const outOfStock = _orderFormInventory.filter(i => parseInt(i.Units || '0') <= 0).sort(sortByName);
+
   let html = '<option value="">-- Select Product --</option>';
-  for (const item of items) {
-    const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
-    const stock = parseInt(item.Units || '0');
-    const stockLabel = stock > 0 ? ` [${stock} in stock]` : ' [out of stock]';
-    const sel = item.ID === selectedId ? ' selected' : '';
-    html += `<option value="${esc(item.ID)}"${sel}>${esc(label)}${stockLabel}</option>`;
+  if (inStock.length) {
+    html += '<optgroup label="In Stock">';
+    for (const item of inStock) {
+      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      const sel = item.ID === selectedId ? ' selected' : '';
+      html += `<option value="${esc(item.ID)}"${sel}>${esc(label)} [${item.Units}]</option>`;
+    }
+    html += '</optgroup>';
+  }
+  if (outOfStock.length) {
+    html += '<optgroup label="Out of Stock">';
+    for (const item of outOfStock) {
+      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      const sel = item.ID === selectedId ? ' selected' : '';
+      html += `<option value="${esc(item.ID)}"${sel}>${esc(label)}</option>`;
+    }
+    html += '</optgroup>';
   }
   return html;
 }
