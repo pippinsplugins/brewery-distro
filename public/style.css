@@ -538,6 +538,40 @@ body {
   font-size: 13px;
 }
 
+/* ── Reports Grid ──────────────────────────────────────── */
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.reports-grid .card.full-width {
+  grid-column: 1 / -1;
+}
+
+.reports-grid canvas {
+  width: 100% !important;
+  max-height: 300px;
+}
+
+.report-table-toggle {
+  margin-top: 12px;
+}
+
+.report-table-toggle summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  user-select: none;
+}
+
+.report-table-toggle summary:hover {
+  color: var(--text);
+}
+
 /* ── Filter Bar ─────────────────────────────────────────── */
 
 .filter-bar {
@@ -1282,6 +1316,7 @@ th input[type="checkbox"] {
   :root { --sidebar-width: 190px; }
   .content-area { padding: 18px 16px; }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .reports-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
 }
 
@@ -1425,8 +1460,9 @@ th input[type="checkbox"] {
     width: 100%;
   }
 
-  /* ── Dashboard grid: single column ── */
-  .dashboard-grid {
+  /* ── Dashboard / Reports grid: single column ── */
+  .dashboard-grid,
+  .reports-grid {
     grid-template-columns: 1fr;
   }
 

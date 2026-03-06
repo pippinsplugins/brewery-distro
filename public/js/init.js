@@ -11,6 +11,7 @@ const VIEW_LOADERS = {
   kegs:          loadKegs,
   'tap-handles': loadTapHandles,
   staff:         loadStaff,
+  reports:       loadReports,
   settings:      loadSettings,
   map:           loadMap,
 };
