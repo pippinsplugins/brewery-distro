@@ -1262,6 +1262,32 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
 
     const notes = (document.getElementById('deliv-notes')?.value || '').trim();
 
+    // Add order line items for any extra products not originally on the order
+    const extraItems = delivItems
+      .filter(d => !orderQtyMap[d.inventoryId])
+      .map(d => {
+        const inv = items.find(i => i.ID === d.inventoryId);
+        const price = parseFloat(inv?.PricePerUnit || 0);
+        return {
+          OrderID: orderId,
+          InventoryID: d.inventoryId,
+          ProductName: inv?.Name || d.name,
+          Format: inv?.Format || '',
+          Quantity: String(d.quantity),
+          UnitPrice: String(price),
+          LineTotal: String((price * d.quantity).toFixed(2)),
+        };
+      });
+    if (extraItems.length) {
+      await api.post('/api/order-items/bulk', { items: extraItems });
+      // Update order amount to include the extra products
+      const extraTotal = extraItems.reduce((sum, ei) => sum + parseFloat(ei.LineTotal), 0);
+      const currentAmount = parseFloat(order.OrderAmount || 0);
+      await api.put(`/api/orders/${orderId}`, {
+        OrderAmount: String((currentAmount + extraTotal).toFixed(2)),
+      });
+    }
+
     // Process stock movements (also marks order as delivered)
     if (delivItems.length) {
       await api.post('/api/stock-movements/bulk', {
