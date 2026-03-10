@@ -1280,12 +1280,19 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
       });
     if (extraItems.length) {
       await api.post('/api/order-items/bulk', { items: extraItems });
-      // Update order amount to include the extra products
+      // Update order amount (and tax if applicable) to include the extra products
       const extraTotal = extraItems.reduce((sum, ei) => sum + parseFloat(ei.LineTotal), 0);
       const currentAmount = parseFloat(order.OrderAmount || 0);
-      await api.put(`/api/orders/${orderId}`, {
-        OrderAmount: String((currentAmount + extraTotal).toFixed(2)),
-      });
+      const newAmount = currentAmount + extraTotal;
+      const updates = { OrderAmount: String(newAmount.toFixed(2)) };
+      const currentTax = parseFloat(order.TaxAmount || 0);
+      if (currentTax > 0) {
+        const taxRate = getTaxRate();
+        if (taxRate > 0) {
+          updates.TaxAmount = String((newAmount * taxRate).toFixed(2));
+        }
+      }
+      await api.put(`/api/orders/${orderId}`, updates);
     }
 
     // Process stock movements (also marks order as delivered)
