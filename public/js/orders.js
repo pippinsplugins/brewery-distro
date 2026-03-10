@@ -1123,9 +1123,10 @@ async function profileCancelPreSale(id) {
 
 async function openDeliveryConfirmModal(orderId, order, onComplete) {
   const locQuery = order.Location ? `?location=${encodeURIComponent(order.Location)}` : '';
-  const [items, kegRecords] = await Promise.all([
+  const [items, kegRecords, lineItems] = await Promise.all([
     api.get(`/api/inventory${locQuery}`),
     api.get(`/api/keg-tracking?accountId=${encodeURIComponent(order.AccountID)}`),
+    api.get(`/api/order-items?orderId=${encodeURIComponent(orderId)}`),
   ]);
   const acctName = order.AccountName || '';
   const invLabel = order.InvoiceNumber ? ` — Invoice #${esc(order.InvoiceNumber)}` : '';
@@ -1149,15 +1150,25 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     return;
   }
 
-  // Pre-fill delivery quantities from order's requested products
-  const orderQuantities = parseRequestedProducts(order.RequestedProducts, items);
+  // Build order quantity map from line items, falling back to legacy RequestedProducts
+  const orderQtyMap = {};
+  if (lineItems.length) {
+    for (const li of lineItems) {
+      if (li.InventoryID) orderQtyMap[li.InventoryID] = (orderQtyMap[li.InventoryID] || 0) + parseInt(li.Quantity || 0);
+    }
+  } else {
+    Object.assign(orderQtyMap, parseRequestedProducts(order.RequestedProducts, items));
+  }
 
-  const inStock = items.filter(i => parseInt(i.Units || '0') > 0);
-  const outOfStock = items.filter(i => parseInt(i.Units || '0') <= 0);
-  const delivRow = (item, hidden) => {
+  // Split inventory into order products vs other products
+  const orderProducts = items.filter(i => orderQtyMap[i.ID]);
+  const otherProducts = items.filter(i => !orderQtyMap[i.ID]);
+
+  const delivRow = (item, group) => {
     const stock = parseInt(item.Units || '0');
-    const prefill = Math.min(orderQuantities[item.ID] || 0, stock);
-    return `<tr data-stock="${hidden ? 'out' : 'in'}"${hidden ? ' style="display:none"' : ''}>
+    const prefill = group === 'order' ? Math.min(orderQtyMap[item.ID] || 0, stock) : 0;
+    const hidden = group === 'other';
+    return `<tr data-stock="${group}"${hidden ? ' style="display:none"' : ''}>
             <td class="fw-600">${esc(item.Name)}</td>
             <td class="text-sm">${esc(item.Format) || '—'}</td>
             <td class="text-sm">${esc(item.Units)}</td>
@@ -1168,20 +1179,21 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
 
   // Products section (only if inventory items exist)
   const productsSection = items.length ? `
+    ${!orderProducts.length ? '<p class="text-muted text-sm" style="margin-bottom:8px">No products assigned to this order.</p>' : ''}
     <div class="table-wrap" style="margin-bottom:16px">
       <table>
         <thead><tr><th>Product</th><th>Format</th><th>In Stock</th><th>Qty Delivered</th></tr></thead>
         <tbody>
-          ${inStock.map(i => delivRow(i, false)).join('')}
-          ${outOfStock.map(i => delivRow(i, true)).join('')}
+          ${orderProducts.map(i => delivRow(i, 'order')).join('')}
+          ${otherProducts.map(i => delivRow(i, 'other')).join('')}
         </tbody>
       </table>
     </div>
-    ${outOfStock.length ? `<div class="form-group">
+    ${otherProducts.length ? `<div class="form-group">
       <label style="cursor:pointer">
-        <input type="checkbox" id="deliv-show-oos" style="margin-right:6px"
-          onchange="document.querySelectorAll('#modal-overlay tr[data-stock=out]').forEach(r=>r.style.display=this.checked?'':'none')" />
-        Show out-of-stock products (${outOfStock.length})
+        <input type="checkbox" id="deliv-show-other" style="margin-right:6px"
+          onchange="document.querySelectorAll('#modal-overlay tr[data-stock=other]').forEach(r=>r.style.display=this.checked?'':'none')" />
+        Show all products (${otherProducts.length} more)
       </label>
     </div>` : ''}` : '';
 
