@@ -74,6 +74,7 @@ app.use(express.json());
 // ── Session ───────────────────────────────────────────────────────────────
 app.use(session({
   secret:            process.env.SESSION_SECRET,
+  name:              BASE_PATH ? `sid.${BASE_PATH.slice(1)}` : 'connect.sid',
   resave:            false,
   saveUninitialized: false,
   rolling:           true, // Reset expiry on every request so active users stay logged in

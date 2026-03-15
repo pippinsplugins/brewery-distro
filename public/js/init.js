@@ -159,7 +159,7 @@ async function init() {
   } catch (e) {
     // Not authenticated – server will have already redirected, but
     // redirect as a fallback in case we are running without the guard.
-    window.location.href = '/login';
+    window.location.href = BASE_PATH + '/login';
     return;
   }
 
