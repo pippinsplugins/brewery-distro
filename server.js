@@ -6,7 +6,7 @@ const session        = require('express-session');
 const passport       = require('passport');
 const helmet         = require('helmet');
 const rateLimit      = require('express-rate-limit');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // ── Startup guards ───────────────────────────────────────────────────────
 if (!process.env.SESSION_SECRET) {
