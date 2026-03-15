@@ -20,3 +20,8 @@ jobs:
             git pull origin main
             npm install --production
             pm2 restart brewery-distro
+
+            cd ~/trb
+            git pull origin main
+            npm install --production
+            pm2 restart trb
