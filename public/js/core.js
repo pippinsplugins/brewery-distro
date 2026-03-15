@@ -272,11 +272,14 @@ function showLoading() {
 
 // ── API ──────────────────────────────────────────────────────────
 
+// Detect base path for sub-path deployments (e.g. /trb)
+const BASE_PATH = window.location.pathname.replace(/\/+$/, '').replace(/\/login$/, '');
+
 const api = {
   async req(method, path, body) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(path, opts);
+    const res = await fetch(BASE_PATH + path, opts);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return data;

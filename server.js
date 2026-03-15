@@ -40,6 +40,7 @@ const reportsRoutes        = require('./routes/reports');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const BASE_PATH = process.env.BASE_PATH || ''; // e.g. '/trb' for sub-path deployments
 
 // Trust first proxy (DigitalOcean App Platform, Heroku, etc.)
 // Required so Express correctly sees HTTPS behind a load-balancer,
@@ -125,6 +126,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     configured: true,
     dataSource: 'sqlite',
+    basePath: BASE_PATH,
   });
 });
 

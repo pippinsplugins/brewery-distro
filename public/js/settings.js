@@ -341,7 +341,7 @@ async function loadQboStatus() {
         <p class="text-sm text-muted" style="margin-bottom:12px">
           Connect your QuickBooks Online account to create invoices in QuickBooks when saving orders.
         </p>
-        <a class="btn btn-primary" href="/auth/qbo">Connect to QuickBooks</a>`;
+        <a class="btn btn-primary" href="${BASE_PATH}/auth/qbo">Connect to QuickBooks</a>`;
       return;
     }
 
