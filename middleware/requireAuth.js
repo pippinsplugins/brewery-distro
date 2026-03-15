@@ -15,7 +15,8 @@ function requireAuth(req, res, next) {
   }
 
   // Browser requests redirect to the login page.
-  res.redirect('/login');
+  const basePath = process.env.BASE_PATH || '';
+  res.redirect(basePath + '/login');
 }
 
 module.exports = requireAuth;

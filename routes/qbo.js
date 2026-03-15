@@ -43,10 +43,12 @@ authRouter.get('/callback', async (req, res) => {
       expiresAt:    Date.now() + (tokenData.expires_in || 3600) * 1000,
     });
 
-    res.redirect('/#settings');
+    const basePath = process.env.BASE_PATH || '';
+    res.redirect(basePath + '/#settings');
   } catch (err) {
     console.error('[qbo] OAuth callback error:', err.message);
-    res.redirect('/#settings?qboError=auth_failed');
+    const basePath = process.env.BASE_PATH || '';
+    res.redirect(basePath + '/#settings?qboError=auth_failed');
   }
 });
 

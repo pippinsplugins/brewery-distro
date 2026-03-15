@@ -66,6 +66,8 @@ function requireOAuthConfig(req, res, next) {
 
 // ── Auth routes ───────────────────────────────────────────────────────────
 
+const basePath = process.env.BASE_PATH || '';
+
 // Kick off OAuth flow – sends the user to Google.
 router.get('/google', requireOAuthConfig, passport.authenticate('google', {
   scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
@@ -77,12 +79,12 @@ router.get('/google', requireOAuthConfig, passport.authenticate('google', {
 router.get('/google/callback',
   requireOAuthConfig,
   passport.authenticate('google', {
-    failureRedirect: '/login?error=access_denied',
+    failureRedirect: basePath + '/login?error=access_denied',
     failWithError: false,
   }),
   (req, res) => {
     // Successful authentication – go to the app.
-    res.redirect('/');
+    res.redirect(basePath + '/');
   },
 );
 
@@ -101,7 +103,7 @@ router.post('/logout', (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);
     req.session.destroy(() => {
-      res.redirect('/login');
+      res.redirect(basePath + '/login');
     });
   });
 });
