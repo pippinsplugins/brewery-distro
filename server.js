@@ -73,6 +73,7 @@ app.use(express.json());
 // ── Session ───────────────────────────────────────────────────────────────
 app.use(session({
   secret:            process.env.SESSION_SECRET,
+  name:              BASE_PATH ? `sid.${BASE_PATH.slice(1)}` : 'connect.sid',
   resave:            false,
   saveUninitialized: false,
   rolling:           true, // Reset expiry on every request so active users stay logged in
@@ -82,6 +83,7 @@ app.use(session({
     secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge:   24 * 60 * 60 * 1000, // 24 hours
+    path:     BASE_PATH || '/',
   },
 }));
 
