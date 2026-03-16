@@ -72,7 +72,7 @@ const basePath = process.env.BASE_PATH || '';
 router.get('/google', requireOAuthConfig, passport.authenticate('google', {
   scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
   accessType: 'offline',
-  prompt: 'consent',
+  prompt: 'select_account',
 }));
 
 // Google redirects here after the user grants (or denies) access.
