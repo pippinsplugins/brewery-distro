@@ -15,8 +15,9 @@ authRouter.get('/', (req, res) => {
     return res.status(503).json({ error: 'QuickBooks is not configured' });
   }
 
+  const basePath = process.env.BASE_PATH || '';
   const redirectUri = process.env.QBO_REDIRECT_URI
-    || `${req.protocol}://${req.get('host')}/auth/qbo/callback`;
+    || `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
 
   const oauthClient = getOAuthClient(redirectUri);
   const authUri = oauthClient.authorizeUri({
@@ -29,8 +30,9 @@ authRouter.get('/', (req, res) => {
 // GET /auth/qbo/callback — exchange code for tokens
 authRouter.get('/callback', async (req, res) => {
   try {
+    const basePath = process.env.BASE_PATH || '';
     const redirectUri = process.env.QBO_REDIRECT_URI
-      || `${req.protocol}://${req.get('host')}/auth/qbo/callback`;
+      || `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
 
     const oauthClient = getOAuthClient(redirectUri);
     const authResponse = await oauthClient.createToken(req.url);
