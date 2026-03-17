@@ -334,19 +334,33 @@ async function initOrderCredit(accountId, orderId) {
   _orderCreditApplied = 0;
   if (!accountId) { section.style.display = 'none'; return; }
   let existingApplied = 0;
+  let pendingOtherCredit = 0;
   try {
     const { balance } = await api.get(`/api/credits/balance/${accountId}`);
     _orderCreditBalance = balance || 0;
+    // Fetch all credits + orders to find credit on pending orders
+    const [credits, orders] = await Promise.all([
+      api.get(`/api/credits?accountId=${accountId}`),
+      api.get('/api/orders'),
+    ]);
+    const pendingOrderIds = new Set(
+      orders.filter(o => o.AccountID === accountId && o.Status === 'Pending').map(o => o.ID)
+    );
     // If editing an existing order, find any credit already applied to it
     // and add it back to the available balance (it will be reversed on save)
     if (orderId) {
-      const credits = await api.get(`/api/credits?accountId=${accountId}`);
       const orderCredits = credits.filter(c => c.Type === 'applied' && c.OrderID === orderId);
       existingApplied = orderCredits.reduce((sum, c) => sum + (parseFloat(c.Amount) || 0), 0);
       _orderCreditBalance = parseFloat((_orderCreditBalance + existingApplied).toFixed(2));
+      pendingOrderIds.delete(orderId); // don't count this order's credit as "other"
     }
+    // Credit applied to other pending orders
+    pendingOtherCredit = credits
+      .filter(c => c.Type === 'applied' && pendingOrderIds.has(c.OrderID))
+      .reduce((sum, c) => sum + (parseFloat(c.Amount) || 0), 0);
   } catch { _orderCreditBalance = 0; }
-  if (_orderCreditBalance <= 0 && existingApplied <= 0) { section.style.display = 'none'; return; }
+  const totalAvailable = parseFloat((_orderCreditBalance + pendingOtherCredit).toFixed(2));
+  if (totalAvailable <= 0 && existingApplied <= 0) { section.style.display = 'none'; return; }
   section.style.display = '';
   // If editing, the saved OrderAmount was already reduced by the credit.
   // Restore the pre-credit amount so the save logic doesn't double-deduct.
@@ -358,7 +372,13 @@ async function initOrderCredit(accountId, orderId) {
     }
   }
   const info = document.getElementById('order-credit-info');
-  if (info) info.innerHTML = `Available credit: <strong style="color:#2e7d32">${fmtMoney(_orderCreditBalance)}</strong>`;
+  if (info) {
+    let html = `Available credit: <strong style="color:#2e7d32">${fmtMoney(_orderCreditBalance)}</strong>`;
+    if (pendingOtherCredit > 0) {
+      html += ` <span class="text-muted">(${fmtMoney(pendingOtherCredit)} on other pending orders)</span>`;
+    }
+    info.innerHTML = html;
+  }
   const applyEl = document.getElementById('f-credit-apply');
   if (applyEl) applyEl.value = existingApplied > 0 ? existingApplied.toFixed(2) : '0';
   updateCreditApplication();

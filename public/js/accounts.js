@@ -371,6 +371,11 @@ async function loadAccountProfile(accountId) {
     const amt = parseFloat(c.Amount) || 0;
     return c.Type === 'credit' ? sum + amt : sum - amt;
   }, 0);
+  const pendingOrderIds = new Set(acctOrders.filter(o => o.Status === 'Pending').map(o => o.ID));
+  const creditOnPending = sortedCredits
+    .filter(c => c.Type === 'applied' && pendingOrderIds.has(c.OrderID))
+    .reduce((sum, c) => sum + (parseFloat(c.Amount) || 0), 0);
+  const totalCreditAvailable = parseFloat((creditBalance + creditOnPending).toFixed(2));
 
   // Tap handle calculations
   const acctTapHandles = (tapHandleRecords || []).sort((a, b) => (b.DeployedDate || '').localeCompare(a.DeployedDate || ''));
@@ -552,7 +557,7 @@ async function loadAccountProfile(accountId) {
       <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
       <div class="profile-stat"><div class="stat-value${outstandingKegs > 0 ? ' text-danger' : ''}">${outstandingKegs}</div><div class="stat-label">Kegs Out</div></div>
       ${depositsOutstanding > 0 ? `<div class="profile-stat"><div class="stat-value text-danger">${fmtMoney(depositsOutstanding)}</div><div class="stat-label">Deposits Owed</div></div>` : ''}
-      ${creditBalance > 0 ? `<div class="profile-stat"><div class="stat-value" style="color:#2e7d32">${fmtMoney(creditBalance)}</div><div class="stat-label">Credit Balance</div></div>` : ''}
+      ${totalCreditAvailable > 0 ? `<div class="profile-stat"><div class="stat-value" style="color:#2e7d32">${fmtMoney(totalCreditAvailable)}</div><div class="stat-label">Credit Balance${creditOnPending > 0 ? `<br><span class="text-sm text-muted">(${fmtMoney(creditOnPending)} on pending)</span>` : ''}</div></div>` : ''}
       <div class="profile-stat"><div class="stat-value${outstandingHandles > 0 ? ' text-danger' : ''}">${outstandingHandles}</div><div class="stat-label">Tap Handles Out</div></div>
     </div>
 
@@ -605,7 +610,7 @@ async function loadAccountProfile(accountId) {
 
     <div class="profile-section">
       <div class="profile-section-header">
-        <h3>Credits <span class="text-muted text-sm">(${sortedCredits.length}${creditBalance > 0 ? ' · Balance: ' + fmtMoney(creditBalance) : ''})</span></h3>
+        <h3>Credits <span class="text-muted text-sm">(${sortedCredits.length}${totalCreditAvailable > 0 ? ' · Balance: ' + fmtMoney(totalCreditAvailable) + (creditOnPending > 0 ? ' · ' + fmtMoney(creditOnPending) + ' on pending' : '') : ''})</span></h3>
         <button class="btn btn-ghost btn-sm" onclick="openAddCredit('${esc(accountId)}')">+ Add Credit</button>
       </div>
       <div class="table-wrap">
@@ -615,9 +620,15 @@ async function loadAccountProfile(accountId) {
             ? '<tr><td colspan="6" class="empty-state">No credits recorded.</td></tr>'
             : sortedCredits.map(c => {
                 const isCredit = c.Type === 'credit';
+                const isPendingOrder = !isCredit && pendingOrderIds.has(c.OrderID);
+                const typeBadgeHtml = isCredit
+                  ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Credit</span>'
+                  : isPendingOrder
+                    ? '<span class="badge" style="background:#fff3e0;color:#e65100">Pending</span>'
+                    : '<span class="badge" style="background:#fff3e0;color:#e65100">Applied</span>';
                 return `<tr>
                   <td class="text-sm">${formatDate(c.CreatedAt)}</td>
-                  <td>${isCredit ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Credit</span>' : '<span class="badge" style="background:#fff3e0;color:#e65100">Applied</span>'}</td>
+                  <td>${typeBadgeHtml}</td>
                   <td class="fw-600" style="color:${isCredit ? '#2e7d32' : '#e65100'}">${isCredit ? '+' : '-'}${fmtMoney(c.Amount)}</td>
                   <td class="text-sm">${esc(c.Reason) || '—'}</td>
                   <td class="text-sm">${c.OrderID ? `<span class="td-link" onclick="profileEditOrder('${esc(c.OrderID)}')">View Order</span>` : '—'}</td>
