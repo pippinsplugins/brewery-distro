@@ -153,7 +153,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div id="order-products-wrap">
       <p class="text-muted text-sm">Loading products...</p>
     </div>
-    ${readOnly ? '' : `<div class="form-row">
+    ${readOnly ? '' : `<div class="form-row" style="margin-top:12px">
       <div class="form-group">
         <label class="checkbox-label">
           <input type="checkbox" id="f-charge-tax" onchange="toggleOrderTax()" ${order.TaxAmount && parseFloat(order.TaxAmount) > 0 ? 'checked' : ''} />
