@@ -897,7 +897,7 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 }
 
 .order-total-summary {
-  margin-top: 8px;
+  margin: 12px 0;
   padding: 10px 12px;
   background: #f5f5f5;
   border-radius: 6px;

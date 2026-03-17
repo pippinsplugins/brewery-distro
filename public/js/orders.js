@@ -185,7 +185,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     ${readOnly ? '' : `<div id="order-credit-section" style="display:none">
       <hr class="form-divider" />
       <div class="form-section-title">Account Credit</div>
-      <div id="order-credit-info" class="text-sm" style="margin-bottom:8px"></div>
+      <div id="order-credit-info" class="text-sm" style="margin-bottom:14px"></div>
       <div class="form-row">
         <div class="form-group">
           <label>Apply Credit ($)</label>
