@@ -198,7 +198,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <div id="order-credit-summary" class="text-sm" style="color:#2e7d32"></div>
     </div>`}
     <div id="order-total-summary" class="order-total-summary" style="display:none"></div>
-    <div class="form-group">
+    <div class="form-group" style="margin-top:14px">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
