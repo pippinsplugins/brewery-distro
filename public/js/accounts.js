@@ -877,7 +877,7 @@ function profileEditOrder(id) {
     } else {
       await refreshOrderProducts(order.RequestedProducts, isPaid);
     }
-    if (!isPaid) initOrderCredit(order.AccountID);
+    if (!isPaid) initOrderCredit(order.AccountID, id);
   });
 }
 

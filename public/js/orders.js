@@ -327,22 +327,40 @@ function recalcTaxFromAmount() {
   if (taxEl) taxEl.value = amount > 0 ? (amount * rate / 100).toFixed(2) : '';
 }
 
-async function initOrderCredit(accountId) {
+async function initOrderCredit(accountId, orderId) {
   const section = document.getElementById('order-credit-section');
   if (!section) return;
   _orderCreditBalance = 0;
   _orderCreditApplied = 0;
   if (!accountId) { section.style.display = 'none'; return; }
+  let existingApplied = 0;
   try {
     const { balance } = await api.get(`/api/credits/balance/${accountId}`);
     _orderCreditBalance = balance || 0;
+    // If editing an existing order, find any credit already applied to it
+    // and add it back to the available balance (it will be reversed on save)
+    if (orderId) {
+      const credits = await api.get(`/api/credits?accountId=${accountId}`);
+      const orderCredits = credits.filter(c => c.Type === 'applied' && c.OrderID === orderId);
+      existingApplied = orderCredits.reduce((sum, c) => sum + (parseFloat(c.Amount) || 0), 0);
+      _orderCreditBalance = parseFloat((_orderCreditBalance + existingApplied).toFixed(2));
+    }
   } catch { _orderCreditBalance = 0; }
-  if (_orderCreditBalance <= 0) { section.style.display = 'none'; return; }
+  if (_orderCreditBalance <= 0 && existingApplied <= 0) { section.style.display = 'none'; return; }
   section.style.display = '';
+  // If editing, the saved OrderAmount was already reduced by the credit.
+  // Restore the pre-credit amount so the save logic doesn't double-deduct.
+  if (existingApplied > 0) {
+    const amountEl = document.getElementById('f-amount');
+    if (amountEl) {
+      const currentAmt = parseFloat(amountEl.value) || 0;
+      amountEl.value = (currentAmt + existingApplied).toFixed(2);
+    }
+  }
   const info = document.getElementById('order-credit-info');
   if (info) info.innerHTML = `Available credit: <strong style="color:#2e7d32">${fmtMoney(_orderCreditBalance)}</strong>`;
   const applyEl = document.getElementById('f-credit-apply');
-  if (applyEl) applyEl.value = '0';
+  if (applyEl) applyEl.value = existingApplied > 0 ? existingApplied.toFixed(2) : '0';
   updateCreditApplication();
 }
 
@@ -1073,7 +1091,7 @@ async function openEditOrder(id) {
       taxEl.style.background = '#f5f5f5';
     }
   }
-  if (!isPaid) initOrderCredit(order.AccountID);
+  if (!isPaid) initOrderCredit(order.AccountID, id);
 }
 
 async function deleteOrder(id) {
