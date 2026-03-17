@@ -175,7 +175,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       </div>
       <div class="form-group">
         <label>Tax Amount ($)</label>
-        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(order.TaxAmount || '')}" placeholder="0.00"${dis} />
+        <input class="form-control" id="f-tax" type="number" step="0.01" min="0" value="${esc(order.TaxAmount || '')}" placeholder="0.00"${dis} oninput="recalcOrderTotal()" />
       </div>
       <div class="form-group" id="deposit-amount-group" style="display:${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'block' : 'none'}">
         <label>Keg Deposits ($)</label>
@@ -197,6 +197,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       </div>
       <div id="order-credit-summary" class="text-sm" style="color:#2e7d32"></div>
     </div>`}
+    <div id="order-total-summary" style="display:none;margin-top:8px;padding:10px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #e0e0e0"></div>
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
@@ -319,12 +320,13 @@ function initOrderTaxCheckbox(presetAccountId) {
 
 function recalcTaxFromAmount() {
   const checked = document.getElementById('f-charge-tax')?.checked;
-  if (!checked) return;
+  if (!checked) { recalcOrderTotal(); return; }
   const rate = getTaxRate();
-  if (rate <= 0) return;
+  if (rate <= 0) { recalcOrderTotal(); return; }
   const amount = parseFloat(val('f-amount')) || 0;
   const taxEl = document.getElementById('f-tax');
   if (taxEl) taxEl.value = amount > 0 ? (amount * rate / 100).toFixed(2) : '';
+  recalcOrderTotal();
 }
 
 async function initOrderCredit(accountId, orderId) {
@@ -402,12 +404,12 @@ function updateCreditApplication() {
   const summary = document.getElementById('order-credit-summary');
   if (summary) {
     if (applied > 0) {
-      const net = Math.max(0, orderAmt - applied);
-      summary.textContent = `Credit applied: -${fmtMoney(applied)} · Net order total: ${fmtMoney(net)}`;
+      summary.textContent = `Credit applied: -${fmtMoney(applied)}`;
     } else {
       summary.textContent = '';
     }
   }
+  recalcOrderTotal();
 }
 
 function applyMaxCredit() {
@@ -719,6 +721,27 @@ function recalcOrderAmount() {
     const taxEl = document.getElementById('f-tax');
     if (taxEl) taxEl.value = orderAmount > 0 ? (orderAmount * taxRate / 100).toFixed(2) : '';
   }
+  recalcOrderTotal();
+}
+
+function recalcOrderTotal() {
+  const el = document.getElementById('order-total-summary');
+  if (!el) return;
+  const amount = parseFloat(val('f-amount')) || 0;
+  const tax = parseFloat(val('f-tax')) || 0;
+  const deposit = parseFloat(val('f-deposit-amount')) || 0;
+  const credit = _orderCreditApplied || 0;
+  const total = amount + tax + deposit - credit;
+  if (amount <= 0 && tax <= 0 && deposit <= 0) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const parts = [`<strong>${fmtMoney(amount)}</strong> order`];
+  if (tax > 0) parts.push(`${fmtMoney(tax)} tax`);
+  if (deposit > 0) parts.push(`${fmtMoney(deposit)} deposits`);
+  if (credit > 0) parts.push(`<span style="color:#2e7d32">-${fmtMoney(credit)} credit</span>`);
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span class="text-sm">${parts.join(' + ')}</span><strong style="font-size:1.1em">Total: ${fmtMoney(total)}</strong></div>`;
 }
 
 function collectOrderProducts() {
