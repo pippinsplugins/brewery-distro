@@ -321,12 +321,13 @@ async function loadAccountProfile(accountId) {
   });
   showLoading();
 
-  const [outreach, todos, orders, kegRecords, tapHandleRecords] = await Promise.all([
+  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits] = await Promise.all([
     api.get('/api/outreach'),
     api.get('/api/reminders?status=all'),
     api.get('/api/orders'),
     api.get(`/api/keg-tracking?accountId=${accountId}`),
     api.get(`/api/tap-handles?accountId=${accountId}`),
+    api.get(`/api/credits?accountId=${accountId}`),
   ]);
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
@@ -363,6 +364,18 @@ async function loadAccountProfile(accountId) {
     if (depTotal > 0 && (qty - returned) > 0) return sum + (depTotal - depRefunded);
     return sum;
   }, 0);
+
+  // Credit balance calculation
+  const sortedCredits = (acctCredits || []).sort((a, b) => (b.CreatedAt || '').localeCompare(a.CreatedAt || ''));
+  const creditBalance = sortedCredits.reduce((sum, c) => {
+    const amt = parseFloat(c.Amount) || 0;
+    return c.Type === 'credit' ? sum + amt : sum - amt;
+  }, 0);
+  const pendingOrderIds = new Set(acctOrders.filter(o => o.Status === 'Pending').map(o => o.ID));
+  const creditOnPending = sortedCredits
+    .filter(c => c.Type === 'applied' && pendingOrderIds.has(c.OrderID))
+    .reduce((sum, c) => sum + (parseFloat(c.Amount) || 0), 0);
+  const totalCreditAvailable = parseFloat((creditBalance + creditOnPending).toFixed(2));
 
   // Tap handle calculations
   const acctTapHandles = (tapHandleRecords || []).sort((a, b) => (b.DeployedDate || '').localeCompare(a.DeployedDate || ''));
@@ -544,6 +557,7 @@ async function loadAccountProfile(accountId) {
       <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
       <div class="profile-stat"><div class="stat-value${outstandingKegs > 0 ? ' text-danger' : ''}">${outstandingKegs}</div><div class="stat-label">Kegs Out</div></div>
       ${depositsOutstanding > 0 ? `<div class="profile-stat"><div class="stat-value text-danger">${fmtMoney(depositsOutstanding)}</div><div class="stat-label">Deposits Owed</div></div>` : ''}
+      ${totalCreditAvailable > 0 ? `<div class="profile-stat"><div class="stat-value" style="color:#2e7d32">${fmtMoney(totalCreditAvailable)}</div><div class="stat-label">Credit Balance${creditOnPending > 0 ? `<br><span class="text-sm text-muted">(${fmtMoney(creditOnPending)} on pending)</span>` : ''}</div></div>` : ''}
       <div class="profile-stat"><div class="stat-value${outstandingHandles > 0 ? ' text-danger' : ''}">${outstandingHandles}</div><div class="stat-label">Tap Handles Out</div></div>
     </div>
 
@@ -590,6 +604,43 @@ async function loadAccountProfile(accountId) {
           <thead><tr><th>Order Date</th><th>Invoice #</th><th>Delivery Date</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
           <tbody>${orderRows}</tbody>
           ${orderFooter}
+        </table>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <h3>Credits <span class="text-muted text-sm">(${sortedCredits.length}${totalCreditAvailable > 0 ? ' · Balance: ' + fmtMoney(totalCreditAvailable) + (creditOnPending > 0 ? ' · ' + fmtMoney(creditOnPending) + ' on pending' : '') : ''})</span></h3>
+        <button class="btn btn-ghost btn-sm" onclick="openAddCredit('${esc(accountId)}')">+ Add Credit</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Reason</th><th>Order</th><th>Actions</th></tr></thead>
+          <tbody>${sortedCredits.length === 0
+            ? '<tr><td colspan="6" class="empty-state">No credits recorded.</td></tr>'
+            : sortedCredits.map(c => {
+                const isCredit = c.Type === 'credit';
+                const isPendingOrder = !isCredit && pendingOrderIds.has(c.OrderID);
+                const typeBadgeHtml = isCredit
+                  ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Credit</span>'
+                  : isPendingOrder
+                    ? '<span class="badge" style="background:#fff3e0;color:#e65100">Pending</span>'
+                    : '<span class="badge" style="background:#fff3e0;color:#e65100">Applied</span>';
+                return `<tr>
+                  <td class="text-sm">${formatDate(c.CreatedAt)}</td>
+                  <td>${typeBadgeHtml}</td>
+                  <td class="fw-600" style="color:${isCredit ? '#2e7d32' : '#e65100'}">${isCredit ? '+' : '-'}${fmtMoney(c.Amount)}</td>
+                  <td class="text-sm">${esc(c.Reason) || '—'}</td>
+                  <td class="text-sm">${c.OrderID ? `<span class="td-link" onclick="profileEditOrder('${esc(c.OrderID)}')">View Order</span>` : '—'}</td>
+                  <td class="td-actions">
+                    <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+                    <div class="mobile-actions-menu">
+                    ${isCredit ? `<button class="btn btn-ghost btn-sm" onclick="profileEditCredit('${esc(c.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteCredit('${esc(c.ID)}')">Del</button>` : ''}
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+          </tbody>
         </table>
       </div>
     </div>
@@ -786,15 +837,45 @@ function profileEditOrder(id) {
         const staffId = val('f-staff');
         const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
         const products = collectOrderProducts();
+        const creditApplied = _orderCreditApplied;
+        const orderAmount = parseFloat(val('f-amount')) || 0;
+        const finalAmount = creditApplied > 0 ? Math.max(0, orderAmount - creditApplied).toFixed(2) : val('f-amount');
+        // Reverse any previously applied credits for this order
+        const existingCredits = await api.get(`/api/credits?accountId=${order.AccountID}`);
+        const oldApplied = existingCredits.filter(c => c.Type === 'applied' && c.OrderID === id);
+        for (const oc of oldApplied) {
+          await api.del(`/api/credits/${oc.ID}`);
+        }
         await api.put(`/api/orders/${id}`, {
           StaffID: staffId, StaffName: staffName,
           OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
           InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-          OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
+          OrderAmount: finalAmount, TaxAmount: val('f-tax'),
           Notes: val('f-notes'),
           RequestedProducts: products || order.RequestedProducts || '',
         });
         await saveOrderItems(id);
+        if (creditApplied > 0) {
+          const accountName = (state.accounts.find(a => a.ID === order.AccountID) || {}).Name || order.AccountName;
+          await api.post('/api/credits', {
+            accountId: order.AccountID, accountName, type: 'applied',
+            amount: creditApplied.toFixed(2), orderId: id,
+            reason: 'Applied to order',
+          });
+          const currentItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+          const creditItems = currentItems.filter(i => i.ProductName === 'Account Credit');
+          for (const ci of creditItems) {
+            await api.del(`/api/order-items/${ci.ID}`);
+          }
+          await api.post('/api/order-items/bulk', {
+            items: [{
+              OrderID: id, InventoryID: '', ProductName: 'Account Credit',
+              Format: '', Quantity: '1',
+              UnitPrice: (-creditApplied).toFixed(2),
+              LineTotal: (-creditApplied).toFixed(2),
+            }],
+          });
+        }
         modal.close();
         toast('Order updated');
         loadAccountProfile(state.accountProfileId);
@@ -807,6 +888,7 @@ function profileEditOrder(id) {
     } else {
       await refreshOrderProducts(order.RequestedProducts, isPaid);
     }
+    if (!isPaid) initOrderCredit(order.AccountID, id);
   });
 }
 
@@ -816,6 +898,81 @@ function profileDeleteOrder(id) {
     await api.del(`/api/orders/${id}`);
     modal.close();
     toast('Order deleted');
+    loadAccountProfile(state.accountProfileId);
+  });
+}
+
+function openAddCredit(accountId) {
+  const acct = state.accounts.find(a => a.ID === accountId);
+  const formHtml = `
+    <div class="form-group">
+      <label>Amount ($) <span class="required">*</span></label>
+      <input class="form-control" type="number" step="0.01" min="0.01" id="f-credit-amount" placeholder="0.00" />
+    </div>
+    <div class="form-group">
+      <label>Reason</label>
+      <input class="form-control" type="text" id="f-credit-reason" placeholder="e.g. Overcharge on delivery" />
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-control" id="f-credit-notes" rows="2" placeholder="Optional notes"></textarea>
+    </div>
+  `;
+  modal.open('Add Credit', formHtml, async () => {
+    const amount = parseFloat(val('f-credit-amount'));
+    if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
+    await api.post('/api/credits', {
+      accountId,
+      accountName: acct ? acct.Name : '',
+      type: 'credit',
+      amount: amount.toFixed(2),
+      reason: val('f-credit-reason'),
+      notes: val('f-credit-notes'),
+    });
+    modal.close();
+    toast('Credit added');
+    loadAccountProfile(state.accountProfileId);
+  });
+}
+
+function profileEditCredit(id) {
+  api.get('/api/credits').then(items => {
+    const credit = items.find(c => c.ID === id);
+    if (!credit) return;
+    const formHtml = `
+      <div class="form-group">
+        <label>Amount ($) <span class="required">*</span></label>
+        <input class="form-control" type="number" step="0.01" min="0.01" id="f-credit-amount" value="${esc(credit.Amount)}" />
+      </div>
+      <div class="form-group">
+        <label>Reason</label>
+        <input class="form-control" type="text" id="f-credit-reason" value="${esc(credit.Reason)}" />
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea class="form-control" id="f-credit-notes" rows="2">${esc(credit.Notes)}</textarea>
+      </div>
+    `;
+    modal.open('Edit Credit', formHtml, async () => {
+      const amount = parseFloat(val('f-credit-amount'));
+      if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
+      await api.put(`/api/credits/${id}`, {
+        Amount: amount.toFixed(2),
+        Reason: val('f-credit-reason'),
+        Notes: val('f-credit-notes'),
+      });
+      modal.close();
+      toast('Credit updated');
+      loadAccountProfile(state.accountProfileId);
+    });
+  });
+}
+
+function profileDeleteCredit(id) {
+  modal.confirm('Delete Credit', 'Delete this credit record? This cannot be undone.', async () => {
+    await api.del(`/api/credits/${id}`);
+    modal.close();
+    toast('Credit deleted');
     loadAccountProfile(state.accountProfileId);
   });
 }
@@ -1140,6 +1297,7 @@ async function openMergeAccount(targetId) {
       if (p.kegs)       lines.push(`${p.kegs} keg record${p.kegs === 1 ? '' : 's'}`);
       if (p.tapHandles) lines.push(`${p.tapHandles} tap handle record${p.tapHandles === 1 ? '' : 's'}`);
       if (p.emails)     lines.push(`${p.emails} email log${p.emails === 1 ? '' : 's'}`);
+      if (p.credits)    lines.push(`${p.credits} credit record${p.credits === 1 ? '' : 's'}`);
       document.getElementById('merge-preview-counts').textContent = lines.length > 0 ? lines.join(', ') : 'No associated records (account metadata will still be merged)';
     } catch (err) {
       document.getElementById('merge-preview-counts').textContent = 'Failed to load preview';
