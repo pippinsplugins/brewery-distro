@@ -498,7 +498,7 @@ async function loadAccountProfile(accountId) {
             <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
             <div class="mobile-actions-menu">
             ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal)">Return Kegs</button>`
+              ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" data-account-id="${esc(accountId)}" data-account-name="${esc(acct.Name)}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal, this.dataset.accountId, this.dataset.accountName)">Return Kegs</button>`
               : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
             </div>
           </td>
@@ -673,7 +673,7 @@ async function loadAccountProfile(accountId) {
   `);
 }
 
-function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes, depositPerUnit, depositRefunded, depositTotal) {
+function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes, depositPerUnit, depositRefunded, depositTotal, accountId, accountName) {
   const outstanding = totalQty - alreadyReturned;
   const depPerUnit = parseFloat(depositPerUnit) || 0;
   const depRefunded = parseFloat(depositRefunded) || 0;
@@ -695,6 +695,14 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, e
       <div class="text-sm" style="margin-top:8px">
         Refund for this return: <strong id="deposit-refund-preview">$${(outstanding * depPerUnit).toFixed(2)}</strong>
       </div>
+      ${accountId ? `<div style="margin-top:8px">
+        <label class="checkbox-label" style="margin-right:12px">
+          <input type="radio" name="deposit-refund-dest" value="credit" checked /> Credit on account
+        </label>
+        <label class="checkbox-label">
+          <input type="radio" name="deposit-refund-dest" value="refund" /> Record refund only
+        </label>
+      </div>` : ''}
     </div>` : '';
   const formHtml = `
     <p class="text-muted text-sm" style="margin-bottom:16px">
@@ -734,10 +742,20 @@ function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, e
       updates.DepositRefunded = String((depRefunded + refundAmount).toFixed(2));
     }
     await api.put(`/api/keg-tracking/${kegId}`, updates);
+    const refundDest = document.querySelector('input[name="deposit-refund-dest"]:checked')?.value;
+    if (depPerUnit > 0 && refundDest === 'credit' && accountId) {
+      const refundAmount = returnQty * depPerUnit;
+      await api.post('/api/credits', {
+        accountId, accountName: accountName || '', type: 'credit',
+        amount: refundAmount.toFixed(2),
+        reason: `Keg deposit refund — ${productName} (${format}) x${returnQty}`,
+      });
+    }
     modal.close();
     let msg = `${returnQty} keg${returnQty > 1 ? 's' : ''} marked as returned`;
     if (depPerUnit > 0) {
-      msg += ` · $${(returnQty * depPerUnit).toFixed(2)} deposit refunded`;
+      const refundAmt = (returnQty * depPerUnit).toFixed(2);
+      msg += refundDest === 'credit' ? ` · $${refundAmt} credited to account` : ` · $${refundAmt} deposit refunded`;
     }
     toast(msg);
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);

@@ -1413,7 +1413,16 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
           }).join('')}
         </tbody>
       </table>
-    </div>` : '';
+    </div>
+    ${outstandingKegs.some(k => parseFloat(k.DepositPerUnit) > 0) ? `<div class="text-sm" style="margin-bottom:12px">
+      <strong>Keg deposit refunds:</strong>
+      <label class="checkbox-label" style="margin-left:8px;margin-right:12px">
+        <input type="radio" name="keg-deposit-dest" value="credit" checked /> Credit on account
+      </label>
+      <label class="checkbox-label">
+        <input type="radio" name="keg-deposit-dest" value="refund" /> Record refund only
+      </label>
+    </div>` : ''}` : '';
 
   modal.open('Confirm Delivery', `
     <p class="text-muted text-sm" style="margin-bottom:16px">
@@ -1517,13 +1526,29 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
       await api.put(`/api/keg-tracking/${r.keg.ID}`, updates);
     }
 
+    const kegDepositDest = document.querySelector('input[name="keg-deposit-dest"]:checked')?.value;
+    if (totalDepositRefund > 0 && kegDepositDest === 'credit') {
+      await api.post('/api/credits', {
+        accountId: order.AccountID,
+        accountName: order.AccountName || '',
+        type: 'credit',
+        amount: totalDepositRefund.toFixed(2),
+        orderId: orderId,
+        reason: 'Keg deposit refund on delivery',
+      });
+    }
+
     modal.close();
     const parts = [];
     if (delivItems.length) parts.push('Delivery confirmed');
     if (kegReturns.length) {
       const totalReturned = kegReturns.reduce((sum, r) => sum + r.returnQty, 0);
       let returnMsg = `${totalReturned} keg${totalReturned !== 1 ? 's' : ''} returned`;
-      if (totalDepositRefund > 0) returnMsg += ` · $${totalDepositRefund.toFixed(2)} deposit refunded`;
+      if (totalDepositRefund > 0) {
+        returnMsg += kegDepositDest === 'credit'
+          ? ` · $${totalDepositRefund.toFixed(2)} credited to account`
+          : ` · $${totalDepositRefund.toFixed(2)} deposit refunded`;
+      }
       parts.push(returnMsg);
     }
     toast(parts.join(' · ') || 'Delivery confirmed');
