@@ -127,6 +127,12 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
           ${staffOptions(order.StaffID)}
         </select>
       </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select class="form-control" id="f-status"${dis}>
+          ${ORDER_STATUSES.map(s => `<option value="${s}" ${order.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -138,37 +144,31 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         <input class="form-control" id="f-delivery-date" type="date" value="${esc(order.DeliveryDate)}"${dis} />
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Invoice Number</label>
-        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
-      </div>
-      <div class="form-group">
-        <label>Status</label>
-        <select class="form-control" id="f-status"${dis}>
-          ${ORDER_STATUSES.map(s => `<option value="${s}" ${order.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
+    <div class="form-group">
+      <label>Invoice Number</label>
+      <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
     </div>
-    ${readOnly ? '' : `<div class="form-group">
-      <label class="checkbox-label">
-        <input type="checkbox" id="f-charge-tax" onchange="toggleOrderTax()" ${order.TaxAmount && parseFloat(order.TaxAmount) > 0 ? 'checked' : ''} />
-        Charge tax for this order
-      </label>
-    </div>`}
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
     <div id="order-products-wrap">
       <p class="text-muted text-sm">Loading products...</p>
     </div>
-    ${readOnly ? '' : `<div class="form-group" id="deposit-checkbox-group" style="display:none;margin-top:8px">
-      <label class="checkbox-label">
-        <input type="checkbox" id="f-charge-deposits" onchange="toggleOrderDeposits()" ${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'checked' : ''} />
-        Charge keg deposits for this order
-      </label>
+    ${readOnly ? '' : `<div class="form-row">
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="f-charge-tax" onchange="toggleOrderTax()" ${order.TaxAmount && parseFloat(order.TaxAmount) > 0 ? 'checked' : ''} />
+          Charge tax for this order
+        </label>
+      </div>
+      <div class="form-group" id="deposit-checkbox-group" style="display:none">
+        <label class="checkbox-label">
+          <input type="checkbox" id="f-charge-deposits" onchange="toggleOrderDeposits()" ${order.DepositAmount && parseFloat(order.DepositAmount) > 0 ? 'checked' : ''} />
+          Charge keg deposits for this order
+        </label>
+      </div>
     </div>`}
     <hr class="form-divider" />
-    <div class="form-row">
+    <div class="form-row-3">
       <div class="form-group">
         <label>Order Amount ($) <span class="required">*</span></label>
         <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(order.OrderAmount || '')}" placeholder="0.00"${dis} oninput="recalcTaxFromAmount()" />
@@ -197,7 +197,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       </div>
       <div id="order-credit-summary" class="text-sm" style="color:#2e7d32"></div>
     </div>`}
-    <div id="order-total-summary" style="display:none;margin-top:8px;padding:10px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #e0e0e0"></div>
+    <div id="order-total-summary" class="order-total-summary" style="display:none"></div>
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
