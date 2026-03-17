@@ -128,6 +128,14 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
+    // Cascade delete: remove associated credit records
+    const credits = await getAllRows('ACCOUNT_CREDITS');
+    for (const credit of credits) {
+      if (credit.AccountID === id) {
+        await deleteRow('ACCOUNT_CREDITS', credit.ID);
+      }
+    }
+
     await deleteRow('ACCOUNTS', id);
     res.json({ success: true });
   } catch (err) {
@@ -144,13 +152,14 @@ router.get('/:id/merge-preview', async (req, res) => {
     const sourceId = req.query.sourceId;
     if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
 
-    const [outreach, reminders, orders, kegs, tapHandles, emailLog] = await Promise.all([
+    const [outreach, reminders, orders, kegs, tapHandles, emailLog, credits] = await Promise.all([
       getAllRows('OUTREACH'),
       getAllRows('REMINDERS'),
       getAllRows('ORDERS'),
       getAllRows('KEG_TRACKING'),
       getAllRows('TAP_HANDLES'),
       getAllRows('EMAIL_LOG'),
+      getAllRows('ACCOUNT_CREDITS'),
     ]);
 
     res.json({
@@ -160,6 +169,7 @@ router.get('/:id/merge-preview', async (req, res) => {
       kegs:       kegs.filter(r => r.AccountID === sourceId).length,
       tapHandles: tapHandles.filter(r => r.AccountID === sourceId).length,
       emails:     emailLog.filter(r => (r.AccountIDs || '').split(',').map(s => s.trim()).includes(sourceId)).length,
+      credits:    credits.filter(r => r.AccountID === sourceId).length,
     });
   } catch (err) {
     console.error(`[accounts] ${err.message}`);
@@ -179,7 +189,7 @@ router.post('/:id/merge', async (req, res) => {
     if (!target) return res.status(404).json({ error: 'Target account not found' });
     if (!source) return res.status(404).json({ error: 'Source account not found' });
 
-    const counts = { outreach: 0, reminders: 0, orders: 0, kegs: 0, tapHandles: 0, emails: 0 };
+    const counts = { outreach: 0, reminders: 0, orders: 0, kegs: 0, tapHandles: 0, emails: 0, credits: 0 };
 
     // Reassign OUTREACH
     const outreach = await getAllRows('OUTREACH');
@@ -223,6 +233,15 @@ router.post('/:id/merge', async (req, res) => {
       if (r.AccountID === sourceAccountId) {
         await updateRow('TAP_HANDLES', r.ID, { AccountID: targetId, AccountName: target.Name });
         counts.tapHandles++;
+      }
+    }
+
+    // Reassign ACCOUNT_CREDITS
+    const credits = await getAllRows('ACCOUNT_CREDITS');
+    for (const r of credits) {
+      if (r.AccountID === sourceAccountId) {
+        await updateRow('ACCOUNT_CREDITS', r.ID, { AccountID: targetId, AccountName: target.Name });
+        counts.credits++;
       }
     }
 

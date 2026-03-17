@@ -3,6 +3,8 @@
 const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
 let _qboAppUrl = '';
+let _orderCreditBalance = 0;
+let _orderCreditApplied = 0;
 (async () => {
   try {
     const s = await api.get('/api/qbo/status');
@@ -180,6 +182,21 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         <input class="form-control" id="f-deposit-amount" type="number" step="0.01" min="0" value="${esc(order.DepositAmount || '')}" placeholder="0.00" readonly${dis} />
       </div>
     </div>
+    ${readOnly ? '' : `<div id="order-credit-section" style="display:none">
+      <hr class="form-divider" />
+      <div class="form-section-title">Account Credit</div>
+      <div id="order-credit-info" class="text-sm" style="margin-bottom:8px"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Apply Credit ($)</label>
+          <input class="form-control" type="number" step="0.01" min="0" id="f-credit-apply" value="0" oninput="updateCreditApplication()" />
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="applyMaxCredit()">Apply Max</button>
+        </div>
+      </div>
+      <div id="order-credit-summary" class="text-sm" style="color:#2e7d32"></div>
+    </div>`}
     <div class="form-group">
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
@@ -308,6 +325,59 @@ function recalcTaxFromAmount() {
   const amount = parseFloat(val('f-amount')) || 0;
   const taxEl = document.getElementById('f-tax');
   if (taxEl) taxEl.value = amount > 0 ? (amount * rate / 100).toFixed(2) : '';
+}
+
+async function initOrderCredit(accountId) {
+  const section = document.getElementById('order-credit-section');
+  if (!section) return;
+  _orderCreditBalance = 0;
+  _orderCreditApplied = 0;
+  if (!accountId) { section.style.display = 'none'; return; }
+  try {
+    const { balance } = await api.get(`/api/credits/balance/${accountId}`);
+    _orderCreditBalance = balance || 0;
+  } catch { _orderCreditBalance = 0; }
+  if (_orderCreditBalance <= 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  const info = document.getElementById('order-credit-info');
+  if (info) info.innerHTML = `Available credit: <strong style="color:#2e7d32">${fmtMoney(_orderCreditBalance)}</strong>`;
+  const applyEl = document.getElementById('f-credit-apply');
+  if (applyEl) applyEl.value = '0';
+  updateCreditApplication();
+}
+
+function updateCreditApplication() {
+  let applied = parseFloat(val('f-credit-apply')) || 0;
+  const orderAmt = parseFloat(val('f-amount')) || 0;
+  const max = Math.min(_orderCreditBalance, orderAmt);
+  if (applied > max) {
+    applied = max;
+    const el = document.getElementById('f-credit-apply');
+    if (el) el.value = applied.toFixed(2);
+  }
+  if (applied < 0) {
+    applied = 0;
+    const el = document.getElementById('f-credit-apply');
+    if (el) el.value = '0';
+  }
+  _orderCreditApplied = applied;
+  const summary = document.getElementById('order-credit-summary');
+  if (summary) {
+    if (applied > 0) {
+      const net = Math.max(0, orderAmt - applied);
+      summary.textContent = `Credit applied: -${fmtMoney(applied)} · Net order total: ${fmtMoney(net)}`;
+    } else {
+      summary.textContent = '';
+    }
+  }
+}
+
+function applyMaxCredit() {
+  const orderAmt = parseFloat(val('f-amount')) || 0;
+  const max = Math.min(_orderCreditBalance, orderAmt);
+  const el = document.getElementById('f-credit-apply');
+  if (el) el.value = max > 0 ? max.toFixed(2) : '0';
+  updateCreditApplication();
 }
 
 function sortOrders(col) {
@@ -544,12 +614,13 @@ function orderItemsReadOnlyHtml(orderItems) {
     const price = parseFloat(item.UnitPrice || 0);
     const qty = parseInt(item.Quantity || 0);
     const total = parseFloat(item.LineTotal || 0);
+    const isNeg = total < 0;
     return `<tr>
       <td class="fw-600">${esc(item.ProductName || '—')}</td>
       <td class="text-sm">${esc(item.Format) || '—'}</td>
       <td class="text-sm">${qty}</td>
-      <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
-      <td class="text-sm">${total ? '$' + total.toFixed(2) : '—'}</td>
+      <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${price ? '$' + price.toFixed(2) : '—'}</td>
+      <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${total ? '$' + total.toFixed(2) : '—'}</td>
     </tr>`;
   });
   return `
@@ -868,18 +939,36 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
+    const creditApplied = _orderCreditApplied;
+    const orderAmount = parseFloat(val('f-amount')) || 0;
+    const finalAmount = creditApplied > 0 ? Math.max(0, orderAmount - creditApplied).toFixed(2) : val('f-amount');
     const order = await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
       InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-      OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
+      OrderAmount: finalAmount, TaxAmount: val('f-tax'),
       DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
       RequestedProducts: products,
     });
     await saveOrderItems(order.ID);
+    if (creditApplied > 0) {
+      await api.post('/api/credits', {
+        accountId, accountName, type: 'applied',
+        amount: creditApplied.toFixed(2), orderId: order.ID,
+        reason: 'Applied to order',
+      });
+      await api.post('/api/order-items/bulk', {
+        items: [{
+          OrderID: order.ID, InventoryID: '', ProductName: 'Account Credit',
+          Format: '', Quantity: '1',
+          UnitPrice: (-creditApplied).toFixed(2),
+          LineTotal: (-creditApplied).toFixed(2),
+        }],
+      });
+    }
     modal.close();
     toast('Order logged');
     const reloadFn = state.view === 'account-profile'
@@ -891,6 +980,13 @@ async function openAddOrder(presetAccountId = '') {
   await refreshOrderProducts();
   initOrderDepositCheckbox(presetAccountId);
   initOrderTaxCheckbox(presetAccountId);
+  initOrderCredit(presetAccountId);
+  // Wire up account dropdown change to also refresh credit
+  const acctSelect = document.getElementById('f-account');
+  if (acctSelect) {
+    const origOnchange = acctSelect.getAttribute('onchange') || '';
+    acctSelect.setAttribute('onchange', origOnchange + '; initOrderCredit(this.value)');
+  }
 }
 
 async function openEditOrder(id) {
@@ -913,17 +1009,48 @@ async function openEditOrder(id) {
       const staffId = val('f-staff');
       const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
       const products = collectOrderProducts();
+      const creditApplied = _orderCreditApplied;
+      const orderAmount = parseFloat(val('f-amount')) || 0;
+      const finalAmount = creditApplied > 0 ? Math.max(0, orderAmount - creditApplied).toFixed(2) : val('f-amount');
+      // Reverse any previously applied credits for this order
+      const existingCredits = await api.get(`/api/credits?accountId=${order.AccountID}`);
+      const oldApplied = existingCredits.filter(c => c.Type === 'applied' && c.OrderID === id);
+      for (const oc of oldApplied) {
+        await api.del(`/api/credits/${oc.ID}`);
+      }
       await api.put(`/api/orders/${id}`, {
         Location: val('f-location') || state.location,
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
         InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-        OrderAmount: val('f-amount'), TaxAmount: val('f-tax'),
+        OrderAmount: finalAmount, TaxAmount: val('f-tax'),
         DepositAmount: val('f-deposit-amount') || '0',
         Notes: val('f-notes'),
         RequestedProducts: products || order.RequestedProducts || '',
       });
       await saveOrderItems(id);
+      if (creditApplied > 0) {
+        const accountName = (state.accounts.find(a => a.ID === order.AccountID) || {}).Name || order.AccountName;
+        await api.post('/api/credits', {
+          accountId: order.AccountID, accountName, type: 'applied',
+          amount: creditApplied.toFixed(2), orderId: id,
+          reason: 'Applied to order',
+        });
+        // Remove old credit line items, add new one
+        const currentItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+        const creditItems = currentItems.filter(i => i.ProductName === 'Account Credit');
+        for (const ci of creditItems) {
+          await api.del(`/api/order-items/${ci.ID}`);
+        }
+        await api.post('/api/order-items/bulk', {
+          items: [{
+            OrderID: id, InventoryID: '', ProductName: 'Account Credit',
+            Format: '', Quantity: '1',
+            UnitPrice: (-creditApplied).toFixed(2),
+            LineTotal: (-creditApplied).toFixed(2),
+          }],
+        });
+      }
       modal.close();
       toast('Order updated');
       loadOrders();
@@ -946,6 +1073,7 @@ async function openEditOrder(id) {
       taxEl.style.background = '#f5f5f5';
     }
   }
+  if (!isPaid) initOrderCredit(order.AccountID);
 }
 
 async function deleteOrder(id) {
