@@ -24,6 +24,7 @@ const TABLES = {
   EMAIL_LOG:       'EmailLog',
   ORDER_ITEMS:     'OrderItems',
   NOTIFICATIONS:   'Notifications',
+  ACCOUNT_CREDITS: 'AccountCredits',
 };
 
 // HEADERS defines every column each table should have.
@@ -43,6 +44,7 @@ const HEADERS = {
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
   ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'UnitPrice', 'LineTotal', 'CreatedAt'],
   NOTIFICATIONS:   ['ID', 'Type', 'Channel', 'RecipientStaffID', 'RecipientName', 'RecipientEmail', 'SenderName', 'SenderEmail', 'EntityType', 'EntityID', 'EntityName', 'Message', 'Status', 'Error', 'CreatedAt'],
+  ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────
