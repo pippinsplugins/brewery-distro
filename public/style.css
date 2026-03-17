@@ -1332,7 +1332,11 @@ th input[type="checkbox"] {
   .dashboard-grid { grid-template-columns: 1fr; }
   .reports-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
-  .form-row-3 { grid-template-columns: 1fr; }
+  .form-row-3 { grid-template-columns: 1fr; gap: 4px; }
+  .form-row .checkbox-label,
+  .form-row-3 .checkbox-label { margin-bottom: 0; }
+  .form-row .form-group:has(.checkbox-label),
+  .form-row-3 .form-group:has(.checkbox-label) { margin-bottom: 4px; }
 }
 
 @media (max-width: 640px) {
