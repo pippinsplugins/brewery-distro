@@ -1416,10 +1416,10 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     </div>
     ${outstandingKegs.some(k => parseFloat(k.DepositPerUnit) > 0) ? `<div class="text-sm" style="margin-bottom:12px">
       <strong>Keg deposit refunds:</strong>
-      <label class="checkbox-label" style="margin-left:8px;margin-right:12px">
+      <label class="checkbox-label" style="display:inline;margin-left:8px;margin-right:12px">
         <input type="radio" name="keg-deposit-dest" value="credit" checked /> Credit on account
       </label>
-      <label class="checkbox-label">
+      <label class="checkbox-label" style="display:inline">
         <input type="radio" name="keg-deposit-dest" value="refund" /> Record refund only
       </label>
     </div>` : ''}` : '';
