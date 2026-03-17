@@ -114,7 +114,17 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await deleteRow('ORDERS', req.params.id);
+    const id = req.params.id;
+
+    // Clean up any credits applied to this order
+    const credits = await getAllRows('ACCOUNT_CREDITS');
+    for (const credit of credits) {
+      if (credit.OrderID === id && credit.Type === 'applied') {
+        await deleteRow('ACCOUNT_CREDITS', credit.ID);
+      }
+    }
+
+    await deleteRow('ORDERS', id);
     res.json({ success: true });
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;
