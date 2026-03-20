@@ -103,7 +103,7 @@ async function getValidToken() {
     return newTokens;
   } catch (err) {
     console.error('[qbo] Token refresh failed:', err.message);
-    return null;
+    throw new Error(`QuickBooks token refresh failed — try reconnecting in Settings. (${err.message})`);
   }
 }
 
