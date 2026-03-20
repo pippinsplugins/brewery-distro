@@ -70,6 +70,10 @@ app.use('/webhooks', rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: tr
 app.use('/api',      rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false }));
 
 // ── Body parsing ──────────────────────────────────────────────────────────
+// Capture raw body for QBO webhook signature verification (must precede global json parser)
+app.use('/webhooks/qbo', express.json({
+  verify: (req, res, buf) => { req.rawBody = buf; }
+}));
 app.use(express.json());
 
 // ── Session ───────────────────────────────────────────────────────────────

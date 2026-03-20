@@ -44,6 +44,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow } = require('../db');
+const { processQboPaymentWebhook } = require('../qbo-service');
 
 const router = express.Router();
 
@@ -192,6 +193,52 @@ router.post('/order', requireWebhookSecret, async (req, res) => {
   } catch (err) {
     console.error(`[webhooks] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── QBO Webhook — Payment notifications ─────────────────────────
+
+function verifyQboSignature(req, res, next) {
+  const verifierToken = process.env.QBO_WEBHOOK_VERIFIER_TOKEN;
+  if (!verifierToken) {
+    return res.status(503).json({ error: 'QBO webhook not configured: QBO_WEBHOOK_VERIFIER_TOKEN is not set.' });
+  }
+
+  const signature = req.headers['intuit-signature'];
+  if (!signature) {
+    return res.status(401).json({ error: 'Missing intuit-signature header.' });
+  }
+
+  const hash = crypto
+    .createHmac('sha256', verifierToken)
+    .update(req.rawBody)
+    .digest('base64');
+
+  const hashBuf = Buffer.from(hash);
+  const sigBuf  = Buffer.from(signature);
+
+  if (hashBuf.length !== sigBuf.length || !crypto.timingSafeEqual(hashBuf, sigBuf)) {
+    return res.status(401).json({ error: 'Invalid signature.' });
+  }
+
+  next();
+}
+
+router.post('/qbo', verifyQboSignature, (req, res) => {
+  // Respond immediately — QBO requires a 200 within 10 seconds
+  res.status(200).end();
+
+  // Process payment notifications asynchronously
+  const notifications = req.body.eventNotifications || [];
+  for (const notification of notifications) {
+    const entities = notification.dataChangeEvent?.entities || [];
+    for (const entity of entities) {
+      if (entity.name === 'Payment' && entity.operation === 'Create') {
+        processQboPaymentWebhook(entity.id).catch(err => {
+          console.error(`[qbo-webhook] Error processing payment ${entity.id}:`, err.message);
+        });
+      }
+    }
   }
 });
 
