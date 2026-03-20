@@ -478,6 +478,17 @@ async function syncOrderToQbo(orderId) {
     await updateRow('ORDERS', orderId, updates);
 
     console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${invoice.Id}`);
+
+    // Send the invoice via email
+    const billEmail = account.BillingEmail || account.Email;
+    if (billEmail) {
+      try {
+        await qboApiRequest('POST', `invoice/${invoice.Id}/send?sendTo=${encodeURIComponent(billEmail)}`);
+        console.log(`[qbo] Invoice ${invoice.Id} sent to ${billEmail}`);
+      } catch (sendErr) {
+        console.error(`[qbo] Invoice ${invoice.Id} created but send failed:`, sendErr.message);
+      }
+    }
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
     try {
