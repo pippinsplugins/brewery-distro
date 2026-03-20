@@ -342,6 +342,24 @@ async function processQboPaymentWebhook(paymentId) {
   }
 }
 
+// ── Invoice number generation ────────────────────────────────────
+
+async function getNextInvoiceNumber() {
+  const query = "SELECT DocNumber FROM Invoice ORDERBY MetaData.CreateTime DESC MAXRESULTS 1";
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+  const lastInvoice = result.QueryResponse?.Invoice?.[0];
+  if (!lastInvoice || !lastInvoice.DocNumber) return '1001';
+
+  // Increment the trailing numeric portion (e.g. "INV-009" → "INV-010", "1042" → "1043")
+  const match = lastInvoice.DocNumber.match(/(\d+)$/);
+  if (match) {
+    const prefix = lastInvoice.DocNumber.slice(0, -match[1].length);
+    const nextNum = parseInt(match[1], 10) + 1;
+    return prefix + String(nextNum).padStart(match[1].length, '0');
+  }
+  return '1001';
+}
+
 // ── Invoice creation ─────────────────────────────────────────────
 
 async function createInvoice(order, lineItems, account) {
@@ -395,7 +413,7 @@ async function createInvoice(order, lineItems, account) {
   const invoiceBody = {
     CustomerRef: { value: customerId },
     Line:        lines,
-    DocNumber:   order.InvoiceNumber || undefined,
+    DocNumber:   order.InvoiceNumber || await getNextInvoiceNumber(),
     TxnDate:     order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     BillEmail:   billEmail ? { Address: billEmail } : undefined,
   };
@@ -466,8 +484,13 @@ async function syncOrderToQbo(orderId) {
     const lineItems = allItems.filter(i => i.OrderID === orderId);
 
     const invoice = await createInvoice(order, lineItems, account);
+    if (!invoice || !invoice.Id) {
+      throw new Error('QBO returned an invoice without an Id');
+    }
+
+    const qboInvoiceId = String(invoice.Id);
     const updates = {
-      QboInvoiceId:  String(invoice.Id),
+      QboInvoiceId:  qboInvoiceId,
       QboSyncStatus: 'synced',
       QboSyncError:  '',
     };
@@ -477,16 +500,22 @@ async function syncOrderToQbo(orderId) {
     }
     await updateRow('ORDERS', orderId, updates);
 
-    console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${invoice.Id}`);
+    // Verify the update persisted
+    const saved = getRow('ORDERS', orderId);
+    if (!saved || saved.QboInvoiceId !== qboInvoiceId) {
+      console.error(`[qbo] QboInvoiceId failed to persist for order ${orderId}: expected "${qboInvoiceId}", got "${saved?.QboInvoiceId}"`);
+    }
+
+    console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${qboInvoiceId}`);
 
     // Send the invoice via email
     const billEmail = account.BillingEmail || account.Email;
     if (billEmail) {
       try {
-        await qboApiRequest('POST', `invoice/${invoice.Id}/send?sendTo=${encodeURIComponent(billEmail)}`);
-        console.log(`[qbo] Invoice ${invoice.Id} sent to ${billEmail}`);
+        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send?sendTo=${encodeURIComponent(billEmail)}`);
+        console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
       } catch (sendErr) {
-        console.error(`[qbo] Invoice ${invoice.Id} created but send failed:`, sendErr.message);
+        console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
       }
     }
   } catch (err) {
