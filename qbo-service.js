@@ -298,6 +298,50 @@ function clearTaxInfoCache() {
   _qboTaxInfo = null;
 }
 
+// ── Payment / Invoice lookup ─────────────────────────────────────
+
+async function getPayment(paymentId) {
+  const result = await qboApiRequest('GET', `payment/${paymentId}`);
+  return result.Payment;
+}
+
+async function getInvoice(invoiceId) {
+  const result = await qboApiRequest('GET', `invoice/${invoiceId}`);
+  return result.Invoice;
+}
+
+async function processQboPaymentWebhook(paymentId) {
+  const payment = await getPayment(paymentId);
+  if (!payment || !payment.Line) return;
+
+  // Extract linked invoice IDs from the payment
+  const invoiceIds = [];
+  for (const line of payment.Line) {
+    for (const txn of (line.LinkedTxn || [])) {
+      if (txn.TxnType === 'Invoice') {
+        invoiceIds.push(txn.TxnId);
+      }
+    }
+  }
+
+  if (invoiceIds.length === 0) return;
+
+  // Check each linked invoice and update matching orders
+  const orders = await getAllRows('ORDERS');
+
+  for (const invoiceId of invoiceIds) {
+    const invoice = await getInvoice(invoiceId);
+    if (!invoice || invoice.Balance !== 0) continue; // Only mark fully paid invoices
+
+    const matchingOrders = orders.filter(o => o.QboInvoiceId === String(invoice.Id));
+    for (const order of matchingOrders) {
+      if (order.Status === 'Paid' || order.Status === 'Cancelled') continue;
+      await updateRow('ORDERS', order.ID, { Status: 'Paid' });
+      console.log(`[qbo-webhook] Order ${order.ID} marked as Paid (Invoice ${invoice.Id} fully paid)`);
+    }
+  }
+}
+
 // ── Invoice creation ─────────────────────────────────────────────
 
 async function createInvoice(order, lineItems, account) {
@@ -452,5 +496,8 @@ module.exports = {
   syncOrderToQbo,
   fetchTaxCodes,
   clearTaxInfoCache,
+  getPayment,
+  getInvoice,
+  processQboPaymentWebhook,
   QBO_APP_URL,
 };
