@@ -345,19 +345,30 @@ async function processQboPaymentWebhook(paymentId) {
 // ── Invoice number generation ────────────────────────────────────
 
 async function getNextInvoiceNumber() {
-  const query = "SELECT DocNumber FROM Invoice ORDERBY MetaData.CreateTime DESC MAXRESULTS 1";
+  // Fetch recent invoices and find the highest numeric DocNumber
+  const query = "SELECT DocNumber FROM Invoice ORDER BY MetaData.CreateTime DESC MAXRESULTS 100";
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
-  const lastInvoice = result.QueryResponse?.Invoice?.[0];
-  if (!lastInvoice || !lastInvoice.DocNumber) return '1001';
+  const invoices = result.QueryResponse?.Invoice || [];
 
-  // Increment the trailing numeric portion (e.g. "INV-009" → "INV-010", "1042" → "1043")
-  const match = lastInvoice.DocNumber.match(/(\d+)$/);
-  if (match) {
-    const prefix = lastInvoice.DocNumber.slice(0, -match[1].length);
-    const nextNum = parseInt(match[1], 10) + 1;
-    return prefix + String(nextNum).padStart(match[1].length, '0');
+  let maxNum = 0;
+  let bestPrefix = '';
+  let bestPadding = 0;
+
+  for (const inv of invoices) {
+    if (!inv.DocNumber) continue;
+    const match = inv.DocNumber.match(/^(.*?)(\d+)$/);
+    if (match) {
+      const num = parseInt(match[2], 10);
+      if (num > maxNum) {
+        maxNum = num;
+        bestPrefix = match[1];
+        bestPadding = match[2].length;
+      }
+    }
   }
-  return '1001';
+
+  const nextNum = maxNum > 0 ? maxNum + 1 : 1001;
+  return bestPrefix + String(nextNum).padStart(bestPadding, '0');
 }
 
 // ── Invoice creation ─────────────────────────────────────────────
