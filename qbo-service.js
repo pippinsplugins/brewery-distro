@@ -298,6 +298,26 @@ function clearTaxInfoCache() {
   _qboTaxInfo = null;
 }
 
+// ── Department lookup (for Location → QBO Department mapping) ────
+
+let _qboDepartments = null;
+
+async function getDepartmentMap() {
+  if (_qboDepartments) return _qboDepartments;
+
+  const query = "SELECT * FROM Department WHERE Active = true MAXRESULTS 100";
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+  const departments = result.QueryResponse?.Department || [];
+
+  _qboDepartments = {};
+  for (const dept of departments) {
+    if (dept.Name) {
+      _qboDepartments[dept.Name.toLowerCase()] = String(dept.Id);
+    }
+  }
+  return _qboDepartments;
+}
+
 // ── Payment / Invoice lookup ─────────────────────────────────────
 
 async function getPayment(paymentId) {
@@ -421,12 +441,26 @@ async function createInvoice(order, lineItems, account) {
   // Determine bill email: prefer BillingEmail, fall back to account Email
   const billEmail = account.BillingEmail || account.Email;
 
+  // Look up QBO Department from order Location
+  let departmentRef;
+  if (order.Location) {
+    try {
+      const deptMap = await getDepartmentMap();
+      const deptId = deptMap[order.Location.toLowerCase()];
+      if (deptId) departmentRef = { value: deptId };
+    } catch (err) {
+      console.error('[qbo] Department lookup failed:', err.message);
+    }
+  }
+
   const invoiceBody = {
-    CustomerRef: { value: customerId },
-    Line:        lines,
-    DocNumber:   order.InvoiceNumber || await getNextInvoiceNumber(),
-    TxnDate:     order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
-    BillEmail:   billEmail ? { Address: billEmail } : undefined,
+    CustomerRef:  { value: customerId },
+    Line:         lines,
+    DocNumber:    order.InvoiceNumber || await getNextInvoiceNumber(),
+    TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
+    DueDate:      order.DeliveryDate ? order.DeliveryDate.split('T')[0] : undefined,
+    BillEmail:    billEmail ? { Address: billEmail } : undefined,
+    DepartmentRef: departmentRef,
   };
 
   // Apply native QBO tax
@@ -528,6 +562,25 @@ async function syncOrderToQbo(orderId) {
       } catch (sendErr) {
         console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
       }
+    }
+
+    // Append invoice link to order Notes
+    try {
+      let invoiceUrl;
+      const freshInvoice = await getInvoice(qboInvoiceId);
+      if (freshInvoice && freshInvoice.InvoiceLink) {
+        invoiceUrl = freshInvoice.InvoiceLink;
+      } else {
+        invoiceUrl = `${QBO_APP_URL}/app/invoice?txnId=${qboInvoiceId}`;
+      }
+      const currentOrder = getRow('ORDERS', orderId);
+      const currentNotes = currentOrder?.Notes || '';
+      const updatedNotes = currentNotes
+        ? `${currentNotes}\nInvoice: ${invoiceUrl}`
+        : `Invoice: ${invoiceUrl}`;
+      await updateRow('ORDERS', orderId, { Notes: updatedNotes });
+    } catch (linkErr) {
+      console.error(`[qbo] Failed to append invoice link for order ${orderId}:`, linkErr.message);
     }
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
