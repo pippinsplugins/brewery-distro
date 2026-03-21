@@ -323,6 +323,19 @@ const modal = {
     };
     document.getElementById('modal-overlay').addEventListener('keydown', modal._trapFocus);
 
+    // Enter key triggers save
+    if (modal._enterSubmit) document.getElementById('modal-overlay').removeEventListener('keydown', modal._enterSubmit);
+    modal._enterSubmit = function(e) {
+      if (e.key !== 'Enter') return;
+      if (e.target.tagName === 'TEXTAREA') return;
+      if (!modal._onSubmit) return;
+      const btn = document.getElementById('modal-submit-btn');
+      if (btn.disabled) return;
+      e.preventDefault();
+      btn.click();
+    };
+    document.getElementById('modal-overlay').addEventListener('keydown', modal._enterSubmit);
+
     // Focus first input
     const first = document.querySelector('#modal-body input:not([type="hidden"]), #modal-body select, #modal-body textarea');
     if (first) first.focus();
@@ -339,6 +352,10 @@ const modal = {
     if (modal._trapFocus) {
       document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);
       modal._trapFocus = null;
+    }
+    if (modal._enterSubmit) {
+      document.getElementById('modal-overlay').removeEventListener('keydown', modal._enterSubmit);
+      modal._enterSubmit = null;
     }
   },
 
