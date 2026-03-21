@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
 const { processMentions, processAssignment } = require('../lib/notifications');
 const { extractInvoiceData } = require('../lib/pdf-parser');
+const { voidInvoice } = require('../qbo-service');
 
 // Multer setup: memory storage, PDF only, 10MB limit, max 50 files
 const upload = multer({
@@ -115,6 +116,16 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const id = req.params.id;
+
+    // Void the QBO invoice if one was synced
+    const order = getRow('ORDERS', id);
+    if (order && order.QboInvoiceId) {
+      try {
+        await voidInvoice(order.QboInvoiceId);
+      } catch (err) {
+        console.error(`[orders] Failed to void QBO invoice ${order.QboInvoiceId}:`, err.message);
+      }
+    }
 
     // Clean up any credits applied to this order
     const credits = await getAllRows('ACCOUNT_CREDITS');

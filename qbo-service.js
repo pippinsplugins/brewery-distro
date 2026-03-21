@@ -330,6 +330,17 @@ async function getInvoice(invoiceId) {
   return result.Invoice;
 }
 
+async function voidInvoice(invoiceId) {
+  const invoice = await getInvoice(invoiceId);
+  if (!invoice) throw new Error(`Invoice ${invoiceId} not found in QBO`);
+
+  await qboApiRequest('POST', 'invoice?operation=void', {
+    Id:        invoice.Id,
+    SyncToken: invoice.SyncToken,
+  });
+  console.log(`[qbo] Invoice ${invoiceId} voided`);
+}
+
 async function processQboPaymentWebhook(paymentId) {
   const payment = await getPayment(paymentId);
   if (!payment || !payment.Line) return;
@@ -618,6 +629,7 @@ module.exports = {
   clearTaxInfoCache,
   getPayment,
   getInvoice,
+  voidInvoice,
   processQboPaymentWebhook,
   QBO_APP_URL,
 };
