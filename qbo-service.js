@@ -568,12 +568,21 @@ async function syncOrderToQbo(orderId) {
     let invoiceSendNote = '';
     const billEmail = account.BillingEmail || account.Email;
     if (billEmail) {
-      try {
-        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send?sendTo=${encodeURIComponent(billEmail)}`);
-        console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
-      } catch (sendErr) {
-        console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
-        invoiceSendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: ${sendErr.message}`;
+      const sendUrl = `invoice/${qboInvoiceId}/send?sendTo=${encodeURIComponent(billEmail)}`;
+      let sent = false;
+      for (let attempt = 1; attempt <= 3 && !sent; attempt++) {
+        try {
+          await qboApiRequest('POST', sendUrl);
+          console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
+          sent = true;
+        } catch (sendErr) {
+          console.error(`[qbo] Invoice send attempt ${attempt}/3 failed:`, sendErr.message);
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 2000 * attempt));
+          } else {
+            invoiceSendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: ${sendErr.message}`;
+          }
+        }
       }
     } else {
       invoiceSendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: no email address on account`;
