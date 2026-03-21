@@ -568,10 +568,8 @@ async function syncOrderToQbo(orderId) {
     let invoiceSendNote = '';
     const billEmail = account.BillingEmail || account.Email;
     if (billEmail) {
-      // Wait for QBO to fully persist the invoice before sending
-      await new Promise(r => setTimeout(r, 3000));
       try {
-        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send?sendTo=${encodeURIComponent(billEmail)}`);
+        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send`);
         console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
       } catch (sendErr) {
         console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
