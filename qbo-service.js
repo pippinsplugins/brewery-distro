@@ -114,12 +114,13 @@ async function qboApiRequest(method, path, body) {
   if (!tokens) throw new Error('Not connected to QuickBooks');
 
   const url = `${BASE_URL}/v3/company/${tokens.realmId}/${path}`;
+  const isSendOp = /\/(send|void)/.test(path) && !body;
   const options = {
     method,
     headers: {
       'Authorization': `Bearer ${tokens.accessToken}`,
       'Accept':        'application/json',
-      'Content-Type':  'application/json',
+      'Content-Type':  isSendOp ? 'application/octet-stream' : 'application/json',
     },
   };
   if (body) options.body = JSON.stringify(body);
@@ -150,8 +151,25 @@ async function findOrCreateCustomer(account) {
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
 
   if (result.QueryResponse && result.QueryResponse.Customer && result.QueryResponse.Customer.length > 0) {
-    const qboId = String(result.QueryResponse.Customer[0].Id);
+    const existing = result.QueryResponse.Customer[0];
+    const qboId = String(existing.Id);
     await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboId });
+
+    // Ensure customer has an email set (needed for invoice send)
+    const email = account.BillingEmail || account.Email;
+    if (email && !existing.PrimaryEmailAddr?.Address) {
+      try {
+        await qboApiRequest('POST', 'customer', {
+          Id:               existing.Id,
+          SyncToken:        existing.SyncToken,
+          sparse:           true,
+          PrimaryEmailAddr: { Address: email },
+        });
+      } catch (err) {
+        console.error(`[qbo] Failed to update customer email:`, err.message);
+      }
+    }
+
     return qboId;
   }
 
@@ -330,6 +348,17 @@ async function getInvoice(invoiceId) {
   return result.Invoice;
 }
 
+async function voidInvoice(invoiceId) {
+  const invoice = await getInvoice(invoiceId);
+  if (!invoice) throw new Error(`Invoice ${invoiceId} not found in QBO`);
+
+  await qboApiRequest('POST', 'invoice?operation=void', {
+    Id:        invoice.Id,
+    SyncToken: invoice.SyncToken,
+  });
+  console.log(`[qbo] Invoice ${invoiceId} voided`);
+}
+
 async function processQboPaymentWebhook(paymentId) {
   const payment = await getPayment(paymentId);
   if (!payment || !payment.Line) return;
@@ -459,7 +488,7 @@ async function createInvoice(order, lineItems, account) {
     DocNumber:    order.InvoiceNumber || await getNextInvoiceNumber(),
     TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     DueDate:      order.DeliveryDate ? order.DeliveryDate.split('T')[0] : undefined,
-    BillEmail:    billEmail ? { Address: billEmail } : undefined,
+    BillEmail:     billEmail ? { Address: billEmail } : undefined,
     DepartmentRef: departmentRef,
   };
 
@@ -558,7 +587,7 @@ async function syncOrderToQbo(orderId) {
     const billEmail = account.BillingEmail || account.Email;
     if (billEmail) {
       try {
-        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send?sendTo=${encodeURIComponent(billEmail)}`);
+        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send`);
         console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
       } catch (sendErr) {
         console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
@@ -618,6 +647,7 @@ module.exports = {
   clearTaxInfoCache,
   getPayment,
   getInvoice,
+  voidInvoice,
   processQboPaymentWebhook,
   QBO_APP_URL,
 };

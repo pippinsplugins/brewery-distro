@@ -3,6 +3,7 @@
 const express = require('express');
 const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
 const { processMentions, processAssignment } = require('../lib/notifications');
+const { voidInvoice } = require('../qbo-service');
 
 const router = express.Router();
 
@@ -104,10 +105,17 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    // Cascade delete: remove associated orders
+    // Cascade delete: remove associated orders (void QBO invoices first)
     const orders = await getAllRows('ORDERS');
     for (const order of orders) {
       if (order.AccountID === id) {
+        if (order.QboInvoiceId) {
+          try {
+            await voidInvoice(order.QboInvoiceId);
+          } catch (err) {
+            console.error(`[accounts] Failed to void QBO invoice ${order.QboInvoiceId}:`, err.message);
+          }
+        }
         await deleteRow('ORDERS', order.ID);
       }
     }
