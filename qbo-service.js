@@ -114,12 +114,13 @@ async function qboApiRequest(method, path, body) {
   if (!tokens) throw new Error('Not connected to QuickBooks');
 
   const url = `${BASE_URL}/v3/company/${tokens.realmId}/${path}`;
+  const isSendOp = /\/(send|void)/.test(path) && !body;
   const options = {
     method,
     headers: {
       'Authorization': `Bearer ${tokens.accessToken}`,
       'Accept':        'application/json',
-      'Content-Type':  'application/json',
+      'Content-Type':  isSendOp ? 'application/octet-stream' : 'application/json',
     },
   };
   if (body) options.body = JSON.stringify(body);
