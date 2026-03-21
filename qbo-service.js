@@ -150,8 +150,25 @@ async function findOrCreateCustomer(account) {
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
 
   if (result.QueryResponse && result.QueryResponse.Customer && result.QueryResponse.Customer.length > 0) {
-    const qboId = String(result.QueryResponse.Customer[0].Id);
+    const existing = result.QueryResponse.Customer[0];
+    const qboId = String(existing.Id);
     await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboId });
+
+    // Ensure customer has an email set (needed for invoice send)
+    const email = account.BillingEmail || account.Email;
+    if (email && !existing.PrimaryEmailAddr?.Address) {
+      try {
+        await qboApiRequest('POST', 'customer', {
+          Id:               existing.Id,
+          SyncToken:        existing.SyncToken,
+          sparse:           true,
+          PrimaryEmailAddr: { Address: email },
+        });
+      } catch (err) {
+        console.error(`[qbo] Failed to update customer email:`, err.message);
+      }
+    }
+
     return qboId;
   }
 
@@ -471,7 +488,6 @@ async function createInvoice(order, lineItems, account) {
     TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     DueDate:      order.DeliveryDate ? order.DeliveryDate.split('T')[0] : undefined,
     BillEmail:     billEmail ? { Address: billEmail } : undefined,
-    EmailStatus:   billEmail ? 'NeedToSend' : undefined,
     DepartmentRef: departmentRef,
   };
 
@@ -565,15 +581,27 @@ async function syncOrderToQbo(orderId) {
 
     console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${qboInvoiceId}`);
 
-    // Note if no email — invoice won't be sent by QBO
+    // Send the invoice via email
+    let invoiceSendNote = '';
     const billEmail = account.BillingEmail || account.Email;
-    if (!billEmail) {
+    if (billEmail) {
+      try {
+        await qboApiRequest('POST', `invoice/${qboInvoiceId}/send`);
+        console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
+      } catch (sendErr) {
+        console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
+        invoiceSendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: ${sendErr.message}`;
+      }
+    } else {
+      invoiceSendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: no email address on account`;
+    }
+
+    if (invoiceSendNote) {
       try {
         const cur = getRow('ORDERS', orderId);
         const notes = cur?.Notes || '';
-        const sendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: no email address on account`;
         await updateRow('ORDERS', orderId, {
-          Notes: notes ? `${notes}\n${sendNote}` : sendNote,
+          Notes: notes ? `${notes}\n${invoiceSendNote}` : invoiceSendNote,
         });
       } catch (noteErr) {
         console.error(`[qbo] Failed to save send note for order ${orderId}:`, noteErr.message);
