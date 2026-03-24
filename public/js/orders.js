@@ -462,7 +462,8 @@ function parseRequestedProducts(productsStr, inventoryItems) {
     const rest = part.slice(qtyMatch[0].length).trim();
     // Match against inventory by reconstructing "Name (Format)" as collectOrderProducts does
     const item = inventoryItems.find(i => {
-      const label = i.Format ? `${i.Name} (${i.Format})` : i.Name;
+      const fl = fmtLabel(i);
+      const label = fl ? `${i.Name} (${fl})` : i.Name;
       return rest === label || rest === i.Name;
     });
     if (item) quantities[item.ID] = qty;
@@ -486,7 +487,7 @@ function productPickerHtml(items, quantities = {}, readOnly = false) {
       const qty = quantities[item.ID] || 0;
       return `<tr>
         <td class="fw-600">${esc(item.Name)}</td>
-        <td class="text-sm">${esc(item.Format) || '—'}</td>
+        <td class="text-sm">${esc(fmtLabel(item)) || '—'}</td>
         <td class="text-sm">${price ? '$' + price.toFixed(2) : '—'}</td>
         <td class="text-sm">${qty}</td>
       </tr>`;
@@ -523,7 +524,8 @@ function _buildProductOptions(selectedId) {
   if (inStock.length) {
     html += '<optgroup label="In Stock">';
     for (const item of inStock) {
-      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      const fl = fmtLabel(item);
+      const label = fl ? `${item.Name} (${fl})` : item.Name;
       const sel = item.ID === selectedId ? ' selected' : '';
       html += `<option value="${esc(item.ID)}"${sel}>${esc(label)} [${item.Units}]</option>`;
     }
@@ -532,7 +534,8 @@ function _buildProductOptions(selectedId) {
   if (outOfStock.length) {
     html += '<optgroup label="Out of Stock">';
     for (const item of outOfStock) {
-      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      const fl = fmtLabel(item);
+      const label = fl ? `${item.Name} (${fl})` : item.Name;
       const sel = item.ID === selectedId ? ' selected' : '';
       html += `<option value="${esc(item.ID)}"${sel}>${esc(label)}</option>`;
     }
@@ -657,7 +660,7 @@ function orderItemsReadOnlyHtml(orderItems) {
     const isNeg = total < 0;
     return `<tr>
       <td class="fw-600">${esc(item.ProductName || '—')}</td>
-      <td class="text-sm">${esc(item.Format) || '—'}</td>
+      <td class="text-sm">${esc(fmtLabel(item)) || '—'}</td>
       <td class="text-sm">${qty}</td>
       <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${total ? '$' + total.toFixed(2) : '—'}</td>
@@ -750,7 +753,8 @@ function collectOrderProducts() {
     if (qty > 0) {
       const item = _orderFormInventory.find(i => i.ID === inventoryId);
       if (!item) continue;
-      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      const fl = fmtLabel(item);
+      const label = fl ? `${item.Name} (${fl})` : item.Name;
       selected.push(`${qty}x ${label}`);
     }
   }
@@ -768,6 +772,7 @@ function collectOrderItems() {
         InventoryID: item.ID,
         ProductName: item.Name,
         Format: item.Format || '',
+        VariationNote: item.VariationNote || '',
         Quantity: qty,
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
@@ -1359,7 +1364,7 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     const hidden = group === 'other';
     return `<tr data-stock="${group}"${hidden ? ' style="display:none"' : ''}>
             <td class="fw-600">${esc(item.Name)}</td>
-            <td class="text-sm">${esc(item.Format) || '—'}</td>
+            <td class="text-sm">${esc(fmtLabel(item)) || '—'}</td>
             <td class="text-sm">${esc(item.Units)}</td>
             <td><input class="form-control" type="number" min="0" max="${stock}" value="${prefill}"
                  id="deliv-qty-${item.ID}" style="width:80px" /></td>
@@ -1404,7 +1409,7 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
             const depPerUnit = parseFloat(k.DepositPerUnit) || 0;
             return `<tr>
               <td class="fw-600">${esc(k.ProductName)}</td>
-              <td class="text-sm">${esc(k.Format) || '—'}</td>
+              <td class="text-sm">${esc(fmtLabel(k)) || '—'}</td>
               <td class="text-sm">${outstanding}</td>
               <td class="text-sm">${depPerUnit > 0 ? '$' + depPerUnit.toFixed(2) + '/keg' : '—'}</td>
               <td><input class="form-control" type="number" min="0" max="${outstanding}" value="0"

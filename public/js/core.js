@@ -122,6 +122,12 @@ function _paginationReadHash() {
 
 // ── Utilities ────────────────────────────────────────────────────
 
+function fmtLabel(item) {
+  const fmt = item.Format || item.format || '';
+  const note = item.VariationNote || item.variationNote || '';
+  return [fmt, note].filter(Boolean).join(' ');
+}
+
 function esc(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')

@@ -3,7 +3,7 @@
 // ── Products View (location-independent catalog) ─────────────────
 
 let _productsCache = [];
-let _productFormats = {}; // { productId: [{format, pricePerUnit}] }
+let _productFormats = {}; // { productId: [{format, variationNote, pricePerUnit}] }
 let _prodSort = { col: 'Name', dir: 'asc' };
 let _variationCounter = 0;
 
@@ -31,7 +31,7 @@ function productForm(product = {}) {
     <hr class="form-divider" />
     <div class="form-section-title">Format Variations</div>
     <div id="variations-wrap"></div>
-    <button type="button" class="btn btn-ghost btn-sm" onclick="addVariationRow('', '')" style="margin-top:4px">+ Add Format</button>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="addVariationRow('', '', '')" style="margin-top:4px">+ Add Format</button>
     <hr class="form-divider" />
     <div class="form-group">
       <label>Notes</label>
@@ -39,7 +39,7 @@ function productForm(product = {}) {
     </div>`;
 }
 
-function addVariationRow(format, price) {
+function addVariationRow(format, price, note) {
   const wrap = document.getElementById('variations-wrap');
   if (!wrap) return;
   const id = _variationCounter++;
@@ -54,6 +54,10 @@ function addVariationRow(format, price) {
         <option value="">-- Select --</option>
         ${FORMATS.map(f => `<option value="${f}" ${format === f ? 'selected' : ''}>${f}</option>`).join('')}
       </select>
+    </div>
+    <div class="form-group" style="flex:1;margin-bottom:0">
+      <label>Note</label>
+      <input class="form-control" id="var-note-${id}" value="${esc(note || '')}" placeholder="e.g. Wholesale, Fruited" />
     </div>
     <div class="form-group" style="flex:1;margin-bottom:0">
       <label>Price ($)</label>
@@ -78,9 +82,10 @@ function collectVariations() {
   const variations = [];
   rows.forEach(row => {
     const select = row.querySelector('select');
-    const input = row.querySelector('input[type="number"]');
-    if (select && input) {
-      variations.push({ format: select.value, pricePerUnit: input.value });
+    const noteInput = row.querySelector('input[type="text"], input:not([type])');
+    const priceInput = row.querySelector('input[type="number"]');
+    if (select && priceInput) {
+      variations.push({ format: select.value, variationNote: noteInput ? noteInput.value.trim() : '', pricePerUnit: priceInput.value });
     }
   });
   return variations;
@@ -101,10 +106,11 @@ async function loadProducts(preservePage = false) {
     if (!inv.ProductID) continue;
     if (!_productFormats[inv.ProductID]) _productFormats[inv.ProductID] = [];
     const fmt = inv.Format || '';
+    const note = inv.VariationNote || '';
     const price = inv.PricePerUnit || '';
-    // Deduplicate by format
-    if (!_productFormats[inv.ProductID].some(v => v.format === fmt)) {
-      _productFormats[inv.ProductID].push({ format: fmt, pricePerUnit: price });
+    // Deduplicate by format + variationNote
+    if (!_productFormats[inv.ProductID].some(v => v.format === fmt && v.variationNote === note)) {
+      _productFormats[inv.ProductID].push({ format: fmt, variationNote: note, pricePerUnit: price });
     }
   }
 
@@ -126,7 +132,7 @@ function formatBadges(productId) {
   const vars = _productFormats[productId] || [];
   if (vars.length === 0) return '<span class="text-muted">—</span>';
   return vars.map(v => {
-    const fmt = v.format || 'No format';
+    const fmt = fmtLabel(v) || 'No format';
     const price = v.pricePerUnit ? `$${parseFloat(v.pricePerUnit).toFixed(2)}` : '';
     const label = price ? `${fmt} — ${price}` : fmt;
     return `<span class="badge badge-neutral" style="margin:2px 4px 2px 0">${esc(label)}</span>`;
@@ -236,7 +242,7 @@ function openAddProduct() {
     loadProducts();
   });
   // Add one blank variation row after modal opens
-  setTimeout(() => addVariationRow('', ''), 0);
+  setTimeout(() => addVariationRow('', '', ''), 0);
 }
 
 async function openEditProduct(id) {
@@ -264,35 +270,37 @@ async function openEditProduct(id) {
 
     // Diff variations: add new ones, remove deleted ones
     const newVars = collectVariations();
-    const oldFormats = new Set(existingVars.map(v => v.format));
-    const newFormats = new Set(newVars.map(v => v.format));
+    const varKey = v => `${v.format}|||${v.variationNote || ''}`;
+    const oldKeys = new Set(existingVars.map(varKey));
+    const newKeys = new Set(newVars.map(varKey));
 
     // Add new variations
     for (const v of newVars) {
-      if (!oldFormats.has(v.format)) {
+      if (!oldKeys.has(varKey(v))) {
         try {
           await api.post(`/api/products/${id}/variations`, v);
         } catch (err) {
-          toast(`Could not add format "${v.format}": ${err.message}`, 'error');
+          toast(`Could not add format "${fmtLabel(v)}": ${err.message}`, 'error');
         }
       }
     }
 
     // Remove deleted variations
     for (const v of existingVars) {
-      if (!newFormats.has(v.format)) {
+      if (!newKeys.has(varKey(v))) {
         try {
-          await api.del(`/api/products/${id}/variations/${encodeURIComponent(v.format)}`);
+          const noteParam = v.variationNote ? `?note=${encodeURIComponent(v.variationNote)}` : '';
+          await api.del(`/api/products/${id}/variations/${encodeURIComponent(v.format)}${noteParam}`);
         } catch (err) {
-          toast(`Could not remove format "${v.format}": ${err.message}`, 'error');
+          toast(`Could not remove format "${fmtLabel(v)}": ${err.message}`, 'error');
         }
       }
     }
 
     // Update price changes on existing variations (update inventory rows directly)
     for (const v of newVars) {
-      if (oldFormats.has(v.format)) {
-        const old = existingVars.find(ev => ev.format === v.format);
+      if (oldKeys.has(varKey(v))) {
+        const old = existingVars.find(ev => varKey(ev) === varKey(v));
         if (old && old.pricePerUnit !== v.pricePerUnit) {
           // Update price on all inventory rows for this product+format
           for (const loc of old.locations) {
@@ -312,10 +320,10 @@ async function openEditProduct(id) {
   // Populate variation rows after modal opens
   setTimeout(() => {
     if (existingVars.length === 0) {
-      addVariationRow('', '');
+      addVariationRow('', '', '');
     } else {
       for (const v of existingVars) {
-        addVariationRow(v.format, v.pricePerUnit);
+        addVariationRow(v.format, v.pricePerUnit, v.variationNote);
       }
     }
   }, 0);

@@ -50,11 +50,13 @@ router.post('/bulk', async (req, res) => {
       const product = productMap[inv.ProductID] || {};
       const invName = inv.ProductName || product.Name || inv.Name || '';
       const invFormat = inv.Format || product.Format || '';
+      const invNote = inv.VariationNote || '';
+      const displayFormat = [invFormat, invNote].filter(Boolean).join(' ');
 
       const movement = {
         ID:            uuidv4(),
         InventoryID:   item.inventoryId,
-        InventoryName: [invName, invFormat].filter(Boolean).join(' — '),
+        InventoryName: [invName, displayFormat].filter(Boolean).join(' — '),
         OrderID:       orderId,
         Type:          'sale',
         Quantity:      String(-qty),
@@ -148,6 +150,8 @@ router.post('/', async (req, res) => {
     const product = productMap[inv.ProductID] || {};
     const invName = inv.ProductName || product.Name || inv.Name || '';
     const invFormat = inv.Format || product.Format || '';
+    const invNote = inv.VariationNote || '';
+    const displayFormat = [invFormat, invNote].filter(Boolean).join(' ');
 
     // received = add stock; write-off and adjustment = remove stock
     const delta     = type === 'received' ? qty : -qty;
@@ -157,7 +161,7 @@ router.post('/', async (req, res) => {
     const movement = {
       ID:            uuidv4(),
       InventoryID:   inventoryId,
-      InventoryName: [invName, invFormat].filter(Boolean).join(' — '),
+      InventoryName: [invName, displayFormat].filter(Boolean).join(' — '),
       OrderID:       '',
       Type:          type,
       Quantity:      String(delta),

@@ -59,6 +59,7 @@ router.post('/', async (req, res) => {
           ProductID: product.ID,
           ProductName: product.Name,
           Format: v.format || '',
+          VariationNote: v.variationNote || '',
           PricePerUnit: v.pricePerUnit || '',
           Location: loc,
           Units: '0',
@@ -116,14 +117,16 @@ router.get('/:id/variations', async (req, res) => {
     const inventory = await getAllRows('INVENTORY');
     const related = inventory.filter(i => i.ProductID === req.params.id);
 
-    // Deduplicate by Format
+    // Deduplicate by Format + VariationNote
     const formatMap = new Map();
     for (const inv of related) {
       const fmt = inv.Format || '';
-      if (!formatMap.has(fmt)) {
-        formatMap.set(fmt, { format: fmt, pricePerUnit: inv.PricePerUnit || '', locations: [] });
+      const note = inv.VariationNote || '';
+      const key = `${fmt}|||${note}`;
+      if (!formatMap.has(key)) {
+        formatMap.set(key, { format: fmt, variationNote: note, pricePerUnit: inv.PricePerUnit || '', locations: [] });
       }
-      formatMap.get(fmt).locations.push({ location: inv.Location, inventoryId: inv.ID, units: inv.Units || '0' });
+      formatMap.get(key).locations.push({ location: inv.Location, inventoryId: inv.ID, units: inv.Units || '0' });
     }
 
     res.json([...formatMap.values()]);
@@ -136,15 +139,15 @@ router.get('/:id/variations', async (req, res) => {
 // POST /api/products/:id/variations — add a new format variation
 router.post('/:id/variations', async (req, res) => {
   try {
-    const { format, pricePerUnit } = req.body;
+    const { format, pricePerUnit, variationNote } = req.body;
     const products = await getAllRows('PRODUCTS');
     const product = products.find(p => p.ID === req.params.id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    // Check for duplicate format
+    // Check for duplicate format + variationNote
     const inventory = await getAllRows('INVENTORY');
-    const existing = inventory.find(i => i.ProductID === req.params.id && (i.Format || '') === (format || ''));
-    if (existing) return res.status(400).json({ error: 'This format already exists for this product' });
+    const existing = inventory.find(i => i.ProductID === req.params.id && (i.Format || '') === (format || '') && (i.VariationNote || '') === (variationNote || ''));
+    if (existing) return res.status(400).json({ error: 'This format variation already exists for this product' });
 
     // Read locations
     const settings = await getAllRows('SETTINGS');
@@ -162,6 +165,7 @@ router.post('/:id/variations', async (req, res) => {
         ProductID: req.params.id,
         ProductName: product.Name,
         Format: format || '',
+        VariationNote: variationNote || '',
         PricePerUnit: pricePerUnit || '',
         Location: loc,
         Units: '0',
@@ -172,7 +176,7 @@ router.post('/:id/variations', async (req, res) => {
       inventoryRows.push(inv);
     }
 
-    res.status(201).json({ format: format || '', pricePerUnit: pricePerUnit || '', inventoryRows });
+    res.status(201).json({ format: format || '', variationNote: variationNote || '', pricePerUnit: pricePerUnit || '', inventoryRows });
   } catch (err) {
     console.error(`[products] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
@@ -183,8 +187,9 @@ router.post('/:id/variations', async (req, res) => {
 router.delete('/:id/variations/:format', async (req, res) => {
   try {
     const format = decodeURIComponent(req.params.format);
+    const note = req.query.note != null ? decodeURIComponent(req.query.note) : '';
     const inventory = await getAllRows('INVENTORY');
-    const related = inventory.filter(i => i.ProductID === req.params.id && (i.Format || '') === format);
+    const related = inventory.filter(i => i.ProductID === req.params.id && (i.Format || '') === format && (i.VariationNote || '') === note);
 
     if (related.length === 0) return res.status(404).json({ error: 'Variation not found' });
 

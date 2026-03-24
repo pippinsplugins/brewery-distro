@@ -59,7 +59,7 @@ async function loadDashboard() {
     : dash.lowStockItems.map(i => `
         <li class="clickable" onclick="navigate('inventory')">
           <span class="dash-label">${esc(i.Name)}</span>
-          <span class="dash-meta">${esc(i.Units)} left (${esc(i.Format || 'units')})</span>
+          <span class="dash-meta">${esc(i.Units)} left (${esc(fmtLabel(i) || 'units')})</span>
           <span class="badge badge-low-stock">Low</span>
         </li>`).join('');
 

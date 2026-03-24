@@ -20,6 +20,7 @@ async function enrichInventory(items) {
       Style: product.Style || inv.Style || '',
       ABV: product.ABV || inv.ABV || '',
       Format: inv.Format || product.Format || '',
+      VariationNote: inv.VariationNote || '',
       PricePerUnit: inv.PricePerUnit || product.PricePerUnit || '',
     };
   });
@@ -71,9 +72,10 @@ router.post('/', async (req, res) => {
     const product = products.find(p => p.ID === ProductID);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    // Check if already exists at this location (Format-aware)
+    // Check if already exists at this location (Format+VariationNote-aware)
+    const { VariationNote } = req.body;
     const inventory = await getAllRows('INVENTORY');
-    const existing = inventory.find(i => i.ProductID === ProductID && i.Location === Location && (i.Format || '') === (Format || ''));
+    const existing = inventory.find(i => i.ProductID === ProductID && i.Location === Location && (i.Format || '') === (Format || '') && (i.VariationNote || '') === (VariationNote || ''));
     if (existing) return res.status(400).json({ error: 'Product already exists at this location' });
 
     const item = {

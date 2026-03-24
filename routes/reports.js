@@ -92,8 +92,10 @@ router.get('/', async (req, res) => {
     const salesItems = orderItems.filter(i => salesOrderIds.has(i.OrderID));
 
     for (const item of salesItems) {
-      const key = `${item.ProductName || ''}|||${item.Format || ''}`;
-      if (!productAgg[key]) productAgg[key] = { productName: item.ProductName || '', format: item.Format || '', quantitySold: 0, revenue: 0, orderIds: new Set() };
+      const note = item.VariationNote || '';
+      const displayFormat = [item.Format || '', note].filter(Boolean).join(' ');
+      const key = `${item.ProductName || ''}|||${displayFormat}`;
+      if (!productAgg[key]) productAgg[key] = { productName: item.ProductName || '', format: displayFormat, quantitySold: 0, revenue: 0, orderIds: new Set() };
       const a = productAgg[key];
       a.quantitySold += parseInt(item.Quantity || 0);
       a.revenue += parseFloat(item.LineTotal || 0);

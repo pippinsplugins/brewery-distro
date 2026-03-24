@@ -103,7 +103,7 @@ function renderInventory() {
                 <td class="fw-600">${esc(item.Name)}</td>
                 <td>${esc(item.Style)}</td>
                 <td>${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
-                <td>${esc(item.Format) || '—'}</td>
+                <td>${esc(fmtLabel(item)) || '—'}</td>
                 <td>${esc(item.Units)}</td>
                 <td>${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
@@ -133,22 +133,23 @@ async function openAddInventory() {
     api.get('/api/products'),
   ]);
 
-  // Build set of existing combos at this location: "ProductID|||Format"
+  // Build set of existing combos at this location: "ProductID|||Format|||VariationNote"
   const existingCombos = new Set(
-    locationInventory.map(i => `${i.ProductID}|||${i.Format || ''}`).filter(k => k.startsWith(''))
+    locationInventory.map(i => `${i.ProductID}|||${i.Format || ''}|||${i.VariationNote || ''}`)
   );
 
   // Build all globally known combos from inventory (deduplicated)
-  const globalCombos = new Map(); // key → { productId, productName, format, pricePerUnit }
+  const globalCombos = new Map(); // key → { productId, productName, format, variationNote, pricePerUnit }
   for (const inv of allInventory) {
     if (!inv.ProductID) continue;
-    const key = `${inv.ProductID}|||${inv.Format || ''}`;
+    const key = `${inv.ProductID}|||${inv.Format || ''}|||${inv.VariationNote || ''}`;
     if (!globalCombos.has(key)) {
       const product = allProducts.find(p => p.ID === inv.ProductID);
       globalCombos.set(key, {
         productId: inv.ProductID,
         productName: inv.ProductName || (product ? product.Name : '') || inv.Name || '',
         format: inv.Format || '',
+        variationNote: inv.VariationNote || '',
         pricePerUnit: inv.PricePerUnit || '',
       });
     }
@@ -169,8 +170,10 @@ async function openAddInventory() {
 
   // Sort alphabetically by display label
   available.sort((a, b) => {
-    const la = a.format ? `${a.productName} (${a.format})` : a.productName;
-    const lb = b.format ? `${b.productName} (${b.format})` : b.productName;
+    const fmtA = [a.format, a.variationNote].filter(Boolean).join(' ');
+    const fmtB = [b.format, b.variationNote].filter(Boolean).join(' ');
+    const la = fmtA ? `${a.productName} (${fmtA})` : a.productName;
+    const lb = fmtB ? `${b.productName} (${fmtB})` : b.productName;
     return la.localeCompare(lb);
   });
 
@@ -183,7 +186,8 @@ async function openAddInventory() {
       <select class="form-control" id="f-product-combo">
         <option value="">-- Select Product --</option>
         ${available.map(c => {
-          const label = c.format ? `${c.productName} (${c.format})` : c.productName;
+          const fmtDisplay = [c.format, c.variationNote].filter(Boolean).join(' ');
+          const label = fmtDisplay ? `${c.productName} (${fmtDisplay})` : c.productName;
           return `<option value="${esc(c.key)}">${esc(label)}</option>`;
         }).join('')}
       </select>
@@ -200,6 +204,7 @@ async function openAddInventory() {
       ProductID: combo.productId,
       Location: state.location,
       Format: combo.format,
+      VariationNote: combo.variationNote,
       PricePerUnit: combo.pricePerUnit,
       LowStockThreshold: val('f-threshold'),
     });
@@ -212,7 +217,7 @@ async function openAddInventory() {
 function openEditInventory(id) {
   const item = state.inventory.find(i => i.ID === id);
   if (!item) return;
-  const label = item.Format ? `${item.Name} — ${item.Format}` : item.Name;
+  const label = fmtLabel(item) ? `${item.Name} — ${fmtLabel(item)}` : item.Name;
   modal.open('Edit Stock Threshold', `
     <p class="text-muted text-sm" style="margin-bottom:16px">
       <strong>${esc(label)}</strong> at ${esc(state.location)}
@@ -246,7 +251,7 @@ async function deleteInventory(id, name) {
 function openAdjustInventory(id) {
   const item = state.inventory.find(i => i.ID === id);
   if (!item) return;
-  const label = item.Format ? `${item.Name} — ${item.Format}` : item.Name;
+  const label = fmtLabel(item) ? `${item.Name} — ${fmtLabel(item)}` : item.Name;
   modal.open('Adjust Stock', `
     <p class="text-muted text-sm" style="margin-bottom:16px">
       <strong>${esc(label)}</strong> &mdash; current stock: <strong>${esc(item.Units)} units</strong>
