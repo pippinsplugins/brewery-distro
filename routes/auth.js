@@ -3,6 +3,7 @@
 const express  = require('express');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
+const { getRow, addRow, updateRow } = require('../db');
 
 const router = express.Router();
 
@@ -34,6 +35,24 @@ if (oauthConfigured) {
         }
       }
 
+      // Google only returns a refreshToken on the initial consent.
+      // Persist it so subsequent logins (which skip consent) can reuse it.
+      const settingsKey = `google_refresh_token:${profile.id}`;
+      let effectiveRefreshToken = refreshToken || '';
+      if (effectiveRefreshToken) {
+        // Save new refresh token
+        const existing = getRow('SETTINGS', settingsKey);
+        if (existing) {
+          updateRow('SETTINGS', settingsKey, { Value: effectiveRefreshToken, UpdatedAt: new Date().toISOString() });
+        } else {
+          addRow('SETTINGS', { ID: settingsKey, Key: settingsKey, Value: effectiveRefreshToken, UpdatedAt: new Date().toISOString() });
+        }
+      } else {
+        // Load previously saved refresh token
+        const saved = getRow('SETTINGS', settingsKey);
+        if (saved && saved.Value) effectiveRefreshToken = saved.Value;
+      }
+
       // Store only the fields we actually need in the session.
       const user = {
         id:           profile.id,
@@ -41,7 +60,7 @@ if (oauthConfigured) {
         email:        (profile.emails && profile.emails[0] && profile.emails[0].value) || '',
         photo:        (profile.photos && profile.photos[0] && profile.photos[0].value) || '',
         accessToken:  accessToken  || '',
-        refreshToken: refreshToken || '',
+        refreshToken: effectiveRefreshToken,
       };
 
       return done(null, user);
