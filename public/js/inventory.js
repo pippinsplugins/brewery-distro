@@ -150,6 +150,7 @@ async function openAddInventory() {
         productName: inv.ProductName || (product ? product.Name : '') || inv.Name || '',
         format: inv.Format || '',
         pricePerUnit: inv.PricePerUnit || '',
+        prices: inv.Prices || '',
       });
     }
   }
@@ -201,6 +202,7 @@ async function openAddInventory() {
       Location: state.location,
       Format: combo.format,
       PricePerUnit: combo.pricePerUnit,
+      Prices: combo.prices,
       LowStockThreshold: val('f-threshold'),
     });
     modal.close();

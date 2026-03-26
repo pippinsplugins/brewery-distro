@@ -92,8 +92,9 @@ router.get('/', async (req, res) => {
     const salesItems = orderItems.filter(i => salesOrderIds.has(i.OrderID));
 
     for (const item of salesItems) {
-      const key = `${item.ProductName || ''}|||${item.Format || ''}`;
-      if (!productAgg[key]) productAgg[key] = { productName: item.ProductName || '', format: item.Format || '', quantitySold: 0, revenue: 0, orderIds: new Set() };
+      const tier = item.PriceTier || '';
+      const key = `${item.ProductName || ''}|||${item.Format || ''}|||${tier}`;
+      if (!productAgg[key]) productAgg[key] = { productName: item.ProductName || '', format: item.Format || '', priceTier: tier, quantitySold: 0, revenue: 0, orderIds: new Set() };
       const a = productAgg[key];
       a.quantitySold += parseInt(item.Quantity || 0);
       a.revenue += parseFloat(item.LineTotal || 0);
@@ -104,6 +105,7 @@ router.get('/', async (req, res) => {
       .map(p => ({
         productName: p.productName,
         format: p.format,
+        priceTier: p.priceTier,
         quantitySold: p.quantitySold,
         revenue: p.revenue,
         avgPrice: p.quantitySold > 0 ? p.revenue / p.quantitySold : 0,

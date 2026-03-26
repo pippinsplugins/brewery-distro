@@ -53,13 +53,21 @@ router.post('/', async (req, res) => {
     const inventoryRows = [];
     const today = new Date().toISOString().split('T')[0];
     for (const v of vars) {
+      // Build Prices JSON from prices array; set PricePerUnit to first price
+      let pricesJson = '';
+      let primaryPrice = v.pricePerUnit || '';
+      if (Array.isArray(v.prices) && v.prices.length > 0) {
+        pricesJson = JSON.stringify(v.prices);
+        primaryPrice = v.prices[0].price || primaryPrice;
+      }
       for (const loc of locations) {
         const inv = {
           ID: uuidv4(),
           ProductID: product.ID,
           ProductName: product.Name,
           Format: v.format || '',
-          PricePerUnit: v.pricePerUnit || '',
+          PricePerUnit: primaryPrice,
+          Prices: pricesJson,
           Location: loc,
           Units: '0',
           LowStockThreshold: '5',
@@ -121,7 +129,15 @@ router.get('/:id/variations', async (req, res) => {
     for (const inv of related) {
       const fmt = inv.Format || '';
       if (!formatMap.has(fmt)) {
-        formatMap.set(fmt, { format: fmt, pricePerUnit: inv.PricePerUnit || '', locations: [] });
+        // Parse Prices JSON; fall back to single-price array from PricePerUnit
+        let prices = [];
+        if (inv.Prices) {
+          try { prices = JSON.parse(inv.Prices); } catch { /* ignore */ }
+        }
+        if (prices.length === 0 && inv.PricePerUnit) {
+          prices = [{ label: '', price: inv.PricePerUnit }];
+        }
+        formatMap.set(fmt, { format: fmt, pricePerUnit: inv.PricePerUnit || '', prices, locations: [] });
       }
       formatMap.get(fmt).locations.push({ location: inv.Location, inventoryId: inv.ID, units: inv.Units || '0' });
     }
@@ -136,7 +152,7 @@ router.get('/:id/variations', async (req, res) => {
 // POST /api/products/:id/variations — add a new format variation
 router.post('/:id/variations', async (req, res) => {
   try {
-    const { format, pricePerUnit } = req.body;
+    const { format, pricePerUnit, prices } = req.body;
     const products = await getAllRows('PRODUCTS');
     const product = products.find(p => p.ID === req.params.id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
@@ -154,6 +170,14 @@ router.post('/:id/variations', async (req, res) => {
       try { locations = JSON.parse(locRow.Value); } catch (e) { /* ignore */ }
     }
 
+    // Build Prices JSON; set PricePerUnit to first price
+    let pricesJson = '';
+    let primaryPrice = pricePerUnit || '';
+    if (Array.isArray(prices) && prices.length > 0) {
+      pricesJson = JSON.stringify(prices);
+      primaryPrice = prices[0].price || primaryPrice;
+    }
+
     const inventoryRows = [];
     const today = new Date().toISOString().split('T')[0];
     for (const loc of locations) {
@@ -162,7 +186,8 @@ router.post('/:id/variations', async (req, res) => {
         ProductID: req.params.id,
         ProductName: product.Name,
         Format: format || '',
-        PricePerUnit: pricePerUnit || '',
+        PricePerUnit: primaryPrice,
+        Prices: pricesJson,
         Location: loc,
         Units: '0',
         LowStockThreshold: '5',
@@ -172,7 +197,7 @@ router.post('/:id/variations', async (req, res) => {
       inventoryRows.push(inv);
     }
 
-    res.status(201).json({ format: format || '', pricePerUnit: pricePerUnit || '', inventoryRows });
+    res.status(201).json({ format: format || '', pricePerUnit: primaryPrice, inventoryRows });
   } catch (err) {
     console.error(`[products] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

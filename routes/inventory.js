@@ -21,6 +21,7 @@ async function enrichInventory(items) {
       ABV: product.ABV || inv.ABV || '',
       Format: inv.Format || product.Format || '',
       PricePerUnit: inv.PricePerUnit || product.PricePerUnit || '',
+      Prices: inv.Prices || '',
     };
   });
 }
@@ -41,7 +42,7 @@ router.get('/', async (req, res) => {
 // POST /api/inventory — add a product to a specific location
 router.post('/', async (req, res) => {
   try {
-    const { ProductID, Location, Units, LowStockThreshold, Name, Style, ABV, Format, PricePerUnit, Notes } = req.body;
+    const { ProductID, Location, Units, LowStockThreshold, Name, Style, ABV, Format, PricePerUnit, Prices, Notes } = req.body;
 
     // Support legacy create (full product fields) for backward compatibility
     if (!ProductID && Name) {
@@ -82,6 +83,7 @@ router.post('/', async (req, res) => {
       ProductName: product.Name,
       Format: Format || '',
       PricePerUnit: PricePerUnit || '',
+      Prices: Prices || '',
       Location,
       Units: '0',
       LowStockThreshold: LowStockThreshold !== undefined ? String(LowStockThreshold) : '5',

@@ -3,9 +3,10 @@
 // ── Products View (location-independent catalog) ─────────────────
 
 let _productsCache = [];
-let _productFormats = {}; // { productId: [{format, pricePerUnit}] }
+let _productFormats = {}; // { productId: [{format, pricePerUnit, prices}] }
 let _prodSort = { col: 'Name', dir: 'asc' };
 let _variationCounter = 0;
+let _priceTierCounter = 0;
 
 function productForm(product = {}) {
   return `
@@ -31,7 +32,7 @@ function productForm(product = {}) {
     <hr class="form-divider" />
     <div class="form-section-title">Format Variations</div>
     <div id="variations-wrap"></div>
-    <button type="button" class="btn btn-ghost btn-sm" onclick="addVariationRow('', '')" style="margin-top:4px">+ Add Format</button>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="addVariationRow()" style="margin-top:4px">+ Add Format</button>
     <hr class="form-divider" />
     <div class="form-group">
       <label>Notes</label>
@@ -39,28 +40,70 @@ function productForm(product = {}) {
     </div>`;
 }
 
-function addVariationRow(format, price) {
+function addVariationRow(format, prices) {
   const wrap = document.getElementById('variations-wrap');
   if (!wrap) return;
   const id = _variationCounter++;
   const div = document.createElement('div');
   div.className = 'variation-row';
   div.id = `var-row-${id}`;
-  div.style.cssText = 'display:flex;gap:12px;align-items:flex-end;margin-bottom:8px';
+  div.dataset.varId = id;
+  div.style.cssText = 'border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px';
+  div.innerHTML = `
+    <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:8px">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label>Format</label>
+        <select class="form-control" id="var-format-${id}">
+          <option value="">-- Select --</option>
+          ${FORMATS.map(f => `<option value="${f}" ${format === f ? 'selected' : ''}>${f}</option>`).join('')}
+        </select>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeVariationRow(this)" style="padding:8px;line-height:1">&times; Remove Format</button>
+    </div>
+    <div class="price-tiers-wrap" id="price-tiers-${id}"></div>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="addPriceTierRow(${id})" style="margin-top:4px">+ Add Price Tier</button>`;
+  wrap.appendChild(div);
+
+  // Add price tier rows
+  if (Array.isArray(prices) && prices.length > 0) {
+    for (const p of prices) {
+      addPriceTierRow(id, p.label || '', p.price || '');
+    }
+  } else {
+    // Single blank tier
+    addPriceTierRow(id, '', '');
+  }
+}
+
+function addPriceTierRow(varId, label, price) {
+  const wrap = document.getElementById(`price-tiers-${varId}`);
+  if (!wrap) return;
+  const tid = _priceTierCounter++;
+  const div = document.createElement('div');
+  div.className = 'price-tier-row';
+  div.id = `tier-row-${tid}`;
+  div.style.cssText = 'display:flex;gap:8px;align-items:flex-end;margin-bottom:4px;margin-left:16px';
   div.innerHTML = `
     <div class="form-group" style="flex:1;margin-bottom:0">
-      <label>Format</label>
-      <select class="form-control" id="var-format-${id}">
-        <option value="">-- Select --</option>
-        ${FORMATS.map(f => `<option value="${f}" ${format === f ? 'selected' : ''}>${f}</option>`).join('')}
-      </select>
+      <label class="text-sm">Label</label>
+      <input class="form-control tier-label" type="text" value="${esc(label || '')}" placeholder="e.g. Standard, Wholesale" />
     </div>
     <div class="form-group" style="flex:1;margin-bottom:0">
-      <label>Price ($)</label>
-      <input class="form-control" id="var-price-${id}" type="number" step="0.01" min="0" value="${esc(price)}" placeholder="0.00" />
+      <label class="text-sm">Price ($)</label>
+      <input class="form-control tier-price" type="number" step="0.01" min="0" value="${esc(price || '')}" placeholder="0.00" />
     </div>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeVariationRow(this)" style="padding:8px;line-height:1">&times;</button>`;
+    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removePriceTierRow(this, ${varId})" style="padding:6px;line-height:1">&times;</button>`;
   wrap.appendChild(div);
+}
+
+function removePriceTierRow(btn, varId) {
+  const wrap = document.getElementById(`price-tiers-${varId}`);
+  if (wrap && wrap.querySelectorAll('.price-tier-row').length <= 1) {
+    toast('At least one price tier is required', 'error');
+    return;
+  }
+  const row = btn.closest('.price-tier-row');
+  if (row) row.remove();
 }
 
 function removeVariationRow(btn) {
@@ -78,10 +121,16 @@ function collectVariations() {
   const variations = [];
   rows.forEach(row => {
     const select = row.querySelector('select');
-    const input = row.querySelector('input[type="number"]');
-    if (select && input) {
-      variations.push({ format: select.value, pricePerUnit: input.value });
-    }
+    const format = select ? select.value : '';
+    const tierRows = row.querySelectorAll('.price-tier-row');
+    const prices = [];
+    tierRows.forEach(tr => {
+      const label = tr.querySelector('.tier-label')?.value || '';
+      const price = tr.querySelector('.tier-price')?.value || '';
+      if (price) prices.push({ label, price });
+    });
+    const pricePerUnit = prices.length > 0 ? prices[0].price : '';
+    variations.push({ format, pricePerUnit, prices });
   });
   return variations;
 }
@@ -102,9 +151,17 @@ async function loadProducts(preservePage = false) {
     if (!_productFormats[inv.ProductID]) _productFormats[inv.ProductID] = [];
     const fmt = inv.Format || '';
     const price = inv.PricePerUnit || '';
+    // Parse Prices JSON
+    let prices = [];
+    if (inv.Prices) {
+      try { prices = JSON.parse(inv.Prices); } catch { /* ignore */ }
+    }
+    if (prices.length === 0 && price) {
+      prices = [{ label: '', price }];
+    }
     // Deduplicate by format
     if (!_productFormats[inv.ProductID].some(v => v.format === fmt)) {
-      _productFormats[inv.ProductID].push({ format: fmt, pricePerUnit: price });
+      _productFormats[inv.ProductID].push({ format: fmt, pricePerUnit: price, prices });
     }
   }
 
@@ -127,8 +184,16 @@ function formatBadges(productId) {
   if (vars.length === 0) return '<span class="text-muted">—</span>';
   return vars.map(v => {
     const fmt = v.format || 'No format';
-    const price = v.pricePerUnit ? `$${parseFloat(v.pricePerUnit).toFixed(2)}` : '';
-    const label = price ? `${fmt} — ${price}` : fmt;
+    const prices = v.prices || [];
+    let priceStr = '';
+    if (prices.length > 1) {
+      priceStr = prices.map(p => `$${parseFloat(p.price).toFixed(2)}`).join(' / ');
+    } else if (prices.length === 1) {
+      priceStr = `$${parseFloat(prices[0].price).toFixed(2)}`;
+    } else if (v.pricePerUnit) {
+      priceStr = `$${parseFloat(v.pricePerUnit).toFixed(2)}`;
+    }
+    const label = priceStr ? `${fmt} — ${priceStr}` : fmt;
     return `<span class="badge badge-neutral" style="margin:2px 4px 2px 0">${esc(label)}</span>`;
   }).join('');
 }
@@ -219,6 +284,7 @@ function renderProducts() {
 
 function openAddProduct() {
   _variationCounter = 0;
+  _priceTierCounter = 0;
   modal.open('Add Product', productForm(), async () => {
     const name = val('f-name');
     if (!name) { toast('Name is required', 'error'); return; }
@@ -236,13 +302,14 @@ function openAddProduct() {
     loadProducts();
   });
   // Add one blank variation row after modal opens
-  setTimeout(() => addVariationRow('', ''), 0);
+  setTimeout(() => addVariationRow('', null), 0);
 }
 
 async function openEditProduct(id) {
   const product = _productsCache.find(p => p.ID === id);
   if (!product) return;
   _variationCounter = 0;
+  _priceTierCounter = 0;
 
   // Fetch current variations
   let existingVars = [];
@@ -289,15 +356,21 @@ async function openEditProduct(id) {
       }
     }
 
-    // Update price changes on existing variations (update inventory rows directly)
+    // Update price/tier changes on existing variations (update inventory rows directly)
     for (const v of newVars) {
       if (oldFormats.has(v.format)) {
         const old = existingVars.find(ev => ev.format === v.format);
-        if (old && old.pricePerUnit !== v.pricePerUnit) {
-          // Update price on all inventory rows for this product+format
+        if (!old) continue;
+        const newPricesJson = JSON.stringify(v.prices || []);
+        const oldPricesJson = JSON.stringify(old.prices || []);
+        const newPrimaryPrice = v.prices && v.prices.length > 0 ? v.prices[0].price : v.pricePerUnit;
+        if (newPricesJson !== oldPricesJson || old.pricePerUnit !== newPrimaryPrice) {
           for (const loc of old.locations) {
             try {
-              await api.put(`/api/inventory/${loc.inventoryId}`, { PricePerUnit: v.pricePerUnit });
+              await api.put(`/api/inventory/${loc.inventoryId}`, {
+                PricePerUnit: newPrimaryPrice || '',
+                Prices: newPricesJson,
+              });
             } catch { /* ignore */ }
           }
         }
@@ -312,10 +385,10 @@ async function openEditProduct(id) {
   // Populate variation rows after modal opens
   setTimeout(() => {
     if (existingVars.length === 0) {
-      addVariationRow('', '');
+      addVariationRow('', null);
     } else {
       for (const v of existingVars) {
-        addVariationRow(v.format, v.pricePerUnit);
+        addVariationRow(v.format, v.prices);
       }
     }
   }, 0);
