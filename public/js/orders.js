@@ -588,20 +588,20 @@ function addOrderLineItem(inventoryId, qty, priceTier) {
   div.setAttribute('data-inventory-id', inventoryId || '');
   div.setAttribute('data-unit-price', selectedPrice.toFixed(2));
   div.setAttribute('data-price-tier', selectedTierLabel);
-  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap';
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
 
   const tierHtml = prices.length > 1 ? _buildTierDropdown(prices, selectedTierLabel) : '';
 
   div.innerHTML = `
-    <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:180px">
+    <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:120px">
       ${_buildProductOptions(inventoryId || '')}
     </select>
     ${tierHtml}
-    <span class="line-item-price text-sm" style="min-width:60px">${selectedPrice ? '$' + selectedPrice.toFixed(2) : '—'}</span>
-    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:70px"
+    <span class="line-item-price text-sm" style="min-width:55px">${selectedPrice ? '$' + selectedPrice.toFixed(2) : '—'}</span>
+    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
       onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
-    <span class="line-item-total text-sm fw-600" style="min-width:70px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)">&times;</button>`;
+    <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
   wrap.appendChild(div);
   recalcOrderAmount();
 }
