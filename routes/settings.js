@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow } = require('../db');
@@ -16,6 +17,7 @@ router.get('/', async (req, res) => {
     }
     // Strip sensitive data
     delete settings.qboTokens;
+    delete settings.apiKeys;
     // Parse JSON values
     if (settings.locations) {
       try { settings.locations = JSON.parse(settings.locations); }
@@ -64,6 +66,7 @@ router.put('/', async (req, res) => {
       result[row.Key] = row.Value;
     }
     delete result.qboTokens;
+    delete result.apiKeys;
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
@@ -189,6 +192,75 @@ router.put('/rename-account-tag', async (req, res) => {
     }
     result._renamed = { accountsUpdated };
     res.json(result);
+  } catch (err) {
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── API Key helpers ──────────────────────────────────────────────
+
+function getApiKeys() {
+  const rows = getAllRows('SETTINGS');
+  const row = rows.find(r => r.Key === 'apiKeys');
+  if (!row) return [];
+  try { return JSON.parse(row.Value || '[]'); } catch { return []; }
+}
+
+function saveApiKeys(keys) {
+  const rows = getAllRows('SETTINGS');
+  const row = rows.find(r => r.Key === 'apiKeys');
+  const value = JSON.stringify(keys);
+  const now = new Date().toISOString().split('T')[0];
+  if (row) {
+    updateRow('SETTINGS', row.ID, { Value: value, UpdatedAt: now });
+  } else {
+    addRow('SETTINGS', { ID: uuidv4(), Key: 'apiKeys', Value: value, UpdatedAt: now });
+  }
+}
+
+// GET /api/settings/api-keys — list keys (never expose hash)
+router.get('/api-keys', async (req, res) => {
+  try {
+    const keys = getApiKeys();
+    res.json(keys.map(k => ({ id: k.id, name: k.name, prefix: k.prefix, createdAt: k.createdAt })));
+  } catch (err) {
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/settings/api-keys — generate a new key
+router.post('/api-keys', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+
+    const raw = crypto.randomBytes(32).toString('hex'); // 64-char hex
+    const hash = crypto.createHash('sha256').update(raw).digest('hex');
+    const prefix = raw.slice(0, 8);
+
+    const keys = getApiKeys();
+    keys.push({ id: uuidv4(), name: name.trim(), hash, prefix, createdAt: new Date().toISOString() });
+    saveApiKeys(keys);
+
+    // Return full key once — caller must save it
+    res.status(201).json({ key: raw, name: name.trim(), prefix });
+  } catch (err) {
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/settings/api-keys/:id — revoke a key
+router.delete('/api-keys/:id', async (req, res) => {
+  try {
+    const keys = getApiKeys();
+    const idx = keys.findIndex(k => k.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'API key not found' });
+    keys.splice(idx, 1);
+    saveApiKeys(keys);
+    res.json({ success: true });
   } catch (err) {
     console.error(`[settings] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

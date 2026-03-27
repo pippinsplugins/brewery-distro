@@ -142,6 +142,19 @@ function renderSettings() {
         </div>
       </div>
 
+      <div class="card" id="api-keys-card">
+        <div class="card-header">
+          <h3>API Keys</h3>
+          <button class="btn btn-ghost btn-sm" onclick="openGenerateApiKey()">+ Generate Key</button>
+        </div>
+        <div style="padding:0 18px 18px" id="api-keys-body">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            API keys allow external platforms (POS, e-commerce, automation tools) to access the API without browser login.
+          </p>
+          <div id="api-keys-list"><p class="text-sm text-muted">Loading...</p></div>
+        </div>
+      </div>
+
       <div class="card" id="qbo-settings-card">
         <div class="card-header"><h3>QuickBooks Online</h3></div>
         <div style="padding:0 18px 18px" id="qbo-settings-body">
@@ -150,7 +163,8 @@ function renderSettings() {
       </div>
     </div>`);
 
-  // Load QBO status asynchronously
+  // Load API keys and QBO status asynchronously
+  loadApiKeys();
   loadQboStatus();
 }
 
@@ -315,6 +329,87 @@ function removeAccountTag(index, name) {
     modal.close();
     toast('Tag removed');
     renderSettings();
+  });
+}
+
+// ── API Keys ──────────────────────────────────────────────────────
+
+async function loadApiKeys() {
+  const container = document.getElementById('api-keys-list');
+  if (!container) return;
+  try {
+    const keys = await api.get('/api/settings/api-keys');
+    if (keys.length === 0) {
+      container.innerHTML = '<p class="empty-state">No API keys generated yet.</p>';
+      return;
+    }
+    container.innerHTML = `<table class="data-table" style="margin:0">
+      <thead><tr><th>Name</th><th>Key Prefix</th><th>Created</th><th></th></tr></thead>
+      <tbody>${keys.map(k => `<tr>
+        <td>${esc(k.name)}</td>
+        <td><code>${esc(k.prefix)}...</code></td>
+        <td>${esc(k.createdAt ? k.createdAt.split('T')[0] : '')}</td>
+        <td style="text-align:right"><button class="btn btn-ghost btn-sm text-danger" onclick="revokeApiKey('${esc(k.id)}','${esc(k.name)}')">Revoke</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch (err) {
+    container.innerHTML = '<p class="text-sm text-danger">Failed to load API keys.</p>';
+  }
+}
+
+function openGenerateApiKey() {
+  modal.open('Generate API Key', `
+    <div class="form-group">
+      <label>Key Name <span class="required">*</span></label>
+      <input class="form-control" id="f-api-key-name" placeholder="e.g. POS Integration, Zapier" />
+    </div>
+  `, async () => {
+    const name = val('f-api-key-name');
+    if (!name) { toast('Key name is required', 'error'); return; }
+    try {
+      const result = await api.post('/api/settings/api-keys', { name });
+      modal.close();
+      // Show the key in a read-only modal — user must copy it now
+      modal.open('API Key Generated', `
+        <p style="margin-bottom:12px"><strong>Copy this key now.</strong> It will not be shown again.</p>
+        <div class="form-group">
+          <label>API Key</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-control" id="f-api-key-value" value="${esc(result.key)}" readonly style="font-family:monospace;font-size:13px" />
+            <button class="btn btn-primary" onclick="copyApiKey()">Copy</button>
+          </div>
+        </div>
+      `);
+      // Hide the submit button since this is display-only
+      document.getElementById('modal-submit-btn').style.display = 'none';
+      loadApiKeys();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+}
+
+function copyApiKey() {
+  const input = document.getElementById('f-api-key-value');
+  if (!input) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    toast('API key copied to clipboard');
+  }).catch(() => {
+    input.select();
+    toast('Press Ctrl+C to copy', 'error');
+  });
+}
+
+function revokeApiKey(id, name) {
+  modal.confirm('Revoke API Key', `Revoke "${name}"? Any integrations using this key will stop working immediately.`, async () => {
+    try {
+      await api.del('/api/settings/api-keys/' + id);
+      modal.close();
+      toast('API key revoked');
+      loadApiKeys();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   });
 }
 
