@@ -2,10 +2,6 @@
 
 ## Authentication
 
-There are two ways to authenticate API requests:
-
-### API Key (recommended for integrations)
-
 Generate an API key in **Settings > API Keys**. Pass it in either header:
 
 ```
@@ -14,16 +10,6 @@ X-API-Key: <your-api-key>
 ```
 
 API keys work with all `/api/*` endpoints (products, inventory, orders, settings, etc.) as well as the incoming webhook endpoint.
-
-### Legacy Webhook Secret
-
-The `POST /webhooks/order` endpoint uses a separate `WEBHOOK_SECRET` environment variable. Pass it as:
-
-```
-Authorization: Bearer <WEBHOOK_SECRET>
-```
-
-This only applies to the legacy order creation endpoint.
 
 ---
 
@@ -256,45 +242,6 @@ curl -X POST https://your-app.com/api/webhooks/incoming \
   "order": { "ID": "...", "AccountName": "The Craft Bar", "OrderAmount": "450.00", "Status": "Pending", ... }
 }
 ```
-
----
-
-## Legacy Order Webhook
-
-**Endpoint:** `POST /webhooks/order`
-
-**Auth:** `Authorization: Bearer <WEBHOOK_SECRET>` (environment variable)
-
-This is the original order creation endpoint with flexible field name mapping. It accepts camelCase, PascalCase, and snake_case variants of each field.
-
-**Fields** (all optional except an account identifier):
-
-| Accepted keys | Maps to | Notes |
-|---------------|---------|-------|
-| `AccountID`, `account_id` | AccountID | Internal account ID |
-| `AccountName`, `account_name`, `customer_name`, `client_name` | AccountName | Looked up by name |
-| `InvoiceNumber`, `invoice_number`, `invoiceNumber` | InvoiceNumber | |
-| `OrderDate`, `order_date`, `SaleDate`, `sale_date`, `invoice_date`, `date` | OrderDate | Defaults to today |
-| `DeliveryDate`, `delivery_date` | DeliveryDate | |
-| `OrderAmount`, `order_amount`, `SaleAmount`, `sale_amount`, `amount`, `subtotal` | OrderAmount | Pre-tax total |
-| `TaxAmount`, `tax_amount`, `tax` | TaxAmount | |
-| `Status`, `status` | Status | `Pending`, `Paid`, `Cancelled`, `Pre-Sale` |
-| `Notes`, `notes`, `memo` | Notes | |
-| `Location`, `location` | Location | Warehouse/taproom name |
-| `StaffID`, `staff_id` | StaffID | Internal staff ID |
-| `StaffName`, `staff_name`, `rep`, `sales_rep` | StaffName | Looked up by name |
-| `RequestedProducts`, `requested_products`, `products` | RequestedProducts | Free-text product list |
-| `Delivered`, `delivered` | Delivered | `true`/`false`, default `false` |
-
-**Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 201 | `{ order }` — created successfully |
-| 400 | `{ error }` — missing/invalid fields |
-| 401 | `{ error }` — bad or missing token |
-| 404 | `{ error }` — account name not found |
-| 503 | `{ error }` — `WEBHOOK_SECRET` not set |
 
 ---
 

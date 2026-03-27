@@ -67,7 +67,6 @@ app.use(helmet({
 // ── Rate limiting ────────────────────────────────────────────────────────
 app.use('/auth',      rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api/email', rateLimit({ windowMs: 60_000, max: 20,  standardHeaders: true, legacyHeaders: false }));
-app.use('/webhooks', rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api',      rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false }));
 
 // ── Body parsing ──────────────────────────────────────────────────────────
