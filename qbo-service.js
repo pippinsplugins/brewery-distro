@@ -435,7 +435,7 @@ async function createInvoice(order, lineItems, account) {
     const line = {
       DetailType:          'SalesItemLineDetail',
       Amount:              parseFloat(li.LineTotal || 0),
-      Description:         [li.ProductName, li.Format].filter(Boolean).join(' — '),
+      Description:         [li.ProductName, li.Format, li.PriceTier ? `(${li.PriceTier})` : ''].filter(Boolean).join(' — '),
       SalesItemLineDetail: {
         ItemRef:   { value: productItemId },
         UnitPrice: parseFloat(li.UnitPrice || 0),

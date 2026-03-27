@@ -541,28 +541,67 @@ function _buildProductOptions(selectedId) {
   return html;
 }
 
-function addOrderLineItem(inventoryId, qty) {
+function _parsePrices(item) {
+  if (!item) return [];
+  if (item.Prices) {
+    try {
+      const parsed = JSON.parse(item.Prices);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch { /* ignore */ }
+  }
+  if (item.PricePerUnit) return [{ label: '', price: item.PricePerUnit }];
+  return [];
+}
+
+function _buildTierDropdown(prices, selectedTier) {
+  if (prices.length <= 1) return '';
+  return `<select class="form-control line-item-tier" onchange="onLineItemTierChange(this)" style="flex:1;min-width:100px;max-width:140px">
+    ${prices.map(p => {
+      const lbl = p.label ? `${p.label} ($${parseFloat(p.price).toFixed(2)})` : `$${parseFloat(p.price).toFixed(2)}`;
+      const sel = selectedTier === p.label ? ' selected' : '';
+      return `<option value="${esc(p.label)}" data-price="${esc(p.price)}"${sel}>${esc(lbl)}</option>`;
+    }).join('')}
+  </select>`;
+}
+
+function addOrderLineItem(inventoryId, qty, priceTier) {
   const wrap = document.getElementById('order-line-items');
   if (!wrap) return;
 
   const item = inventoryId ? _orderFormInventory.find(i => i.ID === inventoryId) : null;
-  const price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+  const prices = _parsePrices(item);
+  // Find selected tier price
+  let selectedPrice = item ? parseFloat(item.PricePerUnit || 0) : 0;
+  let selectedTierLabel = '';
+  if (prices.length > 1 && priceTier !== undefined) {
+    const tier = prices.find(p => p.label === priceTier);
+    if (tier) { selectedPrice = parseFloat(tier.price); selectedTierLabel = tier.label; }
+  } else if (prices.length === 1) {
+    selectedPrice = parseFloat(prices[0].price || 0);
+    selectedTierLabel = prices[0].label || '';
+  }
   const lineQty = qty || 1;
-  const lineTotal = price * lineQty;
+  const lineTotal = selectedPrice * lineQty;
 
   const div = document.createElement('div');
   div.className = 'order-line-item';
   div.setAttribute('data-inventory-id', inventoryId || '');
-  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap';
+  div.setAttribute('data-unit-price', selectedPrice.toFixed(2));
+  div.setAttribute('data-price-tier', selectedTierLabel);
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+
+  const tierHtml = prices.length > 1 ? _buildTierDropdown(prices, selectedTierLabel) : '';
+
   div.innerHTML = `
-    <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:180px">
+    <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:120px">
       ${_buildProductOptions(inventoryId || '')}
     </select>
-    <span class="line-item-price text-sm" style="min-width:60px">${price ? '$' + price.toFixed(2) : '—'}</span>
-    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:70px"
+    ${tierHtml}
+    <span class="line-item-price text-sm" style="min-width:55px">${selectedPrice ? '$' + selectedPrice.toFixed(2) : '—'}</span>
+    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
       onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
-    <span class="line-item-total text-sm fw-600" style="min-width:70px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)">&times;</button>`;
+    <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
   wrap.appendChild(div);
   recalcOrderAmount();
 }
@@ -579,7 +618,51 @@ function onLineItemProductChange(select) {
   const invId = select.value;
   row.setAttribute('data-inventory-id', invId);
   const item = _orderFormInventory.find(i => i.ID === invId);
-  const price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+  const prices = _parsePrices(item);
+
+  // Remove existing tier dropdown if any
+  const oldTier = row.querySelector('.line-item-tier');
+  if (oldTier) oldTier.remove();
+
+  let price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+  let tierLabel = '';
+
+  if (prices.length > 1) {
+    // Insert tier dropdown after product select
+    const tierSelect = document.createElement('select');
+    tierSelect.className = 'form-control line-item-tier';
+    tierSelect.setAttribute('onchange', 'onLineItemTierChange(this)');
+    tierSelect.style.cssText = 'flex:1;min-width:100px;max-width:140px';
+    for (const p of prices) {
+      const opt = document.createElement('option');
+      opt.value = p.label || '';
+      opt.setAttribute('data-price', p.price);
+      opt.textContent = p.label ? `${p.label} ($${parseFloat(p.price).toFixed(2)})` : `$${parseFloat(p.price).toFixed(2)}`;
+      tierSelect.appendChild(opt);
+    }
+    select.insertAdjacentElement('afterend', tierSelect);
+    price = parseFloat(prices[0].price || 0);
+    tierLabel = prices[0].label || '';
+  } else if (prices.length === 1) {
+    price = parseFloat(prices[0].price || 0);
+    tierLabel = prices[0].label || '';
+  }
+
+  row.setAttribute('data-unit-price', price.toFixed(2));
+  row.setAttribute('data-price-tier', tierLabel);
+  const priceEl = row.querySelector('.line-item-price');
+  if (priceEl) priceEl.textContent = price ? '$' + price.toFixed(2) : '—';
+  recalcOrderAmount();
+}
+
+function onLineItemTierChange(select) {
+  const row = select.closest('.order-line-item');
+  if (!row) return;
+  const opt = select.options[select.selectedIndex];
+  const price = parseFloat(opt.getAttribute('data-price') || 0);
+  const tierLabel = select.value;
+  row.setAttribute('data-unit-price', price.toFixed(2));
+  row.setAttribute('data-price-tier', tierLabel);
   const priceEl = row.querySelector('.line-item-price');
   if (priceEl) priceEl.textContent = price ? '$' + price.toFixed(2) : '—';
   recalcOrderAmount();
@@ -592,8 +675,10 @@ function getOrderLineItems() {
     const invId = row.getAttribute('data-inventory-id');
     const qtyEl = row.querySelector('.line-item-qty');
     const qty = parseInt(qtyEl?.value) || 0;
+    const unitPrice = row.getAttribute('data-unit-price') || '';
+    const priceTier = row.getAttribute('data-price-tier') || '';
     if (invId && qty > 0) {
-      items.push({ inventoryId: invId, qty });
+      items.push({ inventoryId: invId, qty, unitPrice, priceTier });
     }
   });
   return items;
@@ -641,7 +726,7 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   wrap.innerHTML = orderProductsHtml();
   for (const item of orderItems) {
     if (item.InventoryID) {
-      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0));
+      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined);
     }
   }
 }
@@ -655,9 +740,12 @@ function orderItemsReadOnlyHtml(orderItems) {
     const qty = parseInt(item.Quantity || 0);
     const total = parseFloat(item.LineTotal || 0);
     const isNeg = total < 0;
+    const fmtDisplay = item.PriceTier
+      ? `${esc(item.Format)} (${esc(item.PriceTier)})`
+      : (esc(item.Format) || '—');
     return `<tr>
       <td class="fw-600">${esc(item.ProductName || '—')}</td>
-      <td class="text-sm">${esc(item.Format) || '—'}</td>
+      <td class="text-sm">${fmtDisplay}</td>
       <td class="text-sm">${qty}</td>
       <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${price ? '$' + price.toFixed(2) : '—'}</td>
       <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${total ? '$' + total.toFixed(2) : '—'}</td>
@@ -678,12 +766,13 @@ function recalcOrderAmount() {
   let hasProducts = false;
   let hasKegs = false;
   const chargeDeposits = document.getElementById('f-charge-deposits')?.checked;
-  for (const { inventoryId, qty } of getOrderLineItems()) {
+  for (const { inventoryId, qty, unitPrice } of getOrderLineItems()) {
     if (qty > 0) {
       const item = _orderFormInventory.find(i => i.ID === inventoryId);
       if (!item) continue;
       hasProducts = true;
-      total += qty * parseFloat(item.PricePerUnit || 0);
+      const price = unitPrice ? parseFloat(unitPrice) : parseFloat(item.PricePerUnit || 0);
+      total += qty * price;
       if ((item.Format || '').toLowerCase().includes('keg')) hasKegs = true;
       if (chargeDeposits) {
         const dep = getDepositForFormat(item.Format);
@@ -700,10 +789,9 @@ function recalcOrderAmount() {
     const qtyEl = row.querySelector('.line-item-qty');
     const totalEl = row.querySelector('.line-item-total');
     if (invId && qtyEl && totalEl) {
-      const item = _orderFormInventory.find(i => i.ID === invId);
-      const price = item ? parseFloat(item.PricePerUnit || 0) : 0;
+      const rowPrice = parseFloat(row.getAttribute('data-unit-price') || 0);
       const lineQty = parseInt(qtyEl.value) || 0;
-      const lineTotal = price * lineQty;
+      const lineTotal = rowPrice * lineQty;
       totalEl.textContent = lineTotal > 0 ? '$' + lineTotal.toFixed(2) : '';
     }
   });
@@ -746,11 +834,12 @@ function recalcOrderTotal() {
 
 function collectOrderProducts() {
   const selected = [];
-  for (const { inventoryId, qty } of getOrderLineItems()) {
+  for (const { inventoryId, qty, priceTier } of getOrderLineItems()) {
     if (qty > 0) {
       const item = _orderFormInventory.find(i => i.ID === inventoryId);
       if (!item) continue;
-      const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      let label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
+      if (priceTier) label += ` [${priceTier}]`;
       selected.push(`${qty}x ${label}`);
     }
   }
@@ -759,15 +848,16 @@ function collectOrderProducts() {
 
 function collectOrderItems() {
   const items = [];
-  for (const { inventoryId, qty } of getOrderLineItems()) {
+  for (const { inventoryId, qty, unitPrice, priceTier } of getOrderLineItems()) {
     if (qty > 0) {
       const item = _orderFormInventory.find(i => i.ID === inventoryId);
       if (!item) continue;
-      const price = parseFloat(item.PricePerUnit || 0);
+      const price = unitPrice ? parseFloat(unitPrice) : parseFloat(item.PricePerUnit || 0);
       items.push({
         InventoryID: item.ID,
         ProductName: item.Name,
         Format: item.Format || '',
+        PriceTier: priceTier || '',
         Quantity: qty,
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
