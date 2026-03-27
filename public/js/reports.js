@@ -216,10 +216,14 @@ function _renderTopProducts(data) {
           <table>
             <thead><tr><th>Product</th><th>Format</th><th>Qty Sold</th><th>Revenue</th><th>Avg Price</th><th>Orders</th></tr></thead>
             <tbody>
-              ${products.map(p => `<tr>
-                <td>${esc(p.productName)}</td><td>${esc(p.format)}</td><td>${p.quantitySold}</td>
+              ${products.map(p => {
+                const fmtParts = [p.format];
+                if (p.priceTier) fmtParts.push(`(${p.priceTier})`);
+                return `<tr>
+                <td>${esc(p.productName)}</td><td>${esc(fmtParts.join(' '))}</td><td>${p.quantitySold}</td>
                 <td>${fmtMoney(p.revenue)}</td><td>${fmtMoney(p.avgPrice)}</td><td>${p.orderCount}</td>
-              </tr>`).join('')}
+              </tr>`;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -235,7 +239,12 @@ function _buildTopProductsChart(data) {
   _reportCharts.products = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: products.map(p => p.productName + (p.format ? ' (' + p.format + ')' : '')),
+      labels: products.map(p => {
+        let lbl = p.productName;
+        if (p.format) lbl += ' (' + p.format + ')';
+        if (p.priceTier) lbl += ' — ' + p.priceTier;
+        return lbl;
+      }),
       datasets: [{ label: 'Qty Sold', data: products.map(p => p.quantitySold), backgroundColor: _chartColors.green }],
     },
     options: {
