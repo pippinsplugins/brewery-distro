@@ -96,14 +96,6 @@ function renderReports() {
         <div class="stat-value">${fmtMoney(s.depositAmount)}</div>
         <div class="stat-label">Deposits</div>
       </div>
-      ${data.gallonage ? `<div class="stat-card">
-        <div class="stat-value">${data.gallonage.totals.gallons.toFixed(1)}</div>
-        <div class="stat-label">Total Gallons</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${data.gallonage.totals.bbls.toFixed(2)}</div>
-        <div class="stat-label">Total BBLs</div>
-      </div>` : ''}
     </div>
 
     <div class="reports-grid">
