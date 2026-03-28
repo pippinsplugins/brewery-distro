@@ -8,6 +8,9 @@ let _galEnd = '';
 let _galData = null;
 let _galCharts = {};
 let _galSort = { col: 'gallons', dir: 'desc' };
+let _galType = '';
+let _galTag = '';
+let _galSearch = '';
 
 function _destroyGalCharts() {
   for (const key of Object.keys(_galCharts)) {
@@ -28,13 +31,18 @@ async function loadGallonage() {
     _galEnd = e;
   }
 
-  // Capture filter values before showLoading() destroys the DOM
-  const params = new URLSearchParams({ start: _galStart, end: _galEnd });
-  if (state.location) params.set('location', state.location);
+  // Capture filter values into module state before showLoading() destroys the DOM
   const typeEl = document.getElementById('gal-account-type');
   const tagEl = document.getElementById('gal-tag');
-  if (typeEl && typeEl.value) params.set('accountType', typeEl.value);
-  if (tagEl && tagEl.value) params.set('tag', tagEl.value);
+  const searchEl = document.getElementById('gal-search');
+  if (typeEl) _galType = typeEl.value;
+  if (tagEl) _galTag = tagEl.value;
+  if (searchEl) _galSearch = searchEl.value;
+
+  const params = new URLSearchParams({ start: _galStart, end: _galEnd });
+  if (state.location) params.set('location', state.location);
+  if (_galType) params.set('accountType', _galType);
+  if (_galTag) params.set('tag', _galTag);
 
   showLoading();
 
@@ -68,25 +76,16 @@ function renderGallonage() {
        <input type="date" id="gal-end" value="${esc(_galEnd)}" onchange="_galCustomDate()">`
     : '';
 
-  const typeOptions = (data.meta.availableTypes || []).map(t =>
-    `<option value="${esc(t)}" ${document.getElementById('gal-account-type')?.value === t ? 'selected' : ''}>${esc(t)}</option>`
-  ).join('');
-
-  const tagOptions = (data.meta.availableTags || []).map(t =>
-    `<option value="${esc(t)}" ${document.getElementById('gal-tag')?.value === t ? 'selected' : ''}>${esc(t)}</option>`
-  ).join('');
-
-  // Preserve current filter values
-  const curType = document.getElementById('gal-account-type')?.value || '';
-  const curTag = document.getElementById('gal-tag')?.value || '';
-  const curSearch = document.getElementById('gal-search')?.value || '';
+  // Sync module state from DOM if elements still exist (client-side re-render)
+  const liveSearch = document.getElementById('gal-search');
+  if (liveSearch) _galSearch = liveSearch.value;
 
   const t = data.totals;
 
   // Filter accounts by search
   let filteredAccounts = data.accounts;
-  if (curSearch) {
-    const q = curSearch.toLowerCase();
+  if (_galSearch) {
+    const q = _galSearch.toLowerCase();
     filteredAccounts = filteredAccounts.filter(a => a.accountName.toLowerCase().includes(q));
   }
 
@@ -119,13 +118,13 @@ function renderGallonage() {
       ${customInputs}
       <select id="gal-account-type" onchange="loadGallonage()">
         <option value="">All Account Types</option>
-        ${(data.meta.availableTypes || []).map(t => `<option value="${esc(t)}" ${curType === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+        ${(data.meta.availableTypes || []).map(t => `<option value="${esc(t)}" ${_galType === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
       </select>
       <select id="gal-tag" onchange="loadGallonage()">
         <option value="">All Tags</option>
-        ${(data.meta.availableTags || []).map(t => `<option value="${esc(t)}" ${curTag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+        ${(data.meta.availableTags || []).map(t => `<option value="${esc(t)}" ${_galTag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
       </select>
-      <input type="text" id="gal-search" placeholder="Search accounts..." value="${esc(curSearch)}" oninput="renderGallonage()">
+      <input type="text" id="gal-search" placeholder="Search accounts..." value="${esc(_galSearch)}" oninput="renderGallonage()">
     </div>
 
     <div class="stats-grid">
