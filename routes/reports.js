@@ -113,6 +113,39 @@ router.get('/', async (req, res) => {
       }))
       .sort((a, b) => b.quantitySold - a.quantitySold);
 
+    // ── F. Gallonage ────────────────────────────────────────────────
+    const GALLON_MAP = {
+      '1/6 Keg': 5.167,
+      '1/4 Keg': 7.75,
+      '1/2 Keg': 15.5,
+      '12oz Can (case/24)': 2.25,
+      '16oz Can (case/24)': 3.0,
+      '22oz Bottle (case/12)': 2.0625,
+      '750ml Bottle (case/12)': 2.378,
+    };
+
+    const gallonAgg = {};
+    for (const item of salesItems) {
+      const fmt = item.Format || 'Unknown';
+      if (!gallonAgg[fmt]) gallonAgg[fmt] = { format: fmt, unitsSold: 0, gallons: 0, bbls: 0 };
+      const a = gallonAgg[fmt];
+      const qty = parseInt(item.Quantity || 0);
+      const galsPerUnit = GALLON_MAP[fmt] || 0;
+      a.unitsSold += qty;
+      a.gallons += qty * galsPerUnit;
+      a.bbls += (qty * galsPerUnit) / 31;
+    }
+
+    const gallonageFormats = Object.values(gallonAgg).sort((a, b) => b.gallons - a.gallons);
+    const totalGallons = gallonageFormats.reduce((s, f) => s + f.gallons, 0);
+    const totalBbls = gallonageFormats.reduce((s, f) => s + f.bbls, 0);
+    const totalGallonageUnits = gallonageFormats.reduce((s, f) => s + f.unitsSold, 0);
+
+    const gallonage = {
+      formats: gallonageFormats,
+      totals: { units: totalGallonageUnits, gallons: totalGallons, bbls: totalBbls },
+    };
+
     // ── C. Account Activity ───────────────────────────────────────
     const accountAgg = {};
 
@@ -207,6 +240,7 @@ router.get('/', async (req, res) => {
     res.json({
       salesSummary,
       topProducts,
+      gallonage,
       accountActivity,
       stockMovements: stockMovementsSummary,
       salesByRep,
