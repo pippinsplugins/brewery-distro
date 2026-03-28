@@ -80,9 +80,16 @@
           <a class="nav-item" data-view="staff" href="#staff">
             <span class="nav-icon">&#9632;</span> Staff
           </a>
-          <a class="nav-item" data-view="reports" href="#reports">
-            <span class="nav-icon">&#9632;</span> Reports
-          </a>
+          <div class="nav-group" data-group="reports">
+            <a class="nav-item has-submenu" data-view="reports" href="#reports">
+              <span class="nav-icon">&#9632;</span> Reports
+              <span class="nav-arrow">&#9656;</span>
+            </a>
+            <div class="nav-submenu">
+              <a class="nav-subitem" data-view="reports" href="#reports">Overview</a>
+              <a class="nav-subitem" data-view="gallonage" href="#gallonage">Gallonage</a>
+            </div>
+          </div>
           <a class="nav-item" data-view="settings" href="#settings">
             <span class="nav-icon">&#9632;</span> Settings
           </a>
@@ -157,6 +164,7 @@
   <script src="js/tap-handles.js"></script>
   <script src="js/map.js"></script>
   <script src="js/reports.js"></script>
+  <script src="js/gallonage.js"></script>
 
   <!-- Init: must load last (VIEW_LOADERS references all load functions) -->
   <script src="js/init.js"></script>

@@ -96,20 +96,19 @@ function renderReports() {
         <div class="stat-value">${fmtMoney(s.depositAmount)}</div>
         <div class="stat-label">Deposits</div>
       </div>
-      <div class="stat-card">
+      ${data.gallonage ? `<div class="stat-card">
         <div class="stat-value">${data.gallonage.totals.gallons.toFixed(1)}</div>
         <div class="stat-label">Total Gallons</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">${data.gallonage.totals.bbls.toFixed(2)}</div>
         <div class="stat-label">Total BBLs</div>
-      </div>
+      </div>` : ''}
     </div>
 
     <div class="reports-grid">
       ${_renderSalesChart(data)}
       ${_renderTopProducts(data)}
-      ${_renderGallonage(data)}
       ${_renderAccountActivity(data)}
       ${_renderStockMovements(data)}
       ${_renderSalesByRep(data)}
@@ -120,7 +119,6 @@ function renderReports() {
   requestAnimationFrame(() => {
     _buildSalesChart(data);
     _buildTopProductsChart(data);
-    _buildGallonageChart(data);
     _buildAccountActivityChart(data);
     _buildStockMovementsChart(data);
     _buildSalesByRepChart(data);
@@ -256,55 +254,6 @@ function _buildTopProductsChart(data) {
         return lbl;
       }),
       datasets: [{ label: 'Qty Sold', data: products.map(p => p.quantitySold), backgroundColor: _chartColors.green }],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { display: false } },
-    },
-  });
-}
-
-// ── Gallonage ───────────────────────────────────────────────────
-
-function _renderGallonage(data) {
-  const g = data.gallonage;
-  if (!g.formats.length) return _emptyCard('Gallonage');
-  const t = g.totals;
-  return `
-    <div class="card">
-      <div class="card-header"><h3>Gallonage</h3><span class="text-muted text-sm">${t.gallons.toFixed(1)} gal / ${t.bbls.toFixed(2)} bbl</span></div>
-      <canvas id="chart-gallonage" height="300"></canvas>
-      <details class="report-table-toggle">
-        <summary>View Table</summary>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Format</th><th>Units Sold</th><th>Gallons</th><th>BBLs</th></tr></thead>
-            <tbody>
-              ${g.formats.map(f => `<tr>
-                <td>${esc(f.format)}</td><td>${f.unitsSold}</td>
-                <td>${f.gallons.toFixed(2)}</td><td>${f.bbls.toFixed(2)}</td>
-              </tr>`).join('')}
-              <tr style="font-weight:bold">
-                <td>Total</td><td>${t.units}</td>
-                <td>${t.gallons.toFixed(2)}</td><td>${t.bbls.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </details>
-    </div>`;
-}
-
-function _buildGallonageChart(data) {
-  const formats = data.gallonage.formats.filter(f => f.gallons > 0);
-  if (!formats.length) return;
-  const ctx = document.getElementById('chart-gallonage');
-  if (!ctx) return;
-  _reportCharts.gallonage = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: formats.map(f => f.format),
-      datasets: [{ label: 'Gallons', data: formats.map(f => f.gallons), backgroundColor: _chartColors.blue }],
     },
     options: {
       responsive: true, maintainAspectRatio: false, indexAxis: 'y',
