@@ -23,6 +23,7 @@ const SUBMENU_VIEWS = {
   products:  'inventory',
   accounts:  'accounts',
   map:       'accounts',
+  reports:   'reports',
   gallonage: 'reports',
 };
 
