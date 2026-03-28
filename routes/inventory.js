@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
+const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
 
 const router = express.Router();
 
@@ -33,6 +33,19 @@ router.get('/', async (req, res) => {
     if (location) items = items.filter(i => i.Location === location);
     items = await enrichInventory(items);
     res.json(items);
+  } catch (err) {
+    console.error(`[inventory] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/inventory/:id — single inventory item (enriched)
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await getRow('INVENTORY', req.params.id);
+    if (!item) return res.status(404).json({ error: 'Inventory item not found' });
+    const [enriched] = await enrichInventory([item]);
+    res.json(enriched);
   } catch (err) {
     console.error(`[inventory] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

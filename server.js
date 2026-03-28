@@ -38,6 +38,7 @@ const notificationsRoutes  = require('./routes/notifications');
 const qboRoutes            = require('./routes/qbo');
 const reportsRoutes        = require('./routes/reports');
 const creditsRoutes        = require('./routes/credits');
+const apiWebhooksRoutes    = require('./routes/api-webhooks');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -66,7 +67,6 @@ app.use(helmet({
 // ── Rate limiting ────────────────────────────────────────────────────────
 app.use('/auth',      rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api/email', rateLimit({ windowMs: 60_000, max: 20,  standardHeaders: true, legacyHeaders: false }));
-app.use('/webhooks', rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api',      rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false }));
 
 // ── Body parsing ──────────────────────────────────────────────────────────
@@ -127,6 +127,7 @@ app.use('/api/notifications',  requireAuth, notificationsRoutes);
 app.use('/api/qbo',            requireAuth, qboRoutes.apiRouter);
 app.use('/api/reports',        requireAuth, reportsRoutes);
 app.use('/api/credits',        requireAuth, creditsRoutes);
+app.use('/api/webhooks',       requireAuth, apiWebhooksRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
