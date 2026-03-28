@@ -433,6 +433,15 @@ function _reportsExportCsv() {
   }
   lines.push('');
 
+  // Gallonage
+  lines.push('--- Gallonage ---');
+  lines.push('Format,Units Sold,Gallons,BBLs');
+  for (const f of d.gallonage.formats) {
+    lines.push(`"${f.format}",${f.unitsSold},${f.gallons.toFixed(2)},${f.bbls.toFixed(2)}`);
+  }
+  lines.push(`Total,${d.gallonage.totals.units},${d.gallonage.totals.gallons.toFixed(2)},${d.gallonage.totals.bbls.toFixed(2)}`);
+  lines.push('');
+
   // Account Activity
   lines.push('--- Account Activity ---');
   lines.push('Account,Type,Orders,Total Spent,Avg Order,Last Order');

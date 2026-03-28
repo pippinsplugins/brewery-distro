@@ -29,6 +29,7 @@ const _pagination = {
   orders:    { page: 1, perPage: 25 },
   kegs:       { page: 1, perPage: 25 },
   tapHandles: { page: 1, perPage: 25 },
+  gallonage:  { page: 1, perPage: 25 },
 };
 
 function paginate(filtered, viewKey) {
