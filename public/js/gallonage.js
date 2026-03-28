@@ -28,17 +28,17 @@ async function loadGallonage() {
     _galEnd = e;
   }
 
+  // Capture filter values before showLoading() destroys the DOM
+  const params = new URLSearchParams({ start: _galStart, end: _galEnd });
+  if (state.location) params.set('location', state.location);
+  const typeEl = document.getElementById('gal-account-type');
+  const tagEl = document.getElementById('gal-tag');
+  if (typeEl && typeEl.value) params.set('accountType', typeEl.value);
+  if (tagEl && tagEl.value) params.set('tag', tagEl.value);
+
   showLoading();
 
   try {
-    const params = new URLSearchParams({ start: _galStart, end: _galEnd });
-    if (state.location) params.set('location', state.location);
-
-    // Read filter values from DOM if present
-    const typeEl = document.getElementById('gal-account-type');
-    const tagEl = document.getElementById('gal-tag');
-    if (typeEl && typeEl.value) params.set('accountType', typeEl.value);
-    if (tagEl && tagEl.value) params.set('tag', tagEl.value);
 
     _galData = await api.get('/api/gallonage?' + params.toString());
     _paginationReset('gallonage');
