@@ -201,19 +201,26 @@ async function loadDashboard() {
           <h3>Kegs Outstanding</h3>
           <button class="btn btn-ghost btn-sm" onclick="navigate('kegs')">View all</button>
         </div>
-        <ul class="dash-list">${(kegSummary || []).length === 0
-          ? '<li class="empty-state" style="padding:12px 0">No outstanding kegs.</li>'
-          : (kegSummary || [])
-              .sort((a, b) => b.outstanding - a.outstanding)
-              .slice(0, 8)
-              .map(k => {
-                const depLabel = k.depositOutstanding > 0 ? ` · $${parseFloat(k.depositOutstanding).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '';
-                return `
-                <li class="clickable" onclick="loadAccountProfile('${esc(k.accountId)}')">
-                  <span class="dash-label">${esc(k.accountName)}</span>
-                  <span class="badge badge-low-stock">${k.outstanding} keg${k.outstanding !== 1 ? 's' : ''}${depLabel}</span>
-                </li>`;
-              }).join('')}</ul>
+        <ul class="dash-list">${(() => {
+          let kegs = kegSummary || [];
+          if (state.location && LOCATIONS.length > 1) {
+            const locAcctIds = new Set(accounts.filter(a => !a.ServicedBy || a.ServicedBy === state.location).map(a => a.ID));
+            kegs = kegs.filter(k => locAcctIds.has(k.accountId));
+          }
+          return kegs.length === 0
+            ? '<li class="empty-state" style="padding:12px 0">No outstanding kegs.</li>'
+            : kegs
+                .sort((a, b) => b.outstanding - a.outstanding)
+                .slice(0, 8)
+                .map(k => {
+                  const depLabel = k.depositOutstanding > 0 ? ` · $${parseFloat(k.depositOutstanding).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '';
+                  return `
+                  <li class="clickable" onclick="loadAccountProfile('${esc(k.accountId)}')">
+                    <span class="dash-label">${esc(k.accountName)}</span>
+                    <span class="badge badge-low-stock">${k.outstanding} keg${k.outstanding !== 1 ? 's' : ''}${depLabel}</span>
+                  </li>`;
+                }).join('');
+        })()}</ul>
       </div>
     </div>`);
 }
