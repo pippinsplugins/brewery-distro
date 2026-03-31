@@ -29,6 +29,9 @@ const _pagination = {
   orders:    { page: 1, perPage: 25 },
   kegs:       { page: 1, perPage: 25 },
   tapHandles: { page: 1, perPage: 25 },
+  profileOutreach: { page: 1, perPage: 10 },
+  profileTodos:    { page: 1, perPage: 10 },
+  profileOrders:   { page: 1, perPage: 10 },
 };
 
 function paginate(filtered, viewKey) {
