@@ -33,8 +33,13 @@ router.get('/', async (req, res) => {
       items = items.filter(r => r.Completed === 'true');
     }
 
-    // Sort by due date ascending
-    items.sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
+    // Sort: open todos first, then by due date ascending
+    items.sort((a, b) => {
+      const aDone = a.Completed === 'true' ? 1 : 0;
+      const bDone = b.Completed === 'true' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return (a.DueDate || '').localeCompare(b.DueDate || '');
+    });
     res.json(items);
   } catch (err) {
     console.error(`[reminders] ${err.message}`);

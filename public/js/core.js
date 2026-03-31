@@ -24,7 +24,7 @@ const _pagination = {
   inventory: { page: 1, perPage: 25 },
   accounts:  { page: 1, perPage: 25 },
   outreach:  { page: 1, perPage: 25 },
-  todos:     { page: 1, perPage: 25 },
+  todos:     { page: 1, perPage: 10 },
   staff:     { page: 1, perPage: 25 },
   orders:    { page: 1, perPage: 25 },
   kegs:       { page: 1, perPage: 25 },
