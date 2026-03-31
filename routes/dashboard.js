@@ -39,7 +39,6 @@ router.get('/', async (req, res) => {
       // Filter account-specific data by the visible account set
       const acctIds = new Set(accounts.map(a => a.ID));
       outreach  = outreach.filter(o => acctIds.has(o.AccountID));
-      reminders = reminders.filter(r => !r.AccountID || acctIds.has(r.AccountID));
     }
 
     // Enrich inventory with product data for display
