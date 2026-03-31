@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, BillingContactName, BillingEmail, BillingPhone, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName } = req.body;
+    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, BillingContactName, BillingEmail, BillingPhone, Address, City, State, Zip, ABCLicense, Status, Notes, StaffID, StaffName, ServicedBy } = req.body;
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
     const account = {
@@ -51,6 +51,7 @@ router.post('/', async (req, res) => {
       LastContacted: '',
       StaffID: StaffID || '',
       StaffName: StaffName || '',
+      ServicedBy: ServicedBy || '',
       CreatedAt: new Date().toISOString(),
     };
 

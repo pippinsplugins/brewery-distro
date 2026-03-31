@@ -81,6 +81,13 @@ function accountForm(acct = {}) {
         ${staffOptions(acct.StaffID)}
       </select>
     </div>
+    ${LOCATIONS.length > 1 ? `<div class="form-group">
+      <label>Serviced By</label>
+      <select class="form-control" id="f-serviced-by">
+        <option value="">-- None --</option>
+        ${LOCATIONS.map(l => `<option value="${l}" ${acct.ServicedBy === l ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </div>` : ''}
     <div class="form-row">
       <div class="form-group">
         <label>Contact Name</label>
@@ -194,12 +201,14 @@ function renderAccounts() {
   const _focused = document.activeElement?.id;
   const nav = state.navFilters || {};
   state.navFilters = {};
-  const typeFilter   = (document.getElementById('acct-type')   || {}).value ?? nav.type   ?? '';
-  const statusFilter = (document.getElementById('acct-status') || {}).value ?? nav.status ?? '';
-  const tagFilter    = (document.getElementById('acct-tag')    || {}).value ?? nav.tag    ?? '';
-  const search       = (document.getElementById('acct-search') || {}).value ?? nav.search ?? '';
+  const typeFilter     = (document.getElementById('acct-type')     || {}).value ?? nav.type     ?? '';
+  const statusFilter   = (document.getElementById('acct-status')   || {}).value ?? nav.status   ?? '';
+  const tagFilter      = (document.getElementById('acct-tag')      || {}).value ?? nav.tag      ?? '';
+  const locationFilter = (document.getElementById('acct-location') || {}).value ?? (state.location || '');
+  const search         = (document.getElementById('acct-search')   || {}).value ?? nav.search   ?? '';
 
   let filtered = accounts;
+  if (locationFilter) filtered = filtered.filter(a => !a.ServicedBy || a.ServicedBy === locationFilter);
   if (typeFilter) filtered = filtered.filter(a => a.Type === typeFilter);
   if (statusFilter === 'Inactive') {
     filtered = filtered.filter(a => a.Status === 'Inactive');
@@ -268,6 +277,10 @@ function renderAccounts() {
         <option value="">All Tags</option>
         ${ACCOUNT_TAGS.map(t => '<option value="' + esc(t) + '"' + (tagFilter === t ? ' selected' : '') + '>' + esc(t) + '</option>').join('')}
       </select>` : ''}
+      ${LOCATIONS.length > 1 ? `<select id="acct-location" onchange="_paginationReset('accounts'); renderAccounts()">
+        <option value="">All Locations</option>
+        ${LOCATIONS.map(l => '<option value="' + esc(l) + '"' + (locationFilter === l ? ' selected' : '') + '>' + esc(l) + '</option>').join('')}
+      </select>` : ''}
     </div>
     <div class="table-wrap">
       <table>
@@ -275,11 +288,11 @@ function renderAccounts() {
           <tr>
             ${state.emailConfigured ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
             <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Type</th><th>Contact</th>
-            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Sales Rep</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
+            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Sales Rep</th><th class="mobile-hide">Location</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 9 : 8}" class="empty-state">No accounts found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 10 : 9}" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
               ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span>${(() => { let t = []; try { t = JSON.parse(a.Tags || '[]'); } catch(e) {} return t.length > 0 ? '<div class="tag-badges">' + t.map(x => '<span class="badge badge-tag">' + esc(x) + '</span>').join(' ') + '</div>' : ''; })()}</td>
@@ -287,6 +300,7 @@ function renderAccounts() {
               <td>${esc(a.ContactName) || '—'}</td>
               <td class="mobile-hide">${methodBadge(a.PreferredMethod)}</td>
               <td class="mobile-hide text-sm">${esc(a.StaffName) || '<span class="text-muted">—</span>'}</td>
+              <td class="mobile-hide text-sm">${esc(a.ServicedBy) || '<span class="text-muted">—</span>'}</td>
               <td>${statusBadge(a.Status)}</td>
               <td class="mobile-hide text-sm text-muted">${formatDate(a.LastContacted)}</td>
               <td class="td-actions">
@@ -415,6 +429,7 @@ async function loadAccountProfile(accountId) {
     acct.ABCLicense   ? `<div class="profile-info-item"><span class="profile-info-label">ABC License</span><span>${esc(acct.ABCLicense)}</span></div>` : '',
     (() => { let tags = []; try { tags = JSON.parse(acct.Tags || '[]'); } catch (e) {} return tags.length > 0 ? `<div class="profile-info-item"><span class="profile-info-label">Tags</span><span class="tag-badges">${tags.map(t => '<span class="badge badge-tag">' + esc(t) + '</span>').join(' ')}</span></div>` : ''; })(),
     acct.StaffName    ? `<div class="profile-info-item"><span class="profile-info-label">Sales Rep</span><span>${esc(acct.StaffName)}</span></div>` : '',
+    acct.ServicedBy   ? `<div class="profile-info-item"><span class="profile-info-label">Serviced By</span><span>${esc(acct.ServicedBy)}</span></div>` : '',
     acct.LastContacted ? `<div class="profile-info-item"><span class="profile-info-label">Last Contact</span><span>${formatDate(acct.LastContacted)}</span></div>` : '',
     acct.Notes        ? `<div class="profile-info-item profile-info-full"><span class="profile-info-label">Notes</span><span>${esc(acct.Notes)}</span></div>` : '',
   ].filter(Boolean).join('');
@@ -1072,6 +1087,7 @@ function openAddAccount() {
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
+      ServicedBy: val('f-serviced-by') || '',
     });
     modal.close();
     toast('Account added');
@@ -1098,6 +1114,7 @@ function openEditAccount(id) {
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
+      ServicedBy: val('f-serviced-by') || '',
     });
     modal.close();
     toast('Account updated');
