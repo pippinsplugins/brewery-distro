@@ -70,14 +70,14 @@ async function clearTokens() {
 
 // ── Token refresh ────────────────────────────────────────────────
 
-async function getValidToken() {
+async function getValidToken(forceRefresh = false) {
   const tokens = await getStoredTokens();
   if (!tokens || !tokens.accessToken || !tokens.refreshToken) return null;
 
   // Check if access token is expired (with 5-min buffer)
   const expiresAt = tokens.expiresAt || 0;
   const now = Date.now();
-  if (now < expiresAt - 5 * 60 * 1000) {
+  if (!forceRefresh && now < expiresAt - 5 * 60 * 1000) {
     return tokens;
   }
 
@@ -110,31 +110,40 @@ async function getValidToken() {
 // ── QBO API helper ───────────────────────────────────────────────
 
 async function qboApiRequest(method, path, body) {
-  const tokens = await getValidToken();
+  let tokens = await getValidToken();
   if (!tokens) throw new Error('Not connected to QuickBooks');
 
-  const url = `${BASE_URL}/v3/company/${tokens.realmId}/${path}`;
-  const isSendOp = /\/(send|void)/.test(path) && !body;
-  const options = {
-    method,
-    headers: {
-      'Authorization': `Bearer ${tokens.accessToken}`,
-      'Accept':        'application/json',
-      'Content-Type':  isSendOp ? 'application/octet-stream' : 'application/json',
-    },
-  };
-  if (body) options.body = JSON.stringify(body);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const url = `${BASE_URL}/v3/company/${tokens.realmId}/${path}`;
+    const isSendOp = /\/(send|void)/.test(path) && !body;
+    const options = {
+      method,
+      headers: {
+        'Authorization': `Bearer ${tokens.accessToken}`,
+        'Accept':        'application/json',
+        'Content-Type':  isSendOp ? 'application/octet-stream' : 'application/json',
+      },
+    };
+    if (body) options.body = JSON.stringify(body);
 
-  const resp = await fetch(url, options);
-  const text = await resp.text();
+    const resp = await fetch(url, options);
+    const text = await resp.text();
 
-  if (!resp.ok) {
-    let detail = text;
-    try { detail = JSON.stringify(JSON.parse(text)); } catch { /* keep raw */ }
-    throw new Error(`QBO API ${method} ${path} returned ${resp.status}: ${detail}`);
+    if (resp.status === 401 && attempt === 0) {
+      console.log(`[qbo] Got 401 on ${method} ${path}, force-refreshing token and retrying…`);
+      tokens = await getValidToken(true);
+      if (!tokens) throw new Error('Not connected to QuickBooks');
+      continue;
+    }
+
+    if (!resp.ok) {
+      let detail = text;
+      try { detail = JSON.stringify(JSON.parse(text)); } catch { /* keep raw */ }
+      throw new Error(`QBO API ${method} ${path} returned ${resp.status}: ${detail}`);
+    }
+
+    return text ? JSON.parse(text) : {};
   }
-
-  return text ? JSON.parse(text) : {};
 }
 
 // ── Customer management ──────────────────────────────────────────
