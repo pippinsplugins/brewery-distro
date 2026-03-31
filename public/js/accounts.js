@@ -4,7 +4,10 @@ const ACCOUNT_TYPES = ['Bar', 'Distributor', 'Restaurant', 'Retail Store', 'Groc
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
+let _profileOutreachCache = [];
 let _profileTodosCache = [];
+let _profileOrdersCache = [];
+let _profileOrderFooter = '';
 
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
@@ -347,10 +350,12 @@ async function loadAccountProfile(accountId) {
       if (aDone !== bDone) return aDone - bDone;
       return (a.DueDate || '').localeCompare(b.DueDate || '');
     });
-  _profileTodosCache = acctTodos;
   const acctOrders = orders
     .filter(s => s.AccountID === accountId)
     .sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
+  _profileOutreachCache = acctOutreach;
+  _profileTodosCache = acctTodos;
+  _profileOrdersCache = acctOrders;
 
   const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
@@ -410,54 +415,8 @@ async function loadAccountProfile(accountId) {
     acct.Notes        ? `<div class="profile-info-item profile-info-full"><span class="profile-info-label">Notes</span><span>${esc(acct.Notes)}</span></div>` : '',
   ].filter(Boolean).join('');
 
-  const outreachRows = acctOutreach.length === 0
-    ? `<tr><td colspan="5" class="empty-state">No outreach logged yet.</td></tr>`
-    : acctOutreach.map(o => `<tr>
-        <td class="text-sm">${formatDate(o.Date)}</td>
-        <td>${methodBadge(o.Method)}</td>
-        <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
-        <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
-        <td class="td-actions">
-          <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
-          <div class="mobile-actions-menu">
-          <button class="btn btn-ghost btn-sm" onclick="profileEditOutreach('${esc(o.ID)}')">Edit</button>
-          <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOutreach('${esc(o.ID)}')">Del</button>
-          </div>
-        </td>
-      </tr>`).join('');
-
-  // todoRows rendered by renderProfileTodos() after setContent
-
-  const orderRows = acctOrders.length === 0
-    ? `<tr><td colspan="9" class="empty-state">No orders recorded yet.</td></tr>`
-    : acctOrders.map(s => {
-        const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
-        const isPreSale = s.Status === 'Pre-Sale';
-        return `<tr>
-          <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
-          <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
-          <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
-          <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
-          <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
-          <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
-          <td>${orderStatusBadge(s.Status)}</td>
-          <td class="text-center">${isPreSale ? '—'
-            : s.Delivered === 'true'
-            ? '<input type="checkbox" checked disabled />'
-            : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
-          <td class="td-actions">
-            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
-            <div class="mobile-actions-menu">
-            ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="profileEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
-            : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
-            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>`}
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
-
-  const orderFooter = acctOrders.length > 1
+  // Outreach, todo, and order rows rendered by their respective render functions after setContent
+  _profileOrderFooter = acctOrders.length > 1
     ? `<tfoot><tr class="table-totals">
         <td colspan="5" class="text-muted text-sm">${acctOrders.length} orders</td>
         <td class="fw-600">${fmtMoney(totalRevenue)}</td>
@@ -560,12 +519,7 @@ async function loadAccountProfile(accountId) {
         <h3>Outreach History <span class="text-muted text-sm">(${acctOutreach.length})</span></h3>
         <button class="btn btn-ghost btn-sm" onclick="openLogOutreach('${esc(accountId)}')">+ Log Contact</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Method</th><th>Notes</th><th>Follow-up</th><th>Actions</th></tr></thead>
-          <tbody>${outreachRows}</tbody>
-        </table>
-      </div>
+      <div id="profile-outreach-container"></div>
     </div>
 
     <div class="profile-section">
@@ -584,13 +538,7 @@ async function loadAccountProfile(accountId) {
           <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
         </div>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Order Date</th><th>Invoice #</th><th>Delivery Date</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
-          <tbody>${orderRows}</tbody>
-          ${orderFooter}
-        </table>
-      </div>
+      <div id="profile-orders-container"></div>
     </div>
 
     <div class="profile-section">
@@ -656,8 +604,41 @@ async function loadAccountProfile(accountId) {
       </div>
     </div>
   `);
+  _paginationReset('profileOutreach');
   _paginationReset('profileTodos');
+  _paginationReset('profileOrders');
+  renderProfileOutreach();
   renderProfileTodos();
+  renderProfileOrders();
+}
+
+function renderProfileOutreach() {
+  const container = document.getElementById('profile-outreach-container');
+  if (!container) return;
+  const pg = paginate(_profileOutreachCache, 'profileOutreach');
+  const rows = pg.rows.length === 0
+    ? `<tr><td colspan="5" class="empty-state">No outreach logged yet.</td></tr>`
+    : pg.rows.map(o => `<tr>
+        <td class="text-sm">${formatDate(o.Date)}</td>
+        <td>${methodBadge(o.Method)}</td>
+        <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
+        <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
+        <td class="td-actions">
+          <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+          <div class="mobile-actions-menu">
+          <button class="btn btn-ghost btn-sm" onclick="profileEditOutreach('${esc(o.ID)}')">Edit</button>
+          <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOutreach('${esc(o.ID)}')">Del</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Method</th><th>Notes</th><th>Follow-up</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${pg.total > 0 ? paginationControls('profileOutreach', pg, 'renderProfileOutreach') : ''}`;
 }
 
 function renderProfileTodos() {
@@ -691,6 +672,49 @@ function renderProfileTodos() {
       </table>
     </div>
     ${pg.total > 0 ? paginationControls('profileTodos', pg, 'renderProfileTodos') : ''}`;
+}
+
+function renderProfileOrders() {
+  const container = document.getElementById('profile-orders-container');
+  if (!container) return;
+  const pg = paginate(_profileOrdersCache, 'profileOrders');
+  const rows = pg.rows.length === 0
+    ? `<tr><td colspan="9" class="empty-state">No orders recorded yet.</td></tr>`
+    : pg.rows.map(s => {
+        const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
+        const isPreSale = s.Status === 'Pre-Sale';
+        return `<tr>
+          <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
+          <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
+          <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
+          <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
+          <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
+          <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
+          <td>${orderStatusBadge(s.Status)}</td>
+          <td class="text-center">${isPreSale ? '—'
+            : s.Delivered === 'true'
+            ? '<input type="checkbox" checked disabled />'
+            : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
+          <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
+            ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="profileEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
+            : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
+            <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>`}
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Order Date</th><th>Invoice #</th><th>Delivery Date</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+        ${_profileOrderFooter}
+      </table>
+    </div>
+    ${pg.total > 0 ? paginationControls('profileOrders', pg, 'renderProfileOrders') : ''}`;
 }
 
 function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes, depositPerUnit, depositRefunded, depositTotal, accountId, accountName) {
