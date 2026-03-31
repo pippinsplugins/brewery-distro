@@ -1340,6 +1340,11 @@ th input[type="checkbox"] {
 }
 
 @media (max-width: 640px) {
+  /* ── Prevent content from widening the viewport ── */
+  html {
+    overflow-x: hidden;
+  }
+
   /* ── Show hamburger button ── */
   .mobile-menu-btn {
     display: flex;
@@ -1415,7 +1420,11 @@ th input[type="checkbox"] {
     min-width: 0;
   }
 
-  /* ── Table: tighter cell padding ── */
+  /* ── Table: constrain to viewport and tighter cell padding ── */
+  .table-wrap {
+    max-width: 100%;
+  }
+
   thead th {
     padding: 8px 10px;
     font-size: 11px;
@@ -1445,17 +1454,20 @@ th input[type="checkbox"] {
   .modal-overlay {
     padding: 10px 8px;
     align-items: stretch;
+    max-width: 100vw;
   }
 
   .modal {
     max-width: 100%;
     border-radius: var(--radius);
     margin: 0;
+    overflow-x: hidden;
   }
 
   .modal-body {
     max-height: 80vh;
     padding: 16px;
+    overflow-x: hidden;
   }
 
   .modal-header {
