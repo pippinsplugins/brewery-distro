@@ -3,6 +3,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, addRow, updateRow } = require('../db');
+const { processMentions } = require('../lib/notifications');
 
 const router = express.Router();
 
@@ -172,6 +173,14 @@ router.post('/', async (req, res) => {
       Units:       String(newUnits),
       LastUpdated: movDate,
     });
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    processMentions({
+      newText: notes || '', oldText: '',
+      entityType: 'stock movement', entityName: movement.InventoryName,
+      entityId: movement.ID, accountId: '',
+      user: req.user, mentionerName: req.user?.name || '', baseUrl,
+    }).catch(err => console.error('[notifications]', err));
 
     res.json({ movement, newUnits });
   } catch (err) {
