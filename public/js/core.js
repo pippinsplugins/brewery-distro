@@ -33,6 +33,7 @@ const _pagination = {
   profileOutreach: { page: 1, perPage: 10 },
   profileTodos:    { page: 1, perPage: 10 },
   profileOrders:   { page: 1, perPage: 10 },
+  profileKegs:     { page: 1, perPage: 10 },
 };
 
 function paginate(filtered, viewKey) {
