@@ -172,3 +172,7 @@ function destroyMentions(inputId) {
   if (inst.dropdown.parentNode) inst.dropdown.parentNode.removeChild(inst.dropdown);
   delete _mentionInstances[inputId];
 }
+
+function destroyAllMentions() {
+  for (const id of Object.keys(_mentionInstances)) destroyMentions(id);
+}

@@ -287,6 +287,7 @@ function openAdjustInventory(id) {
     toast(`Stock adjusted — new total: ${result.newUnits} units`);
     loadInventory();
   });
+  setTimeout(() => initMentions('f-adj-notes'), 0);
 }
 
 async function openInventoryHistory(id) {

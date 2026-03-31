@@ -12,6 +12,7 @@ const VIEW_LOADERS = {
   'tap-handles': loadTapHandles,
   staff:         loadStaff,
   reports:       loadReports,
+  gallonage:     loadGallonage,
   settings:      loadSettings,
   map:           loadMap,
 };
@@ -22,6 +23,8 @@ const SUBMENU_VIEWS = {
   products:  'inventory',
   accounts:  'accounts',
   map:       'accounts',
+  reports:   'reports',
+  gallonage: 'reports',
 };
 
 function navigate(view, filters = {}, preservePage = false) {

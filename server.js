@@ -37,6 +37,7 @@ const orderItemsRoutes     = require('./routes/order-items');
 const notificationsRoutes  = require('./routes/notifications');
 const qboRoutes            = require('./routes/qbo');
 const reportsRoutes        = require('./routes/reports');
+const gallonageRoutes      = require('./routes/gallonage');
 const creditsRoutes        = require('./routes/credits');
 const apiWebhooksRoutes    = require('./routes/api-webhooks');
 
@@ -126,6 +127,7 @@ app.use('/api/order-items',     requireAuth, orderItemsRoutes);
 app.use('/api/notifications',  requireAuth, notificationsRoutes);
 app.use('/api/qbo',            requireAuth, qboRoutes.apiRouter);
 app.use('/api/reports',        requireAuth, reportsRoutes);
+app.use('/api/gallonage',     requireAuth, gallonageRoutes);
 app.use('/api/credits',        requireAuth, creditsRoutes);
 app.use('/api/webhooks',       requireAuth, apiWebhooksRoutes);
 

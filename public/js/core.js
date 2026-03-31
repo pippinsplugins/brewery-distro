@@ -29,6 +29,7 @@ const _pagination = {
   orders:    { page: 1, perPage: 25 },
   kegs:       { page: 1, perPage: 25 },
   tapHandles: { page: 1, perPage: 25 },
+  gallonage:  { page: 1, perPage: 25 },
   profileOutreach: { page: 1, perPage: 10 },
   profileTodos:    { page: 1, perPage: 10 },
   profileOrders:   { page: 1, perPage: 10 },
@@ -351,7 +352,7 @@ const modal = {
     document.getElementById('modal-cancel-btn').style.display = '';
     document.getElementById('modal-cancel-btn').textContent = 'Cancel';
     modal._onSubmit = null;
-    if (typeof destroyMentions === 'function') destroyMentions('f-notes');
+    if (typeof destroyAllMentions === 'function') destroyAllMentions();
     if (modal._trapFocus) {
       document.getElementById('modal-overlay').removeEventListener('keydown', modal._trapFocus);
       modal._trapFocus = null;
