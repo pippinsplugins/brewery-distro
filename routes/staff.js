@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Email, Phone, Role, Notes } = req.body;
+    const { Name, Email, Phone, Role, Notes, Locations } = req.body;
     if (!Name) return res.status(400).json({ error: 'Name is required' });
 
     const member = {
@@ -29,6 +29,7 @@ router.post('/', async (req, res) => {
       Role: Role || '',
       Active: 'true',
       Notes: Notes || '',
+      Locations: Locations || '[]',
       CreatedAt: new Date().toISOString(),
     };
 

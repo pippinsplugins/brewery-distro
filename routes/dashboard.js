@@ -8,17 +8,30 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const { location } = req.query;
-    let [inventory, accounts, outreach, reminders, orders, products] = await Promise.all([
+    let [inventory, accounts, outreach, reminders, orders, products, staff] = await Promise.all([
       getAllRows('INVENTORY'),
       getAllRows('ACCOUNTS'),
       getAllRows('OUTREACH'),
       getAllRows('REMINDERS'),
       getAllRows('ORDERS'),
       getAllRows('PRODUCTS'),
+      getAllRows('STAFF'),
     ]);
     if (location) {
       inventory = inventory.filter(i => i.Location === location);
       orders    = orders.filter(o => o.Location === location);
+
+      // Build set of staff IDs assigned to this location
+      const locationStaffIds = new Set();
+      for (const s of staff) {
+        try {
+          const locs = JSON.parse(s.Locations || '[]');
+          if (Array.isArray(locs) && locs.includes(location)) locationStaffIds.add(s.ID);
+        } catch { /* ignore bad JSON */ }
+      }
+
+      // Filter reminders: keep if unassigned or assigned to staff at this location
+      reminders = reminders.filter(r => !r.StaffID || locationStaffIds.has(r.StaffID));
     }
 
     // Enrich inventory with product data for display
