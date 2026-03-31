@@ -14,14 +14,14 @@ async function loadDashboard() {
   state.staff = staff;
   state.dashTodos = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
 
-  // Build set of staff IDs assigned to the current location (for filtering)
+  // Build set of staff IDs assigned to the current location (or no location)
   const locationStaffIds = new Set();
   if (state.location && LOCATIONS.length > 1) {
     for (const s of staff) {
       try {
         const locs = JSON.parse(s.Locations || '[]');
-        if (Array.isArray(locs) && locs.includes(state.location)) locationStaffIds.add(s.ID);
-      } catch { /* ignore */ }
+        if (!Array.isArray(locs) || locs.length === 0 || locs.includes(state.location)) locationStaffIds.add(s.ID);
+      } catch { locationStaffIds.add(s.ID); }
     }
   }
   const _staffAtLocation = (id) => !state.location || LOCATIONS.length <= 1 || !id || locationStaffIds.has(id);

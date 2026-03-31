@@ -21,13 +21,13 @@ router.get('/', async (req, res) => {
       inventory = inventory.filter(i => i.Location === location);
       orders    = orders.filter(o => o.Location === location);
 
-      // Build set of staff IDs assigned to this location
+      // Build set of staff IDs assigned to this location (or no location)
       const locationStaffIds = new Set();
       for (const s of staff) {
         try {
           const locs = JSON.parse(s.Locations || '[]');
-          if (Array.isArray(locs) && locs.includes(location)) locationStaffIds.add(s.ID);
-        } catch { /* ignore bad JSON */ }
+          if (!Array.isArray(locs) || locs.length === 0 || locs.includes(location)) locationStaffIds.add(s.ID);
+        } catch { locationStaffIds.add(s.ID); }
       }
 
       // Filter reminders: keep if unassigned or assigned to staff at this location
