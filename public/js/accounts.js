@@ -358,14 +358,14 @@ async function loadAccountProfile(accountId) {
   _profileOutreachCache = acctOutreach;
   _profileTodosCache = acctTodos;
   _profileOrdersCache = acctOrders;
-  _profileKegsCache = acctKegs;
-  _profileKegsContext = { accountId, accountName: acct.Name };
 
   const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
 
   // Keg tracking calculations
   const acctKegs = (kegRecords || []).sort((a, b) => (b.DeliveredDate || '').localeCompare(a.DeliveredDate || ''));
+  _profileKegsCache = acctKegs;
+  _profileKegsContext = { accountId, accountName: acct.Name };
   const outstandingKegs = acctKegs.reduce((sum, k) => {
     const qty = parseInt(k.Quantity) || 0;
     const returned = parseInt(k.ReturnedQuantity) || 0;
