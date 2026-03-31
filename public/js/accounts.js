@@ -4,6 +4,8 @@ const ACCOUNT_TYPES = ['Bar', 'Distributor', 'Restaurant', 'Retail Store', 'Groc
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
 
+let _profileTodosCache = [];
+
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
   return JSON.stringify(Array.from(checkboxes).map(cb => cb.value));
@@ -339,7 +341,13 @@ async function loadAccountProfile(accountId) {
     .sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
   const acctTodos = todos
     .filter(t => t.AccountID === accountId)
-    .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
+    .sort((a, b) => {
+      const aDone = a.Completed === 'true' ? 1 : 0;
+      const bDone = b.Completed === 'true' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return (a.DueDate || '').localeCompare(b.DueDate || '');
+    });
+  _profileTodosCache = acctTodos;
   const acctOrders = orders
     .filter(s => s.AccountID === accountId)
     .sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
@@ -418,25 +426,7 @@ async function loadAccountProfile(accountId) {
         </td>
       </tr>`).join('');
 
-  const todoRows = acctTodos.length === 0
-    ? `<tr><td colspan="6" class="empty-state">No todos for this account.</td></tr>`
-    : acctTodos.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
-        <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
-        <td>${typeBadge(t.Type) || '—'}</td>
-        <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
-        <td>${priorityBadge(t.Priority)}</td>
-        <td class="text-sm text-muted">${esc(t.Notes) || '—'}</td>
-        <td class="td-actions">
-          <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
-          <div class="mobile-actions-menu">
-          ${t.Completed !== 'true'
-            ? `<button class="btn btn-ghost btn-sm" onclick="profileCompleteTodo('${esc(t.ID)}')">Done</button>`
-            : `<button class="btn btn-ghost btn-sm" onclick="profileReopenTodo('${esc(t.ID)}')">Reopen</button>`}
-          <button class="btn btn-ghost btn-sm" onclick="profileEditTodo('${esc(t.ID)}')">Edit</button>
-          <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteTodo('${esc(t.ID)}')">Del</button>
-          </div>
-        </td>
-      </tr>`).join('');
+  // todoRows rendered by renderProfileTodos() after setContent
 
   const orderRows = acctOrders.length === 0
     ? `<tr><td colspan="9" class="empty-state">No orders recorded yet.</td></tr>`
@@ -583,12 +573,7 @@ async function loadAccountProfile(accountId) {
         <h3>Todos <span class="text-muted text-sm">(${activeTodos} open / ${acctTodos.length} total)</span></h3>
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Title</th><th>Type</th><th>Due</th><th>Priority</th><th>Notes</th><th>Actions</th></tr></thead>
-          <tbody>${todoRows}</tbody>
-        </table>
-      </div>
+      <div id="profile-todos-container"></div>
     </div>
 
     <div class="profile-section">
@@ -671,6 +656,41 @@ async function loadAccountProfile(accountId) {
       </div>
     </div>
   `);
+  _paginationReset('profileTodos');
+  renderProfileTodos();
+}
+
+function renderProfileTodos() {
+  const container = document.getElementById('profile-todos-container');
+  if (!container) return;
+  const pg = paginate(_profileTodosCache, 'profileTodos');
+  const rows = pg.rows.length === 0
+    ? `<tr><td colspan="6" class="empty-state">No todos for this account.</td></tr>`
+    : pg.rows.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
+        <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
+        <td>${typeBadge(t.Type) || '—'}</td>
+        <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
+        <td>${priorityBadge(t.Priority)}</td>
+        <td class="text-sm text-muted">${esc(t.Notes) || '—'}</td>
+        <td class="td-actions">
+          <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+          <div class="mobile-actions-menu">
+          ${t.Completed !== 'true'
+            ? `<button class="btn btn-ghost btn-sm" onclick="profileCompleteTodo('${esc(t.ID)}')">Done</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="profileReopenTodo('${esc(t.ID)}')">Reopen</button>`}
+          <button class="btn btn-ghost btn-sm" onclick="profileEditTodo('${esc(t.ID)}')">Edit</button>
+          <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteTodo('${esc(t.ID)}')">Del</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Title</th><th>Type</th><th>Due</th><th>Priority</th><th>Notes</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${pg.total > 0 ? paginationControls('profileTodos', pg, 'renderProfileTodos') : ''}`;
 }
 
 function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes, depositPerUnit, depositRefunded, depositTotal, accountId, accountName) {
