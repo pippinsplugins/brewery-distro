@@ -32,6 +32,9 @@ router.get('/', async (req, res) => {
 
       // Filter reminders: keep if unassigned or assigned to staff at this location
       reminders = reminders.filter(r => !r.StaffID || locationStaffIds.has(r.StaffID));
+
+      // Filter accounts by serviced location
+      accounts = accounts.filter(a => a.ServicedBy === location);
     }
 
     // Enrich inventory with product data for display
