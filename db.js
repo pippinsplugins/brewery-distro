@@ -36,7 +36,7 @@ const HEADERS = {
   ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'BillingContactName', 'BillingEmail', 'BillingPhone', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'ChargeDeposits', 'Taxable', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'QboCustomerId', 'CreatedAt'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
-  STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt'],
+  STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt', 'Locations'],
   ORDERS:          ['ID', 'AccountID', 'AccountName', 'Location', 'StaffID', 'StaffName', 'OrderDate', 'DeliveryDate', 'InvoiceNumber', 'OrderAmount', 'TaxAmount', 'DepositAmount', 'Notes', 'RequestedProducts', 'Status', 'Delivered', 'QboInvoiceId', 'QboSyncStatus', 'QboSyncError', 'CreatedAt'],
   STOCK_MOVEMENTS: ['ID', 'InventoryID', 'InventoryName', 'OrderID', 'Type', 'Quantity', 'Notes', 'Date', 'CreatedAt'],
   SETTINGS:        ['ID', 'Key', 'Value', 'UpdatedAt'],

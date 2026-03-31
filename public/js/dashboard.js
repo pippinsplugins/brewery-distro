@@ -14,9 +14,21 @@ async function loadDashboard() {
   state.staff = staff;
   state.dashTodos = [...(dash.overdueReminders || []), ...(dash.upcomingReminders || [])];
 
+  // Build set of staff IDs assigned to the current location (for filtering)
+  const locationStaffIds = new Set();
+  if (state.location && LOCATIONS.length > 1) {
+    for (const s of staff) {
+      try {
+        const locs = JSON.parse(s.Locations || '[]');
+        if (Array.isArray(locs) && locs.includes(state.location)) locationStaffIds.add(s.ID);
+      } catch { /* ignore */ }
+    }
+  }
+  const _staffAtLocation = (id) => !state.location || LOCATIONS.length <= 1 || !id || locationStaffIds.has(id);
+
   // Pending deliveries: undelivered orders with a delivery date
   const pendingDeliveries = (allOrders || [])
-    .filter(o => o.Delivered !== 'true' && o.DeliveryDate)
+    .filter(o => o.Delivered !== 'true' && o.DeliveryDate && _staffAtLocation(o.StaffID))
     .map(o => ({
       _type: 'delivery',
       ID: o.ID,

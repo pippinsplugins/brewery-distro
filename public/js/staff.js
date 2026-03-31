@@ -34,6 +34,15 @@ function staffForm(member = {}) {
         <option value="false" ${member.Active === 'false' ? 'selected' : ''}>Inactive</option>
       </select>
     </div>
+    ${LOCATIONS.length > 1 ? `<div class="form-group">
+      <label>Locations</label>
+      <div class="checkbox-group" id="f-locations">
+        ${LOCATIONS.map(loc => {
+          const checked = (() => { try { return JSON.parse(member.Locations || '[]').includes(loc); } catch { return false; } })();
+          return `<label class="checkbox-label"><input type="checkbox" value="${esc(loc)}" ${checked ? 'checked' : ''} /> ${esc(loc)}</label>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
     <div class="form-group">
       <label>Notes</label>
       <textarea class="form-control" id="f-notes" rows="2">${esc(member.Notes)}</textarea>
@@ -86,17 +95,18 @@ function renderStaff() {
         <thead>
           <tr>
             <th>Name</th><th class="mobile-hide">Role</th><th>Email</th><th class="mobile-hide">Phone</th>
-            <th class="mobile-hide">Accounts</th><th class="mobile-hide">Status</th><th class="mobile-hide">Notes</th><th>Actions</th>
+            <th class="mobile-hide">Accounts</th>${LOCATIONS.length > 1 ? '<th class="mobile-hide">Locations</th>' : ''}<th class="mobile-hide">Status</th><th class="mobile-hide">Notes</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No staff found. Add your first team member!</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="${LOCATIONS.length > 1 ? 9 : 8}" class="empty-state">No staff found. Add your first team member!</td></tr>` :
             pg.rows.map(s => `<tr>
               <td class="fw-600"><span class="td-link" onclick="openEditStaff('${esc(s.ID)}')">${esc(s.Name)}</span></td>
               <td class="mobile-hide">${esc(s.Role) || '—'}</td>
               <td class="text-sm">${esc(s.Email) || '—'}</td>
               <td class="mobile-hide text-sm">${s.Phone ? esc(formatPhone(s.Phone)) : '—'}</td>
               <td class="mobile-hide"><span class="badge badge-prospect">${acctCounts[s.ID] || 0} account${(acctCounts[s.ID] || 0) !== 1 ? 's' : ''}</span></td>
+              ${LOCATIONS.length > 1 ? `<td class="mobile-hide">${(() => { try { return JSON.parse(s.Locations || '[]').map(l => `<span class="badge">${esc(l)}</span>`).join(' '); } catch { return ''; } })() || '—'}</td>` : ''}
               <td class="mobile-hide"><span class="badge ${s.Active !== 'false' ? 'badge-staff-active' : 'badge-staff-inactive'}">${s.Active !== 'false' ? 'Active' : 'Inactive'}</span></td>
               <td class="mobile-hide text-sm text-muted">${esc(s.Notes).substring(0, 50)}${s.Notes && s.Notes.length > 50 ? '…' : ''}</td>
               <td class="td-actions">
@@ -115,6 +125,12 @@ function renderStaff() {
   if (_focused === 'staff-search') refocusSearch('staff-search');
 }
 
+function _getCheckedLocations() {
+  const el = document.getElementById('f-locations');
+  if (!el) return '[]';
+  return JSON.stringify([...el.querySelectorAll('input:checked')].map(cb => cb.value));
+}
+
 function openAddStaff() {
   modal.open('Add Staff Member', staffForm(), async () => {
     const name = val('f-name');
@@ -122,6 +138,7 @@ function openAddStaff() {
     await api.post('/api/staff', {
       Name: name, Role: val('f-role'), Email: val('f-email'),
       Phone: val('f-phone'), Notes: val('f-notes'),
+      Locations: _getCheckedLocations(),
     });
     modal.close();
     toast('Staff member added');
@@ -138,6 +155,7 @@ function openEditStaff(id) {
     await api.put(`/api/staff/${id}`, {
       Name: name, Role: val('f-role'), Email: val('f-email'),
       Phone: val('f-phone'), Active: val('f-active'), Notes: val('f-notes'),
+      Locations: _getCheckedLocations(),
     });
     modal.close();
     toast('Staff member updated');
