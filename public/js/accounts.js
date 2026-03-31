@@ -208,7 +208,7 @@ function renderAccounts() {
   const search         = (document.getElementById('acct-search')   || {}).value ?? nav.search   ?? '';
 
   let filtered = accounts;
-  if (locationFilter) filtered = filtered.filter(a => a.ServicedBy === locationFilter);
+  if (locationFilter) filtered = filtered.filter(a => !a.ServicedBy || a.ServicedBy === locationFilter);
   if (typeFilter) filtered = filtered.filter(a => a.Type === typeFilter);
   if (statusFilter === 'Inactive') {
     filtered = filtered.filter(a => a.Status === 'Inactive');
