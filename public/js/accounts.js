@@ -8,6 +8,8 @@ let _profileOutreachCache = [];
 let _profileTodosCache = [];
 let _profileOrdersCache = [];
 let _profileOrderFooter = '';
+let _profileKegsCache = [];
+let _profileKegsContext = {};
 
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
@@ -356,6 +358,8 @@ async function loadAccountProfile(accountId) {
   _profileOutreachCache = acctOutreach;
   _profileTodosCache = acctTodos;
   _profileOrdersCache = acctOrders;
+  _profileKegsCache = acctKegs;
+  _profileKegsContext = { accountId, accountName: acct.Name };
 
   const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
@@ -424,35 +428,7 @@ async function loadAccountProfile(accountId) {
       </tr></tfoot>`
     : '';
 
-  const kegRows = acctKegs.length === 0
-    ? `<tr><td colspan="9" class="empty-state">No keg deliveries recorded.</td></tr>`
-    : acctKegs.map(k => {
-        const qty = parseInt(k.Quantity) || 0;
-        const returned = parseInt(k.ReturnedQuantity) || 0;
-        const outstanding = Math.max(0, qty - returned);
-        const fullyReturned = outstanding === 0;
-        const depTotal = parseFloat(k.DepositTotal) || 0;
-        const depRefunded = parseFloat(k.DepositRefunded) || 0;
-        const depOutstanding = depTotal - depRefunded;
-        return `<tr class="${fullyReturned ? 'row-completed' : ''}">
-          <td class="text-sm">${formatDate(k.DeliveredDate)}</td>
-          <td class="fw-600">${esc(k.ProductName)}</td>
-          <td class="text-sm">${esc(k.Format)}</td>
-          <td class="text-center">${qty}</td>
-          <td class="text-center">${returned}</td>
-          <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
-          <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
-          <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
-          <td class="td-actions">
-            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
-            <div class="mobile-actions-menu">
-            ${outstanding > 0
-              ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" data-account-id="${esc(accountId)}" data-account-name="${esc(acct.Name)}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal, this.dataset.accountId, this.dataset.accountName)">Return Kegs</button>`
-              : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
+  // kegRows rendered by renderProfileKegs() after setContent
 
   const tapHandleRows = acctTapHandles.length === 0
     ? `<tr><td colspan="5" class="empty-state">No tap handles deployed.</td></tr>`
@@ -583,12 +559,7 @@ async function loadAccountProfile(accountId) {
         <h3>Keg Tracking <span class="text-muted text-sm">(${outstandingKegs} outstanding)</span></h3>
         <button class="btn btn-ghost btn-sm" onclick="openAddKegs('${esc(accountId)}')">+ Add Kegs</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Delivered</th><th>Product</th><th>Format</th><th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Deposit</th><th>Refund Status</th><th>Actions</th></tr></thead>
-          <tbody>${kegRows}</tbody>
-        </table>
-      </div>
+      <div id="profile-kegs-container"></div>
     </div>
 
     <div class="profile-section">
@@ -607,9 +578,11 @@ async function loadAccountProfile(accountId) {
   _paginationReset('profileOutreach');
   _paginationReset('profileTodos');
   _paginationReset('profileOrders');
+  _paginationReset('profileKegs');
   renderProfileOutreach();
   renderProfileTodos();
   renderProfileOrders();
+  renderProfileKegs();
 }
 
 function renderProfileOutreach() {
@@ -715,6 +688,50 @@ function renderProfileOrders() {
       </table>
     </div>
     ${pg.total > 0 ? paginationControls('profileOrders', pg, 'renderProfileOrders') : ''}`;
+}
+
+function renderProfileKegs() {
+  const container = document.getElementById('profile-kegs-container');
+  if (!container) return;
+  const { accountId, accountName } = _profileKegsContext;
+  const pg = paginate(_profileKegsCache, 'profileKegs');
+  const rows = pg.rows.length === 0
+    ? `<tr><td colspan="9" class="empty-state">No keg deliveries recorded.</td></tr>`
+    : pg.rows.map(k => {
+        const qty = parseInt(k.Quantity) || 0;
+        const returned = parseInt(k.ReturnedQuantity) || 0;
+        const outstanding = Math.max(0, qty - returned);
+        const fullyReturned = outstanding === 0;
+        const depTotal = parseFloat(k.DepositTotal) || 0;
+        const depRefunded = parseFloat(k.DepositRefunded) || 0;
+        const depOutstanding = depTotal - depRefunded;
+        return `<tr class="${fullyReturned ? 'row-completed' : ''}">
+          <td class="text-sm">${formatDate(k.DeliveredDate)}</td>
+          <td class="fw-600">${esc(k.ProductName)}</td>
+          <td class="text-sm">${esc(k.Format)}</td>
+          <td class="text-center">${qty}</td>
+          <td class="text-center">${returned}</td>
+          <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
+          <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
+          <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
+          <td class="td-actions">
+            <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
+            <div class="mobile-actions-menu">
+            ${outstanding > 0
+              ? `<button class="btn btn-ghost btn-sm" data-product="${esc(k.ProductName)}" data-format="${esc(k.Format)}" data-notes="${esc(k.Notes || '')}" data-deposit-per-unit="${esc(k.DepositPerUnit || '')}" data-deposit-refunded="${esc(k.DepositRefunded || '')}" data-deposit-total="${esc(k.DepositTotal || '')}" data-account-id="${esc(accountId)}" data-account-name="${esc(accountName)}" onclick="openReturnKegs('${esc(k.ID)}', this.dataset.product, this.dataset.format, ${qty}, ${returned}, this.dataset.notes, this.dataset.depositPerUnit, this.dataset.depositRefunded, this.dataset.depositTotal, this.dataset.accountId, this.dataset.accountName)">Return Kegs</button>`
+              : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Returned</span>'}
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Delivered</th><th>Product</th><th>Format</th><th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Deposit</th><th>Refund Status</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${pg.total > 0 ? paginationControls('profileKegs', pg, 'renderProfileKegs') : ''}`;
 }
 
 function openReturnKegs(kegId, productName, format, totalQty, alreadyReturned, existingNotes, depositPerUnit, depositRefunded, depositTotal, accountId, accountName) {
