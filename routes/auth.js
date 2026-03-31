@@ -3,7 +3,7 @@
 const express  = require('express');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
-const { getRow, addRow, updateRow } = require('../db');
+const { getRow, addRow, updateRow, getAllRows } = require('../db');
 
 const router = express.Router();
 
@@ -19,19 +19,31 @@ if (oauthConfigured) {
       clientID:     process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:  process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
-      // hd restricts the Google sign-in picker to the workspace domain.
-      // Only works with a single domain; when multiple are configured we
-      // omit it and rely on server-side verification below.
-      hd: ALLOWED_DOMAINS.length === 1 ? ALLOWED_DOMAINS[0] : undefined,
+      // Omit hd so the Google picker shows all accounts, including personal
+      // ones that may belong to whitelisted staff members.
     },
     function verify(accessToken, refreshToken, profile, done) {
       // Enforce Google Workspace domain restriction.
       if (ALLOWED_DOMAINS.length > 0) {
         const hostedDomain = ((profile._json && profile._json.hd) || '').toLowerCase();
         if (!ALLOWED_DOMAINS.includes(hostedDomain)) {
-          return done(null, false, {
-            message: `Access restricted to @${ALLOWED_DOMAINS.join(', @')} accounts.`,
-          });
+          // Check if the email belongs to a staff member (staff Email field
+          // supports comma-separated values).
+          const userEmail = ((profile.emails && profile.emails[0] && profile.emails[0].value) || '').toLowerCase();
+          const staffRows = getAllRows('STAFF');
+          const staffEmails = new Set();
+          for (const s of staffRows) {
+            if (s.Email) {
+              for (const e of s.Email.split(',')) {
+                staffEmails.add(e.trim().toLowerCase());
+              }
+            }
+          }
+          if (!userEmail || !staffEmails.has(userEmail)) {
+            return done(null, false, {
+              message: `Access restricted to @${ALLOWED_DOMAINS.join(', @')} accounts.`,
+            });
+          }
         }
       }
 
