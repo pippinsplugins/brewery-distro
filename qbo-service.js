@@ -234,10 +234,27 @@ async function findOrCreateCustomer(account) {
   // Remove undefined values
   Object.keys(customerBody).forEach(k => customerBody[k] === undefined && delete customerBody[k]);
 
-  const created = await qboApiRequest('POST', 'customer', customerBody);
-  const qboCustomerId = String(created.Customer.Id);
-  await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboCustomerId });
-  return qboCustomerId;
+  try {
+    const created = await qboApiRequest('POST', 'customer', customerBody);
+    const qboCustomerId = String(created.Customer.Id);
+    await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboCustomerId });
+    return qboCustomerId;
+  } catch (err) {
+    // Handle "Duplicate Name Exists Error" (code 6240) — customer exists but
+    // the exact-match query above missed it (casing, whitespace, etc.)
+    if (err.message.includes('6240') || err.message.includes('Duplicate Name')) {
+      console.log(`[qbo] Customer "${account.Name}" already exists in QBO, searching again…`);
+      const fuzzyQuery = `SELECT * FROM Customer WHERE DisplayName LIKE '%${displayName}%'`;
+      const retry = await qboApiRequest('GET', `query?query=${encodeURIComponent(fuzzyQuery)}`);
+      if (retry.QueryResponse?.Customer?.length > 0) {
+        const existing = retry.QueryResponse.Customer[0];
+        const qboId = String(existing.Id);
+        await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboId });
+        return qboId;
+      }
+    }
+    throw err;
+  }
 }
 
 // ── Product item management ──────────────────────────────────────
