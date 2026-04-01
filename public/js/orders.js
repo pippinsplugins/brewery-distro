@@ -42,7 +42,7 @@ async function retryQboSync(orderId) {
     if (updated.QboSyncStatus === 'synced') {
       toast('Synced to QuickBooks');
     } else {
-      toast('QBO sync failed: ' + (updated.QboSyncError || 'unknown error'), 'error');
+      toast('QBO sync failed: ' + (updated.QboSyncError || updated.error || 'unknown error — check Settings'), 'error');
     }
     await loadOrders(true);
   } catch (err) {
@@ -84,7 +84,7 @@ async function promptQboSync(orderId, reloadFn) {
       if (updated.QboSyncStatus === 'synced') {
         toast('Invoice created in QuickBooks');
       } else {
-        toast('QBO sync failed: ' + (updated.QboSyncError || 'unknown error'), 'error');
+        toast('QBO sync failed: ' + (updated.QboSyncError || updated.error || 'unknown error — check Settings'), 'error');
       }
     } catch (err) {
       toast('QBO sync error: ' + err.message, 'error');
