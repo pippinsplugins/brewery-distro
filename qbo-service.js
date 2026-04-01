@@ -101,38 +101,51 @@ async function getValidToken(forceRefresh = false) {
 }
 
 async function _doRefresh(tokens) {
-  try {
-    const oauthClient = getOAuthClient();
-    oauthClient.setToken({
-      access_token:  tokens.accessToken,
-      refresh_token: tokens.refreshToken,
-      token_type:    'bearer',
-      expires_in:    0,
-    });
-    const authResponse = await oauthClient.refresh();
-    const refreshed = authResponse.getJson();
+  // Retry once on transient failures (network glitches, 5xx, etc.)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const oauthClient = getOAuthClient();
+      oauthClient.setToken({
+        access_token:  tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+        token_type:    'bearer',
+        expires_in:    0,
+      });
+      const authResponse = await oauthClient.refresh();
+      const refreshed = authResponse.getJson();
 
-    const newTokens = {
-      accessToken:  refreshed.access_token,
-      refreshToken: refreshed.refresh_token,
-      realmId:      tokens.realmId,
-      expiresAt:    Date.now() + (refreshed.expires_in || 3600) * 1000,
-    };
-    await storeTokens(newTokens);
-    return newTokens;
-  } catch (err) {
-    const msg = err.message || String(err);
-    console.error('[qbo] Token refresh failed:', msg);
+      const newTokens = {
+        accessToken:  refreshed.access_token,
+        refreshToken: refreshed.refresh_token,
+        realmId:      tokens.realmId,
+        expiresAt:    Date.now() + (refreshed.expires_in || 3600) * 1000,
+      };
+      await storeTokens(newTokens);
+      return newTokens;
+    } catch (err) {
+      const msg = err.message || String(err);
+      const errDetail = msg + ' ' + String(err.authResponse || '') + ' ' + String(err.body || '');
 
-    // If the refresh token is permanently invalid, clear stored tokens so
-    // the UI shows "disconnected" and the user can reconnect.
-    const isInvalidGrant = /invalid_grant|token.*expired|unauthorized/i.test(msg + ' ' + String(err.authResponse || '') + ' ' + String(err.body || ''));
-    if (isInvalidGrant) {
-      console.error('[qbo] Refresh token appears expired — clearing stored tokens');
-      await clearTokens();
+      // Only clear tokens on definitively permanent failures (invalid_grant
+      // means the refresh token has been revoked or expired after 100 days).
+      // Do NOT clear on transient errors like network timeouts or 5xx.
+      const isInvalidGrant = /invalid_grant/i.test(errDetail);
+      if (isInvalidGrant) {
+        console.error('[qbo] Refresh token is invalid (invalid_grant) — clearing stored tokens');
+        await clearTokens();
+        throw new Error('QuickBooks refresh token expired — please reconnect in Settings.');
+      }
+
+      // On first attempt, log and retry after a brief pause
+      if (attempt === 0) {
+        console.warn(`[qbo] Token refresh attempt failed (will retry): ${msg}`);
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+
+      console.error('[qbo] Token refresh failed after retry:', msg);
+      throw new Error(`QuickBooks token refresh failed — try again shortly. (${msg})`);
     }
-
-    throw new Error(`QuickBooks token refresh failed — try reconnecting in Settings. (${msg})`);
   }
 }
 
