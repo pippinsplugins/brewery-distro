@@ -79,12 +79,13 @@ async function promptQboSync(orderId, reloadFn) {
   document.getElementById('qbo-prompt-create').onclick = async () => {
     modal.close();
     toast('Creating QuickBooks invoice...');
+    let syncedOrder;
     try {
-      const updated = await api.post(`/api/qbo/sync/${orderId}`);
-      if (updated.QboSyncStatus === 'synced') {
+      syncedOrder = await api.post(`/api/qbo/sync/${orderId}`);
+      if (syncedOrder.QboSyncStatus === 'synced') {
         toast('Invoice created in QuickBooks');
       } else {
-        toast('QBO sync failed: ' + (updated.QboSyncError || updated.error || 'unknown error — check Settings'), 'error');
+        toast('QBO sync failed: ' + (syncedOrder.QboSyncError || syncedOrder.error || 'unknown error — check Settings'), 'error');
       }
     } catch (err) {
       toast('QBO sync error: ' + err.message, 'error');
@@ -93,6 +94,11 @@ async function promptQboSync(orderId, reloadFn) {
     // Refresh cache and reopen the order so the user sees the QBO result
     if (state.view === 'account-profile') {
       _ordersCache = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+    }
+    // Patch cached order with sync response to ensure InvoiceNumber is current
+    if (syncedOrder && syncedOrder.ID) {
+      const idx = _ordersCache.findIndex(o => o.ID === syncedOrder.ID);
+      if (idx >= 0) _ordersCache[idx] = { ..._ordersCache[idx], ...syncedOrder };
     }
     openEditOrder(orderId);
   };

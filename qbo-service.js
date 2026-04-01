@@ -550,10 +550,11 @@ async function createInvoice(order, lineItems, account) {
     }
   }
 
+  const docNumber = order.InvoiceNumber || await getNextInvoiceNumber();
   const invoiceBody = {
     CustomerRef:  { value: customerId },
     Line:         lines,
-    DocNumber:    order.InvoiceNumber || await getNextInvoiceNumber(),
+    DocNumber:    docNumber,
     TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     DueDate:      order.DeliveryDate ? order.DeliveryDate.split('T')[0] : undefined,
     BillEmail:     billEmail ? { Address: billEmail } : undefined,
@@ -586,7 +587,10 @@ async function createInvoice(order, lineItems, account) {
   Object.keys(invoiceBody).forEach(k => invoiceBody[k] === undefined && delete invoiceBody[k]);
 
   const result = await qboApiRequest('POST', 'invoice', invoiceBody);
-  return result.Invoice;
+  const invoice = result.Invoice;
+  // Ensure DocNumber is always set — QBO may not echo it back in some configurations
+  if (invoice && !invoice.DocNumber) invoice.DocNumber = docNumber;
+  return invoice;
 }
 
 // ── Top-level sync function ──────────────────────────────────────
@@ -638,11 +642,8 @@ async function syncOrderToQbo(orderId) {
       QboInvoiceId:  qboInvoiceId,
       QboSyncStatus: 'synced',
       QboSyncError:  '',
+      InvoiceNumber: invoice.DocNumber,
     };
-    // Store the QBO invoice number on the order
-    if (invoice.DocNumber) {
-      updates.InvoiceNumber = invoice.DocNumber;
-    }
     await updateRow('ORDERS', orderId, updates);
 
     // Verify the update persisted
