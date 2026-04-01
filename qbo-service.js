@@ -72,6 +72,10 @@ async function clearTokens() {
 
 // ── Token refresh ────────────────────────────────────────────────
 
+// Deduplication: prevent concurrent refresh calls from racing and
+// invalidating each other's refresh tokens.
+let _refreshPromise = null;
+
 async function getValidToken(forceRefresh = false) {
   const tokens = await getStoredTokens();
   if (!tokens || !tokens.accessToken || !tokens.refreshToken) return null;
@@ -83,7 +87,20 @@ async function getValidToken(forceRefresh = false) {
     return tokens;
   }
 
-  // Refresh the token
+  // If a refresh is already in progress, wait for it instead of starting another
+  if (_refreshPromise) {
+    return _refreshPromise;
+  }
+
+  _refreshPromise = _doRefresh(tokens);
+  try {
+    return await _refreshPromise;
+  } finally {
+    _refreshPromise = null;
+  }
+}
+
+async function _doRefresh(tokens) {
   try {
     const oauthClient = getOAuthClient();
     oauthClient.setToken({
@@ -104,8 +121,18 @@ async function getValidToken(forceRefresh = false) {
     await storeTokens(newTokens);
     return newTokens;
   } catch (err) {
-    console.error('[qbo] Token refresh failed:', err.message);
-    throw new Error(`QuickBooks token refresh failed — try reconnecting in Settings. (${err.message})`);
+    const msg = err.message || String(err);
+    console.error('[qbo] Token refresh failed:', msg);
+
+    // If the refresh token is permanently invalid, clear stored tokens so
+    // the UI shows "disconnected" and the user can reconnect.
+    const isInvalidGrant = /invalid_grant|token.*expired|unauthorized/i.test(msg + ' ' + String(err.authResponse || '') + ' ' + String(err.body || ''));
+    if (isInvalidGrant) {
+      console.error('[qbo] Refresh token appears expired — clearing stored tokens');
+      await clearTokens();
+    }
+
+    throw new Error(`QuickBooks token refresh failed — try reconnecting in Settings. (${msg})`);
   }
 }
 
@@ -571,9 +598,12 @@ async function syncOrderToQbo(orderId) {
       return;
     }
 
-    const tokens = await getStoredTokens();
-    if (!tokens || !tokens.accessToken) {
-      await updateRow('ORDERS', orderId, { QboSyncStatus: 'disabled' });
+    const tokens = await getValidToken();
+    if (!tokens) {
+      await updateRow('ORDERS', orderId, {
+        QboSyncStatus: 'failed',
+        QboSyncError:  'Not connected to QuickBooks — reconnect in Settings',
+      });
       return;
     }
 
