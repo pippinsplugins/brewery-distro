@@ -206,7 +206,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}` : ''}
+      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}${order.InvoicePdf ? `<a href="/api/qbo/invoice-pdf/${esc(order.ID)}" target="_blank" class="btn btn-ghost btn-sm">Download Invoice</a>` : ''}` : ''}
       ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span>${order.QboSyncError ? `<span class="text-sm text-danger">${esc(order.QboSyncError)}</span>` : ''}<button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
       ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">Not Connected</span>' : ''}
       ${order.QboSyncStatus === 'skipped' ? '<span class="badge badge-neutral">Sync Disabled</span>' : ''}
