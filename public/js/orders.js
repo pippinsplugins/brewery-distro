@@ -1061,7 +1061,10 @@ function renderOrders() {
                   ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
-                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>`}
+                  <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
+                  ${s.Delivered === 'true'
+                    ? `<button class="btn btn-ghost btn-sm mobile-only" disabled>&#10003; Delivered</button>`
+                    : `<button class="btn btn-ghost btn-sm mobile-only" onclick="toggleDelivered('${esc(s.ID)}')">Mark Delivered</button>`}`}
                   </div>
                 </td>
               </tr>`;

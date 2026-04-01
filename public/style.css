@@ -990,6 +990,7 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 .text-warning { color: #e65100; }
 .text-success { color: var(--green-dark); }
 .fw-600       { font-weight: 600; }
+.mobile-only  { display: none; }
 .mb-0         { margin-bottom: 0; }
 
 .confirm-body {
@@ -1594,6 +1595,7 @@ th input[type="checkbox"] {
   }
 
   .mobile-actions-menu.open { display: block; }
+  .mobile-actions-menu .mobile-only { display: block; }
 
   .mobile-actions-menu .btn {
     display: block;
