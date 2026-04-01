@@ -2,6 +2,8 @@
 
 const OAuthClient = require('intuit-oauth');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
 const { getAllRows, getRow, addRow, updateRow } = require('./db');
 require('dotenv').config();
 
@@ -357,6 +359,36 @@ async function getInvoice(invoiceId) {
   return result.Invoice;
 }
 
+async function downloadInvoicePdf(invoiceId) {
+  let tokens = await getValidToken();
+  if (!tokens) throw new Error('Not connected to QuickBooks');
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const url = `${BASE_URL}/v3/company/${tokens.realmId}/invoice/${invoiceId}/pdf`;
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${tokens.accessToken}`,
+        'Accept':        'application/pdf',
+      },
+    });
+
+    if (resp.status === 401 && attempt === 0) {
+      console.log(`[qbo] Got 401 on PDF download for invoice ${invoiceId}, force-refreshing token and retrying…`);
+      tokens = await getValidToken(true);
+      if (!tokens) throw new Error('Not connected to QuickBooks');
+      continue;
+    }
+
+    if (!resp.ok) {
+      throw new Error(`QBO API GET invoice/${invoiceId}/pdf returned ${resp.status}`);
+    }
+
+    const arrayBuffer = await resp.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+}
+
 async function voidInvoice(invoiceId) {
   const invoice = await getInvoice(invoiceId);
   if (!invoice) throw new Error(`Invoice ${invoiceId} not found in QBO`);
@@ -636,6 +668,19 @@ async function syncOrderToQbo(orderId) {
     } catch (linkErr) {
       console.error(`[qbo] Failed to append invoice link for order ${orderId}:`, linkErr.message);
     }
+
+    // Download and save invoice PDF locally
+    try {
+      const pdfBuffer = await downloadInvoicePdf(qboInvoiceId);
+      const pdfDir = path.join(__dirname, 'data', 'invoices');
+      fs.mkdirSync(pdfDir, { recursive: true });
+      const pdfFilename = `${orderId}.pdf`;
+      fs.writeFileSync(path.join(pdfDir, pdfFilename), pdfBuffer);
+      await updateRow('ORDERS', orderId, { InvoicePdf: pdfFilename });
+      console.log(`[qbo] Invoice PDF saved for order ${orderId}`);
+    } catch (pdfErr) {
+      console.error(`[qbo] Failed to download invoice PDF for order ${orderId}:`, pdfErr.message);
+    }
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
     try {
@@ -656,6 +701,7 @@ module.exports = {
   clearTaxInfoCache,
   getPayment,
   getInvoice,
+  downloadInvoicePdf,
   voidInvoice,
   processQboPaymentWebhook,
   QBO_APP_URL,

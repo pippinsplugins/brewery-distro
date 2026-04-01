@@ -117,6 +117,27 @@ apiRouter.post('/tax-code', async (req, res) => {
   }
 });
 
+// GET /api/qbo/invoice-pdf/:orderId — serve saved invoice PDF
+apiRouter.get('/invoice-pdf/:orderId', (req, res) => {
+  try {
+    const { getRow } = require('../db');
+    const path = require('path');
+    const fs = require('fs');
+    const order = getRow('ORDERS', req.params.orderId);
+    if (!order || !order.InvoicePdf) {
+      return res.status(404).json({ error: 'Invoice PDF not found' });
+    }
+    const pdfPath = path.join(__dirname, '..', 'data', 'invoices', order.InvoicePdf);
+    if (!fs.existsSync(pdfPath)) {
+      return res.status(404).json({ error: 'Invoice PDF file missing' });
+    }
+    res.sendFile(pdfPath, { headers: { 'Content-Type': 'application/pdf' } });
+  } catch (err) {
+    console.error('[qbo]', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/qbo/sync/:orderId — manual retry
 apiRouter.post('/sync/:orderId', async (req, res) => {
   try {
