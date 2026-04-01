@@ -89,13 +89,22 @@ async function promptQboSync(orderId, reloadFn) {
     } catch (err) {
       toast('QBO sync error: ' + err.message, 'error');
     }
-    reloadFn();
+    await reloadFn();
+    // Refresh cache and reopen the order so the user sees the QBO result
+    if (state.view === 'account-profile') {
+      _ordersCache = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+    }
+    openEditOrder(orderId);
   };
   document.getElementById('qbo-prompt-skip').onclick = async () => {
     modal.close();
     await api.put(`/api/orders/${orderId}`, { QboSyncStatus: 'skipped' }).catch(() => {});
     toast('QuickBooks sync skipped');
-    reloadFn();
+    await reloadFn();
+    if (state.view === 'account-profile') {
+      _ordersCache = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+    }
+    openEditOrder(orderId);
   };
 }
 
