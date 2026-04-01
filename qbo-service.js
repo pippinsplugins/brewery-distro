@@ -183,17 +183,10 @@ async function findOrCreateCustomer(account) {
     return account.QboCustomerId;
   }
 
-  // Search QBO by display name
-  const displayName = (account.Name || '').replace(/'/g, "\\'");
-  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName}'`;
-  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
-
-  if (result.QueryResponse && result.QueryResponse.Customer && result.QueryResponse.Customer.length > 0) {
-    const existing = result.QueryResponse.Customer[0];
+  // Helper: cache QBO customer ID and ensure email is set
+  const cacheAndReturn = async (existing) => {
     const qboId = String(existing.Id);
     await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboId });
-
-    // Ensure customer has an email set (needed for invoice send)
     const email = account.BillingEmail || account.Email;
     if (email && !existing.PrimaryEmailAddr?.Address) {
       try {
@@ -207,8 +200,27 @@ async function findOrCreateCustomer(account) {
         console.error(`[qbo] Failed to update customer email:`, err.message);
       }
     }
-
     return qboId;
+  };
+
+  // Search QBO by display name
+  const displayName = (account.Name || '').replace(/'/g, "\\'");
+  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName}'`;
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+
+  if (result.QueryResponse?.Customer?.length > 0) {
+    return cacheAndReturn(result.QueryResponse.Customer[0]);
+  }
+
+  // Search QBO by email address
+  const email = account.BillingEmail || account.Email;
+  if (email) {
+    const emailEsc = email.replace(/'/g, "\\'");
+    const emailQuery = `SELECT * FROM Customer WHERE PrimaryEmailAddr = '${emailEsc}'`;
+    const emailResult = await qboApiRequest('GET', `query?query=${encodeURIComponent(emailQuery)}`);
+    if (emailResult.QueryResponse?.Customer?.length > 0) {
+      return cacheAndReturn(emailResult.QueryResponse.Customer[0]);
+    }
   }
 
   // Create new customer in QBO
@@ -234,10 +246,32 @@ async function findOrCreateCustomer(account) {
   // Remove undefined values
   Object.keys(customerBody).forEach(k => customerBody[k] === undefined && delete customerBody[k]);
 
-  const created = await qboApiRequest('POST', 'customer', customerBody);
-  const qboCustomerId = String(created.Customer.Id);
-  await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboCustomerId });
-  return qboCustomerId;
+  try {
+    const created = await qboApiRequest('POST', 'customer', customerBody);
+    const qboCustomerId = String(created.Customer.Id);
+    await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboCustomerId });
+    return qboCustomerId;
+  } catch (err) {
+    // Handle "Duplicate Name Exists Error" (code 6240) — customer exists but
+    // the exact-match queries above missed it (casing, whitespace, etc.)
+    if (err.message.includes('6240') || err.message.includes('Duplicate Name')) {
+      console.log(`[qbo] Customer "${account.Name}" already exists in QBO, searching again…`);
+      const fuzzyQuery = `SELECT * FROM Customer WHERE DisplayName LIKE '%${displayName}%'`;
+      const retry = await qboApiRequest('GET', `query?query=${encodeURIComponent(fuzzyQuery)}`);
+      if (retry.QueryResponse?.Customer?.length > 0) {
+        return cacheAndReturn(retry.QueryResponse.Customer[0]);
+      }
+      // Try email as last resort
+      if (email) {
+        const emailEsc = email.replace(/'/g, "\\'");
+        const emailRetry = await qboApiRequest('GET', `query?query=${encodeURIComponent(`SELECT * FROM Customer WHERE PrimaryEmailAddr = '${emailEsc}'`)}`);
+        if (emailRetry.QueryResponse?.Customer?.length > 0) {
+          return cacheAndReturn(emailRetry.QueryResponse.Customer[0]);
+        }
+      }
+    }
+    throw err;
+  }
 }
 
 // ── Product item management ──────────────────────────────────────
