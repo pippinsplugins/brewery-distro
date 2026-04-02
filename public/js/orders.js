@@ -217,6 +217,15 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
+    ${order.Status === 'Paid' && (order.PaymentMethod || order.PaymentDate) ? `
+    <hr class="form-divider" />
+    <div class="form-section-title">Payment</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${order.PaymentMethod ? `<span class="badge badge-success">${esc(order.PaymentMethod)}</span>` : ''}
+      ${order.PaymentReference ? `<span class="text-sm">${esc(order.PaymentReference)}</span>` : ''}
+      ${order.PaymentDate ? `<span class="text-sm text-muted">${formatDate(order.PaymentDate)}</span>` : ''}
+      ${order.QboPaymentId ? '<span class="badge badge-success" title="Payment synced to QuickBooks">QBO Payment</span>' : ''}
+    </div>` : ''}
     ${_qboAppUrl && order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
@@ -1056,7 +1065,7 @@ function renderOrders() {
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
-                <td>${orderStatusBadge(s.Status)}</td>
+                <td>${orderStatusBadge(s.Status)}${s.PaymentMethod ? `<br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span>` : ''}</td>
                 <td class="mobile-hide text-center">${isPreSale ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
@@ -1376,10 +1385,58 @@ async function cancelPreSale(id) {
   });
 }
 
+async function openPaymentModal(id, onComplete) {
+  const order = _ordersCache.find(s => s.ID === id);
+  if (!order) return;
+  const total = parseFloat(order.OrderAmount || 0) + parseFloat(order.TaxAmount || 0) + parseFloat(order.DepositAmount || 0);
+  modal.open('Record Payment', `
+    <div style="margin-bottom:16px">
+      <p class="fw-600">${esc(order.AccountName)}</p>
+      <p class="text-sm text-muted">Order total: ${fmtMoney(total)}</p>
+    </div>
+    <div class="form-group">
+      <label>Payment Method <span class="required">*</span></label>
+      <select class="form-control" id="f-payment-method">
+        <option value="">-- Select Method --</option>
+        ${PAYMENT_METHODS.map(m => `<option value="${m}">${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Reference / Check #</label>
+      <input class="form-control" id="f-payment-ref" placeholder="e.g. Check #1234" />
+    </div>
+    <div class="form-group">
+      <label>Payment Date</label>
+      <input class="form-control" id="f-payment-date" type="date" value="${today()}" />
+    </div>
+  `, async () => {
+    const method = val('f-payment-method');
+    if (!method) { toast('Please select a payment method', 'error'); return; }
+    const ref = val('f-payment-ref');
+    const date = val('f-payment-date') || today();
+    await api.put(`/api/orders/${id}`, {
+      Status: 'Paid',
+      PaymentMethod: method,
+      PaymentReference: ref,
+      PaymentDate: date,
+    });
+    modal.close();
+    toast('Order marked as paid');
+    // Best-effort QBO payment sync
+    if (order.QboInvoiceId && order.QboSyncStatus === 'synced') {
+      try {
+        await api.post(`/api/qbo/payment/${id}`);
+        toast('Payment synced to QuickBooks');
+      } catch (err) {
+        toast('Payment saved but QBO sync failed: ' + (err.message || 'unknown error'), 'error');
+      }
+    }
+    onComplete();
+  }, 'Record Payment');
+}
+
 async function markOrderPaid(id) {
-  await api.put(`/api/orders/${id}`, { Status: 'Paid' });
-  toast('Order marked as paid');
-  loadOrders();
+  openPaymentModal(id, () => loadOrders());
 }
 
 async function toggleDelivered(id) {
@@ -1389,9 +1446,11 @@ async function toggleDelivered(id) {
 }
 
 async function profileMarkOrderPaid(id) {
-  await api.put(`/api/orders/${id}`, { Status: 'Paid' });
-  toast('Order marked as paid');
-  loadAccountProfile(state.accountProfileId);
+  // Ensure orders cache is populated for the modal
+  if (!_ordersCache.find(s => s.ID === id)) {
+    _ordersCache = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  }
+  openPaymentModal(id, () => loadAccountProfile(state.accountProfileId));
 }
 
 async function profileToggleDelivered(id) {

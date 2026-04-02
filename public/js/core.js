@@ -6,6 +6,7 @@ let ACCOUNT_TAGS = [];   // Populated from settings on init
 
 const FORMATS = ['1/6 Keg', '1/4 Keg', '1/2 Keg', '12oz Can (case/24)', '16oz Can (case/24)', '22oz Bottle (case/12)', '750ml Bottle (case/12)', 'Other'];
 const STYLES  = ['IPA', 'Double IPA', 'Pale Ale', 'Lager', 'Pilsner', 'Wheat', 'Hefeweizen', 'Stout', 'Porter', 'Sour', 'Saison', 'Amber', 'Brown Ale', 'Barleywine', 'Scottish', 'English Mild', 'Kölsch', 'Golden Ale', 'Other'];
+const PAYMENT_METHODS = ['Check', 'Cash', 'ACH', 'Credit Card', 'Other'];
 
 const state = {
   view: 'dashboard',
