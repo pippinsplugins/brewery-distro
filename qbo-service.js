@@ -216,16 +216,7 @@ async function findOrCreateCustomer(account) {
     return qboId;
   };
 
-  // Search QBO by display name
-  const displayName = (account.Name || '').replace(/'/g, "\\'");
-  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName}'`;
-  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
-
-  if (result.QueryResponse?.Customer?.length > 0) {
-    return cacheAndReturn(result.QueryResponse.Customer[0]);
-  }
-
-  // Search QBO by email address
+  // Search QBO by email first — more reliable than name matching
   const email = account.BillingEmail || account.Email;
   if (email) {
     const emailEsc = email.replace(/'/g, "\\'");
@@ -234,6 +225,15 @@ async function findOrCreateCustomer(account) {
     if (emailResult.QueryResponse?.Customer?.length > 0) {
       return cacheAndReturn(emailResult.QueryResponse.Customer[0]);
     }
+  }
+
+  // Fall back to display name search
+  const displayName = (account.Name || '').replace(/'/g, "\\'");
+  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName}'`;
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+
+  if (result.QueryResponse?.Customer?.length > 0) {
+    return cacheAndReturn(result.QueryResponse.Customer[0]);
   }
 
   // Create new customer in QBO
