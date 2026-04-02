@@ -149,25 +149,26 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         </select>
       </div>
     </div>
-    ${readOnly ? '' : `<div id="payment-fields" style="display:${order.Status === 'Paid' ? '' : 'none'}">
+    <div id="payment-fields" style="display:${order.Status === 'Paid' || (readOnly && order.PaymentMethod) ? '' : 'none'}">
       <div class="form-row">
         <div class="form-group">
-          <label>Payment Method <span class="required">*</span></label>
-          <select class="form-control" id="f-payment-method">
+          <label>Payment Method${readOnly ? '' : ' <span class="required">*</span>'}</label>
+          <select class="form-control" id="f-payment-method"${dis}>
             <option value="">-- Select Method --</option>
             ${PAYMENT_METHODS.map(m => `<option value="${m}" ${order.PaymentMethod === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label>Reference / Check #</label>
-          <input class="form-control" id="f-payment-ref" value="${esc(order.PaymentReference || '')}" placeholder="e.g. Check #1234" />
+          <input class="form-control" id="f-payment-ref" value="${esc(order.PaymentReference || '')}" placeholder="e.g. Check #1234"${dis} />
         </div>
         <div class="form-group">
           <label>Payment Date</label>
-          <input class="form-control" id="f-payment-date" type="date" value="${esc(order.PaymentDate || today())}" />
+          <input class="form-control" id="f-payment-date" type="date" value="${esc(order.PaymentDate || today())}"${dis} />
         </div>
       </div>
-    </div>`}
+      ${order.QboPaymentId ? '<div style="margin-top:4px"><span class="badge badge-success" title="Payment synced to QuickBooks">QBO Payment Synced</span></div>' : ''}
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label>Order Date <span class="required">*</span></label>
@@ -236,15 +237,6 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
-    ${order.Status === 'Paid' && (order.PaymentMethod || order.PaymentDate) ? `
-    <hr class="form-divider" />
-    <div class="form-section-title">Payment</div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      ${order.PaymentMethod ? `<span class="badge badge-success">${esc(order.PaymentMethod)}</span>` : ''}
-      ${order.PaymentReference ? `<span class="text-sm">${esc(order.PaymentReference)}</span>` : ''}
-      ${order.PaymentDate ? `<span class="text-sm text-muted">${formatDate(order.PaymentDate)}</span>` : ''}
-      ${order.QboPaymentId ? '<span class="badge badge-success" title="Payment synced to QuickBooks">QBO Payment</span>' : ''}
-    </div>` : ''}
     ${_qboAppUrl && order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
