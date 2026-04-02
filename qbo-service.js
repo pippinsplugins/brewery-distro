@@ -266,16 +266,23 @@ async function findOrCreateCustomer(account) {
     }
   }
 
-  // Fall back to display name search
+  // Fall back to display name search (LIKE is case-insensitive in QBO)
   const displayName = (account.Name || '').replace(/'/g, "\\'");
-  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName}'`;
+  const query = `SELECT * FROM Customer WHERE DisplayName LIKE '${displayName}'`;
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
 
   if (result.QueryResponse?.Customer?.length > 0) {
     return cacheAndReturn(result.QueryResponse.Customer[0]);
   }
 
-  // Create new customer in QBO
+  // Also check inactive customers — QBO enforces name uniqueness across all customers
+  const inactiveQuery = `SELECT * FROM Customer WHERE Active IN (true, false) AND DisplayName LIKE '${displayName}'`;
+  const inactiveResult = await qboApiRequest('GET', `query?query=${encodeURIComponent(inactiveQuery)}`);
+  if (inactiveResult.QueryResponse?.Customer?.length > 0) {
+    return cacheAndReturn(inactiveResult.QueryResponse.Customer[0]);
+  }
+
+  // Build customer body for creation
   const customerBody = {
     DisplayName:    account.Name || '',
     PrimaryEmailAddr: (account.BillingEmail || account.Email)
@@ -305,15 +312,25 @@ async function findOrCreateCustomer(account) {
     return qboCustomerId;
   } catch (err) {
     // Handle "Duplicate Name Exists Error" (code 6240) — customer exists but
-    // the exact-match queries above missed it (casing, whitespace, etc.)
+    // the queries above missed it (encoding, sub-customers, CompanyName match, etc.)
     if (err.message.includes('6240') || err.message.includes('Duplicate Name')) {
-      console.log(`[qbo] Customer "${account.Name}" already exists in QBO, searching again…`);
-      const fuzzyQuery = `SELECT * FROM Customer WHERE DisplayName LIKE '%${displayName}%'`;
+      console.log(`[qbo] Customer "${account.Name}" already exists in QBO (6240), broadening search…`);
+
+      // Broad fuzzy search including inactive customers
+      const fuzzyQuery = `SELECT * FROM Customer WHERE Active IN (true, false) AND DisplayName LIKE '%${displayName}%'`;
       const retry = await qboApiRequest('GET', `query?query=${encodeURIComponent(fuzzyQuery)}`);
       if (retry.QueryResponse?.Customer?.length > 0) {
         return cacheAndReturn(retry.QueryResponse.Customer[0]);
       }
-      // Try email as last resort
+
+      // Try by CompanyName — QBO also enforces uniqueness across this field
+      const companyQuery = `SELECT * FROM Customer WHERE Active IN (true, false) AND CompanyName LIKE '${displayName}'`;
+      const companyResult = await qboApiRequest('GET', `query?query=${encodeURIComponent(companyQuery)}`);
+      if (companyResult.QueryResponse?.Customer?.length > 0) {
+        return cacheAndReturn(companyResult.QueryResponse.Customer[0]);
+      }
+
+      // Try email as another fallback
       if (email) {
         const emailEsc = email.replace(/'/g, "\\'");
         const emailRetry = await qboApiRequest('GET', `query?query=${encodeURIComponent(`SELECT * FROM Customer WHERE PrimaryEmailAddr = '${emailEsc}'`)}`);
@@ -321,6 +338,14 @@ async function findOrCreateCustomer(account) {
           return cacheAndReturn(emailRetry.QueryResponse.Customer[0]);
         }
       }
+
+      // Last resort: create with a unique suffix so the sync doesn't fail
+      console.warn(`[qbo] Could not find existing customer "${account.Name}" despite 6240 — creating with unique suffix`);
+      customerBody.DisplayName = `${account.Name || ''} (${account.ID.slice(0, 6)})`;
+      const fallback = await qboApiRequest('POST', 'customer', customerBody);
+      const fallbackId = String(fallback.Customer.Id);
+      await updateRow('ACCOUNTS', account.ID, { QboCustomerId: fallbackId });
+      return fallbackId;
     }
     throw err;
   }
