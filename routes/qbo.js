@@ -2,7 +2,7 @@
 
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, QBO_APP_URL } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -135,6 +135,33 @@ apiRouter.get('/invoice-pdf/:orderId', (req, res) => {
   } catch (err) {
     console.error('[qbo]', err.message);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/qbo/payment/:orderId — create QBO payment for a paid order
+apiRouter.post('/payment/:orderId', async (req, res) => {
+  try {
+    if (!isQboConfigured()) return res.status(503).json({ error: 'QuickBooks is not configured' });
+    const tokens = await getStoredTokens();
+    if (!tokens || !tokens.accessToken) return res.status(503).json({ error: 'QuickBooks is not connected' });
+
+    const { getRow, updateRow } = require('../db');
+    const order = getRow('ORDERS', req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!order.QboInvoiceId) return res.status(400).json({ error: 'Order has no QBO invoice' });
+    if (order.QboPaymentId) return res.status(400).json({ error: 'Payment already synced to QBO' });
+
+    const account = getRow('ACCOUNTS', order.AccountID);
+    if (!account) return res.status(400).json({ error: 'Account not found' });
+
+    const payment = await createPayment(order, account);
+    const qboPaymentId = String(payment.Id);
+    await updateRow('ORDERS', req.params.orderId, { QboPaymentId: qboPaymentId });
+    console.log(`[qbo] Payment created for order ${req.params.orderId} → QBO Payment ${qboPaymentId}`);
+    res.json({ success: true, QboPaymentId: qboPaymentId });
+  } catch (err) {
+    console.error('[qbo] Payment creation failed:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

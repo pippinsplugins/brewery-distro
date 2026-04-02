@@ -144,10 +144,30 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       </div>
       <div class="form-group">
         <label>Status</label>
-        <select class="form-control" id="f-status"${dis}>
+        <select class="form-control" id="f-status"${dis} ${readOnly ? '' : 'onchange="togglePaymentFields()"'}>
           ${ORDER_STATUSES.map(s => `<option value="${s}" ${order.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
+    </div>
+    <div id="payment-fields" style="display:${order.Status === 'Paid' || (readOnly && order.PaymentMethod) ? '' : 'none'}">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Payment Method${readOnly ? '' : ' <span class="required">*</span>'}</label>
+          <select class="form-control" id="f-payment-method"${dis}>
+            <option value="">-- Select Method --</option>
+            ${PAYMENT_METHODS.map(m => `<option value="${m}" ${order.PaymentMethod === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reference / Check #</label>
+          <input class="form-control" id="f-payment-ref" value="${esc(order.PaymentReference || '')}" placeholder="e.g. Check #1234"${dis} />
+        </div>
+        <div class="form-group">
+          <label>Payment Date</label>
+          <input class="form-control" id="f-payment-date" type="date" value="${esc(order.PaymentDate || today())}"${dis} />
+        </div>
+      </div>
+      ${order.QboPaymentId ? '<div style="margin-top:4px"><span class="badge badge-success" title="Payment synced to QuickBooks">QBO Payment Synced</span></div>' : ''}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -284,6 +304,12 @@ let _ordersDateTo = '';
 let _orderFormInventory = [];
 let _ordersSort = { col: 'OrderDate', dir: 'desc' };
 let _orderItemCounts = {}; // { orderId: count } for item count badges
+
+function togglePaymentFields() {
+  const status = val('f-status');
+  const wrap = document.getElementById('payment-fields');
+  if (wrap) wrap.style.display = status === 'Paid' ? '' : 'none';
+}
 
 function toggleOrderDeposits() {
   const checked = document.getElementById('f-charge-deposits')?.checked;
@@ -1056,7 +1082,7 @@ function renderOrders() {
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
-                <td>${orderStatusBadge(s.Status)}</td>
+                <td>${orderStatusBadge(s.Status)}${s.PaymentMethod ? `<br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span>` : ''}</td>
                 <td class="mobile-hide text-center">${isPreSale ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
@@ -1108,20 +1134,30 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
+    const newStatus = val('f-status');
+    if (newStatus === 'Paid' && !val('f-payment-method')) {
+      toast('Please select a payment method', 'error'); return;
+    }
     const creditApplied = _orderCreditApplied;
     const orderAmount = parseFloat(val('f-amount')) || 0;
     const finalAmount = creditApplied > 0 ? Math.max(0, orderAmount - creditApplied).toFixed(2) : val('f-amount');
-    const order = await api.post('/api/orders', {
+    const orderData = {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
-      InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+      InvoiceNumber: val('f-invoice'), Status: newStatus,
       OrderAmount: finalAmount, TaxAmount: val('f-tax'),
       DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
       RequestedProducts: products,
-    });
+    };
+    if (newStatus === 'Paid') {
+      orderData.PaymentMethod = val('f-payment-method');
+      orderData.PaymentReference = val('f-payment-ref');
+      orderData.PaymentDate = val('f-payment-date') || today();
+    }
+    const order = await api.post('/api/orders', orderData);
     await saveOrderItems(order.ID);
     if (creditApplied > 0) {
       await api.post('/api/credits', {
@@ -1187,16 +1223,29 @@ async function openEditOrder(id) {
       for (const oc of oldApplied) {
         await api.del(`/api/credits/${oc.ID}`);
       }
-      await api.put(`/api/orders/${id}`, {
+      const newStatus = val('f-status');
+      const becomingPaid = newStatus === 'Paid' && order.Status !== 'Paid';
+      // Require payment method when changing status to Paid
+      if (becomingPaid && !val('f-payment-method')) {
+        toast('Please select a payment method', 'error'); return;
+      }
+      const updateData = {
         Location: val('f-location') || state.location,
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
-        InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+        InvoiceNumber: val('f-invoice'), Status: newStatus,
         OrderAmount: finalAmount, TaxAmount: val('f-tax'),
         DepositAmount: val('f-deposit-amount') || '0',
         Notes: val('f-notes'),
         RequestedProducts: products || order.RequestedProducts || '',
-      });
+      };
+      // Include payment fields when status is Paid
+      if (newStatus === 'Paid') {
+        updateData.PaymentMethod = val('f-payment-method');
+        updateData.PaymentReference = val('f-payment-ref');
+        updateData.PaymentDate = val('f-payment-date') || today();
+      }
+      await api.put(`/api/orders/${id}`, updateData);
       await saveOrderItems(id);
       if (creditApplied > 0) {
         const accountName = (state.accounts.find(a => a.ID === order.AccountID) || {}).Name || order.AccountName;
@@ -1222,6 +1271,15 @@ async function openEditOrder(id) {
       }
       modal.close();
       toast('Order updated');
+      // Best-effort QBO payment sync when status changed to Paid
+      if (becomingPaid && order.QboInvoiceId && order.QboSyncStatus === 'synced') {
+        try {
+          await api.post(`/api/qbo/payment/${id}`);
+          toast('Payment synced to QuickBooks');
+        } catch (err) {
+          toast('Payment saved but QBO sync failed: ' + (err.message || 'unknown error'), 'error');
+        }
+      }
       loadOrders();
     });
   }
@@ -1376,10 +1434,58 @@ async function cancelPreSale(id) {
   });
 }
 
+async function openPaymentModal(id, onComplete) {
+  const order = _ordersCache.find(s => s.ID === id);
+  if (!order) return;
+  const total = parseFloat(order.OrderAmount || 0) + parseFloat(order.TaxAmount || 0) + parseFloat(order.DepositAmount || 0);
+  modal.open('Record Payment', `
+    <div style="margin-bottom:16px">
+      <p class="fw-600">${esc(order.AccountName)}</p>
+      <p class="text-sm text-muted">Order total: ${fmtMoney(total)}</p>
+    </div>
+    <div class="form-group">
+      <label>Payment Method <span class="required">*</span></label>
+      <select class="form-control" id="f-payment-method">
+        <option value="">-- Select Method --</option>
+        ${PAYMENT_METHODS.map(m => `<option value="${m}">${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Reference / Check #</label>
+      <input class="form-control" id="f-payment-ref" placeholder="e.g. Check #1234" />
+    </div>
+    <div class="form-group">
+      <label>Payment Date</label>
+      <input class="form-control" id="f-payment-date" type="date" value="${today()}" />
+    </div>
+  `, async () => {
+    const method = val('f-payment-method');
+    if (!method) { toast('Please select a payment method', 'error'); return; }
+    const ref = val('f-payment-ref');
+    const date = val('f-payment-date') || today();
+    await api.put(`/api/orders/${id}`, {
+      Status: 'Paid',
+      PaymentMethod: method,
+      PaymentReference: ref,
+      PaymentDate: date,
+    });
+    modal.close();
+    toast('Order marked as paid');
+    // Best-effort QBO payment sync
+    if (order.QboInvoiceId && order.QboSyncStatus === 'synced') {
+      try {
+        await api.post(`/api/qbo/payment/${id}`);
+        toast('Payment synced to QuickBooks');
+      } catch (err) {
+        toast('Payment saved but QBO sync failed: ' + (err.message || 'unknown error'), 'error');
+      }
+    }
+    onComplete();
+  }, 'Record Payment');
+}
+
 async function markOrderPaid(id) {
-  await api.put(`/api/orders/${id}`, { Status: 'Paid' });
-  toast('Order marked as paid');
-  loadOrders();
+  openPaymentModal(id, () => loadOrders());
 }
 
 async function toggleDelivered(id) {
@@ -1389,9 +1495,11 @@ async function toggleDelivered(id) {
 }
 
 async function profileMarkOrderPaid(id) {
-  await api.put(`/api/orders/${id}`, { Status: 'Paid' });
-  toast('Order marked as paid');
-  loadAccountProfile(state.accountProfileId);
+  // Ensure orders cache is populated for the modal
+  if (!_ordersCache.find(s => s.ID === id)) {
+    _ordersCache = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  }
+  openPaymentModal(id, () => loadAccountProfile(state.accountProfileId));
 }
 
 async function profileToggleDelivered(id) {

@@ -500,10 +500,41 @@ async function processQboPaymentWebhook(paymentId) {
     const matchingOrders = orders.filter(o => o.QboInvoiceId === String(invoice.Id));
     for (const order of matchingOrders) {
       if (order.Status === 'Paid' || order.Status === 'Cancelled') continue;
-      await updateRow('ORDERS', order.ID, { Status: 'Paid' });
+      const paymentUpdates = { Status: 'Paid' };
+      // Store payment metadata from QBO
+      if (payment.PaymentMethodRef?.name) paymentUpdates.PaymentMethod = payment.PaymentMethodRef.name;
+      if (payment.TxnDate) paymentUpdates.PaymentDate = payment.TxnDate;
+      if (payment.Id) paymentUpdates.QboPaymentId = String(payment.Id);
+      await updateRow('ORDERS', order.ID, paymentUpdates);
       console.log(`[qbo-webhook] Order ${order.ID} marked as Paid (Invoice ${invoice.Id} fully paid)`);
     }
   }
+}
+
+async function createPayment(order, account) {
+  const customerId = await findOrCreateCustomer(account);
+  const totalAmt = parseFloat(order.OrderAmount || 0) + parseFloat(order.TaxAmount || 0) + parseFloat(order.DepositAmount || 0);
+
+  const paymentBody = {
+    CustomerRef: { value: customerId },
+    TotalAmt: totalAmt,
+    TxnDate: order.PaymentDate || order.OrderDate || new Date().toISOString().split('T')[0],
+    Line: [{
+      Amount: totalAmt,
+      LinkedTxn: [{
+        TxnId: order.QboInvoiceId,
+        TxnType: 'Invoice',
+      }],
+    }],
+  };
+
+  const noteParts = [];
+  if (order.PaymentMethod) noteParts.push(`Method: ${order.PaymentMethod}`);
+  if (order.PaymentReference) noteParts.push(`Ref: ${order.PaymentReference}`);
+  if (noteParts.length > 0) paymentBody.PrivateNote = noteParts.join(' | ');
+
+  const result = await qboApiRequest('POST', 'payment', paymentBody);
+  return result.Payment;
 }
 
 // ── Invoice number generation ────────────────────────────────────
@@ -782,5 +813,6 @@ module.exports = {
   downloadInvoicePdf,
   voidInvoice,
   processQboPaymentWebhook,
+  createPayment,
   QBO_APP_URL,
 };
