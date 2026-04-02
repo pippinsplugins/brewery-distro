@@ -144,11 +144,30 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       </div>
       <div class="form-group">
         <label>Status</label>
-        <select class="form-control" id="f-status"${dis}>
+        <select class="form-control" id="f-status"${dis} ${readOnly ? '' : 'onchange="togglePaymentFields()"'}>
           ${ORDER_STATUSES.map(s => `<option value="${s}" ${order.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
     </div>
+    ${readOnly ? '' : `<div id="payment-fields" style="display:${order.Status === 'Paid' ? '' : 'none'}">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Payment Method <span class="required">*</span></label>
+          <select class="form-control" id="f-payment-method">
+            <option value="">-- Select Method --</option>
+            ${PAYMENT_METHODS.map(m => `<option value="${m}" ${order.PaymentMethod === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reference / Check #</label>
+          <input class="form-control" id="f-payment-ref" value="${esc(order.PaymentReference || '')}" placeholder="e.g. Check #1234" />
+        </div>
+        <div class="form-group">
+          <label>Payment Date</label>
+          <input class="form-control" id="f-payment-date" type="date" value="${esc(order.PaymentDate || today())}" />
+        </div>
+      </div>
+    </div>`}
     <div class="form-row">
       <div class="form-group">
         <label>Order Date <span class="required">*</span></label>
@@ -293,6 +312,12 @@ let _ordersDateTo = '';
 let _orderFormInventory = [];
 let _ordersSort = { col: 'OrderDate', dir: 'desc' };
 let _orderItemCounts = {}; // { orderId: count } for item count badges
+
+function togglePaymentFields() {
+  const status = val('f-status');
+  const wrap = document.getElementById('payment-fields');
+  if (wrap) wrap.style.display = status === 'Paid' ? '' : 'none';
+}
 
 function toggleOrderDeposits() {
   const checked = document.getElementById('f-charge-deposits')?.checked;
@@ -1117,20 +1142,30 @@ async function openAddOrder(presetAccountId = '') {
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     const products = collectOrderProducts();
+    const newStatus = val('f-status');
+    if (newStatus === 'Paid' && !val('f-payment-method')) {
+      toast('Please select a payment method', 'error'); return;
+    }
     const creditApplied = _orderCreditApplied;
     const orderAmount = parseFloat(val('f-amount')) || 0;
     const finalAmount = creditApplied > 0 ? Math.max(0, orderAmount - creditApplied).toFixed(2) : val('f-amount');
-    const order = await api.post('/api/orders', {
+    const orderData = {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
-      InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+      InvoiceNumber: val('f-invoice'), Status: newStatus,
       OrderAmount: finalAmount, TaxAmount: val('f-tax'),
       DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
       RequestedProducts: products,
-    });
+    };
+    if (newStatus === 'Paid') {
+      orderData.PaymentMethod = val('f-payment-method');
+      orderData.PaymentReference = val('f-payment-ref');
+      orderData.PaymentDate = val('f-payment-date') || today();
+    }
+    const order = await api.post('/api/orders', orderData);
     await saveOrderItems(order.ID);
     if (creditApplied > 0) {
       await api.post('/api/credits', {
@@ -1196,16 +1231,29 @@ async function openEditOrder(id) {
       for (const oc of oldApplied) {
         await api.del(`/api/credits/${oc.ID}`);
       }
-      await api.put(`/api/orders/${id}`, {
+      const newStatus = val('f-status');
+      const becomingPaid = newStatus === 'Paid' && order.Status !== 'Paid';
+      // Require payment method when changing status to Paid
+      if (becomingPaid && !val('f-payment-method')) {
+        toast('Please select a payment method', 'error'); return;
+      }
+      const updateData = {
         Location: val('f-location') || state.location,
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
-        InvoiceNumber: val('f-invoice'), Status: val('f-status'),
+        InvoiceNumber: val('f-invoice'), Status: newStatus,
         OrderAmount: finalAmount, TaxAmount: val('f-tax'),
         DepositAmount: val('f-deposit-amount') || '0',
         Notes: val('f-notes'),
         RequestedProducts: products || order.RequestedProducts || '',
-      });
+      };
+      // Include payment fields when status is Paid
+      if (newStatus === 'Paid') {
+        updateData.PaymentMethod = val('f-payment-method');
+        updateData.PaymentReference = val('f-payment-ref');
+        updateData.PaymentDate = val('f-payment-date') || today();
+      }
+      await api.put(`/api/orders/${id}`, updateData);
       await saveOrderItems(id);
       if (creditApplied > 0) {
         const accountName = (state.accounts.find(a => a.ID === order.AccountID) || {}).Name || order.AccountName;
@@ -1231,6 +1279,15 @@ async function openEditOrder(id) {
       }
       modal.close();
       toast('Order updated');
+      // Best-effort QBO payment sync when status changed to Paid
+      if (becomingPaid && order.QboInvoiceId && order.QboSyncStatus === 'synced') {
+        try {
+          await api.post(`/api/qbo/payment/${id}`);
+          toast('Payment synced to QuickBooks');
+        } catch (err) {
+          toast('Payment saved but QBO sync failed: ' + (err.message || 'unknown error'), 'error');
+        }
+      }
       loadOrders();
     });
   }
