@@ -59,7 +59,10 @@ function outreachForm(entry = {}, presetAccountId = '') {
 }
 
 async function loadOutreach(preservePage = false) {
-  if (!preservePage) _paginationReset('outreach');
+  if (!preservePage) {
+    _paginationReset('outreach');
+    if (LOCATIONS.length > 1) _outreachLocationFilter = state.location || '';
+  }
   showLoading();
   const [outreach, accounts, staff] = await Promise.all([api.get('/api/outreach'), api.get('/api/accounts'), api.get('/api/staff')]);
   state.outreach = outreach;
@@ -68,14 +71,23 @@ async function loadOutreach(preservePage = false) {
   renderOutreach();
 }
 
+let _outreachLocationFilter = '';
+
 function renderOutreach() {
   const outreach = state.outreach || [];
+  const accounts = state.accounts || [];
   const _focused = document.activeElement?.id;
-  const accountFilter = (document.getElementById('out-account') || {}).value || '';
-  const methodFilter  = (document.getElementById('out-method') || {}).value || '';
-  const search        = (document.getElementById('out-search') || {}).value || '';
+  const locationFilter = _outreachLocationFilter || (document.getElementById('out-location') || {}).value || '';
+  const accountFilter  = (document.getElementById('out-account') || {}).value || '';
+  const methodFilter   = (document.getElementById('out-method') || {}).value || '';
+  const search         = (document.getElementById('out-search') || {}).value || '';
+
+  // Build account-to-location map
+  const acctLocation = {};
+  for (const a of accounts) acctLocation[a.ID] = a.ServicedBy || '';
 
   let filtered = outreach;
+  if (locationFilter) filtered = filtered.filter(o => acctLocation[o.AccountID] === locationFilter);
   if (accountFilter) filtered = filtered.filter(o => o.AccountID === accountFilter);
   if (methodFilter)  filtered = filtered.filter(o => o.Method === methodFilter);
   if (search) {
@@ -86,12 +98,20 @@ function renderOutreach() {
     );
   }
 
+  // Filter account options to match selected location
+  const acctIds = [...new Set(outreach.map(o => o.AccountID))];
   const acctOpts = `<option value="">All Accounts</option>` +
-    [...new Set(outreach.map(o => o.AccountID))]
+    acctIds
+      .filter(id => !locationFilter || acctLocation[id] === locationFilter)
       .map(id => {
         const o = outreach.find(x => x.AccountID === id);
         return `<option value="${esc(id)}" ${accountFilter === id ? 'selected' : ''}>${esc(o.AccountName)}</option>`;
       }).join('');
+
+  const locationOpts = LOCATIONS.length > 1 ? `<select id="out-location" onchange="_outreachLocationFilter=this.value; _paginationReset('outreach'); renderOutreach()">
+        <option value="">All Locations</option>
+        ${LOCATIONS.map(l => `<option value="${esc(l)}" ${locationFilter === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+      </select>` : '';
 
   const pg = paginate(filtered, 'outreach');
 
@@ -107,6 +127,7 @@ function renderOutreach() {
     </div>
     <div class="filter-bar">
       <input type="search" id="out-search" placeholder="Search..." value="${esc(search)}" oninput="_paginationReset('outreach'); renderOutreach()" />
+      ${locationOpts}
       <select id="out-account" onchange="_paginationReset('outreach'); renderOutreach()">${acctOpts}</select>
       <select id="out-method" onchange="_paginationReset('outreach'); renderOutreach()">
         <option value="">All Methods</option>
