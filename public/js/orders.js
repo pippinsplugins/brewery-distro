@@ -123,13 +123,13 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         <label>Account <span class="required">*</span></label>
         <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox()">
           <option value="">-- Select Account --</option>
-          ${accountOptions(selAcctId)}
+          ${accountOptions(selAcctId, order.Location || state.location)}
         </select>
         ${presetAccountId ? `<input type="hidden" id="f-account-hidden" value="${esc(presetAccountId)}" />` : ''}
       </div>
       <div class="form-group">
         <label>Location <span class="required">*</span></label>
-        <select class="form-control" id="f-location"${dis}${readOnly ? '' : ' onchange="refreshOrderProducts()"'}>
+        <select class="form-control" id="f-location"${dis}${readOnly ? '' : ' onchange="refreshOrderAccounts(); refreshOrderProducts()"'}>
           ${LOCATIONS.map(l => `<option value="${l}" ${(order.Location || state.location) === l ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
       </div>
@@ -723,6 +723,14 @@ function getOrderLineItems() {
     }
   });
   return items;
+}
+
+function refreshOrderAccounts() {
+  const location = val('f-location');
+  const sel = document.getElementById('f-account');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- Select Account --</option>' + accountOptions(current, location);
 }
 
 async function refreshOrderProducts(existingProducts = '', readOnly = false) {

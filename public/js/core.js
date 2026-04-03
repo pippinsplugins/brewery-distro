@@ -426,12 +426,22 @@ document.addEventListener('click', () => {
   document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
 });
 
-function accountOptions(selectedId = '') {
-  return state.accounts
+function accountOptions(selectedId = '', location = '') {
+  const active = state.accounts
     .filter(a => a.Status !== 'Inactive')
-    .sort((a, b) => a.Name.localeCompare(b.Name))
-    .map(a => `<option value="${esc(a.ID)}" ${a.ID === selectedId ? 'selected' : ''}>${esc(a.Name)}</option>`)
-    .join('');
+    .sort((a, b) => a.Name.localeCompare(b.Name));
+  if (!location) {
+    return active
+      .map(a => `<option value="${esc(a.ID)}" ${a.ID === selectedId ? 'selected' : ''}>${esc(a.Name)}</option>`)
+      .join('');
+  }
+  const serviced = active.filter(a => a.ServicedBy === location || !a.ServicedBy);
+  const other = active.filter(a => a.ServicedBy && a.ServicedBy !== location);
+  const optHtml = list => list.map(a => `<option value="${esc(a.ID)}" ${a.ID === selectedId ? 'selected' : ''}>${esc(a.Name)}</option>`).join('');
+  let html = '';
+  if (serviced.length) html += `<optgroup label="Serviced by ${esc(location)}">${optHtml(serviced)}</optgroup>`;
+  if (other.length) html += `<optgroup label="Other accounts">${optHtml(other)}</optgroup>`;
+  return html;
 }
 
 function staffOptions(selectedId = '') {
