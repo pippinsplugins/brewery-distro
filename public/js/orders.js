@@ -557,8 +557,8 @@ function _buildProductOptions(selectedId) {
     const lb = (b.Name || '').toLowerCase();
     return la.localeCompare(lb) || (a.Format || '').localeCompare(b.Format || '');
   };
-  const inStock = _orderFormInventory.filter(i => parseInt(i.Units || '0') > 0).sort(sortByName);
-  const outOfStock = _orderFormInventory.filter(i => parseInt(i.Units || '0') <= 0).sort(sortByName);
+  const inStock = _orderFormInventory.filter(i => parseInt(i.Available || i.Units || '0') > 0).sort(sortByName);
+  const outOfStock = _orderFormInventory.filter(i => parseInt(i.Available || i.Units || '0') <= 0).sort(sortByName);
 
   let html = '<option value="">-- Select Product --</option>';
   if (inStock.length) {
@@ -566,7 +566,7 @@ function _buildProductOptions(selectedId) {
     for (const item of inStock) {
       const label = item.Format ? `${item.Name} (${item.Format})` : item.Name;
       const sel = item.ID === selectedId ? ' selected' : '';
-      html += `<option value="${esc(item.ID)}"${sel}>${esc(label)} [${item.Units}]</option>`;
+      html += `<option value="${esc(item.ID)}"${sel}>${esc(label)} [${item.Available || item.Units}]</option>`;
     }
     html += '</optgroup>';
   }
