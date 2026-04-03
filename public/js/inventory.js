@@ -255,14 +255,20 @@ function openAdjustInventory(id) {
     </p>
     <div class="form-group">
       <label>Movement Type <span class="required">*</span></label>
-      <select class="form-control" id="f-adj-type">
+      <select class="form-control" id="f-adj-type" onchange="
+        var lbl = document.getElementById('f-adj-qty-label');
+        var inp = document.getElementById('f-adj-qty');
+        if (this.value === 'recount') { lbl.textContent = 'New Count'; inp.min = '0'; inp.placeholder = 'e.g. 8'; }
+        else { lbl.textContent = 'Quantity'; inp.min = '1'; inp.placeholder = 'e.g. 10'; }
+      ">
         <option value="received">Received (add stock)</option>
         <option value="write-off">Write-off (remove stock)</option>
         <option value="adjustment">Adjustment (remove stock)</option>
+        <option value="recount">Recount (set new total)</option>
       </select>
     </div>
     <div class="form-group">
-      <label>Quantity <span class="required">*</span></label>
+      <label id="f-adj-qty-label">Quantity <span class="required">*</span></label>
       <input class="form-control" id="f-adj-qty" type="number" min="1" placeholder="e.g. 10" />
     </div>
     <div class="form-group">
@@ -275,7 +281,7 @@ function openAdjustInventory(id) {
     </div>`, async () => {
     const type = val('f-adj-type');
     const qty  = parseInt(val('f-adj-qty'));
-    if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    if (type === 'recount' ? (isNaN(qty) || qty < 0) : (!qty || qty <= 0)) { toast('Enter a valid quantity', 'error'); return; }
     const result = await api.post('/api/stock-movements', {
       inventoryId: id,
       type,
@@ -294,7 +300,7 @@ async function openInventoryHistory(id) {
   const item = state.inventory.find(i => i.ID === id);
   if (!item) return;
   const movements = await api.get(`/api/stock-movements?inventoryId=${encodeURIComponent(id)}`);
-  const typeLabel = { sale: 'Sale', received: 'Received', 'write-off': 'Write-off', adjustment: 'Adjustment' };
+  const typeLabel = { sale: 'Sale', received: 'Received', 'write-off': 'Write-off', adjustment: 'Adjustment', recount: 'Recount' };
   const rows = movements.length === 0
     ? `<tr><td colspan="5" class="empty-state">No stock movements recorded yet.</td></tr>`
     : movements.map(m => {
