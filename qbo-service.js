@@ -692,21 +692,65 @@ async function createInvoice(order, lineItems, account) {
     return line;
   });
 
-  // Add deposit as a separate line if present (non-taxable)
+  // Add deposit lines per keg format if present (non-taxable)
   const depositAmount = parseFloat(order.DepositAmount || 0);
   if (depositAmount > 0) {
-    lines.push({
-      DetailType:          'SalesItemLineDetail',
-      Amount:              depositAmount,
-      Description:         'Keg Deposits',
-      SalesItemLineDetail: {
-        ItemRef:   { value: productItemId },
-        UnitPrice: depositAmount,
-        Qty:       1,
-        TaxCodeRef: { value: 'NON' },
-      },
-      LineNum: lines.length + 1,
-    });
+    // Look up per-format keg deposit rates from settings
+    const settingsRows = await getAllRows('SETTINGS');
+    const depRow = settingsRows.find(r => r.Key === 'kegDeposits');
+    let kegDeposits = {};
+    if (depRow) {
+      try { kegDeposits = JSON.parse(depRow.Value); } catch (e) { /* ignore */ }
+    }
+
+    // Count kegs per format from line items
+    const kegsByFormat = {};
+    for (const li of lineItems) {
+      const fmt = li.Format || '';
+      if (fmt.toLowerCase().includes('keg')) {
+        const qty = parseFloat(li.Quantity || 0);
+        if (qty > 0) {
+          kegsByFormat[fmt] = (kegsByFormat[fmt] || 0) + qty;
+        }
+      }
+    }
+
+    // Build one deposit line per keg format with a matching rate
+    let depositLinesAdded = false;
+    for (const [fmt, qty] of Object.entries(kegsByFormat)) {
+      const rate = parseFloat(kegDeposits[fmt]) || 0;
+      if (rate > 0) {
+        lines.push({
+          DetailType:          'SalesItemLineDetail',
+          Amount:              parseFloat((rate * qty).toFixed(2)),
+          Description:         `Keg Deposit — ${fmt}`,
+          SalesItemLineDetail: {
+            ItemRef:   { value: productItemId },
+            UnitPrice: rate,
+            Qty:       qty,
+            TaxCodeRef: { value: 'NON' },
+          },
+          LineNum: lines.length + 1,
+        });
+        depositLinesAdded = true;
+      }
+    }
+
+    // Fallback: if no per-format rates matched, use single line with total
+    if (!depositLinesAdded) {
+      lines.push({
+        DetailType:          'SalesItemLineDetail',
+        Amount:              depositAmount,
+        Description:         'Keg Deposits',
+        SalesItemLineDetail: {
+          ItemRef:   { value: productItemId },
+          UnitPrice: depositAmount,
+          Qty:       1,
+          TaxCodeRef: { value: 'NON' },
+        },
+        LineNum: lines.length + 1,
+      });
+    }
   }
 
   // Determine bill email: prefer BillingEmail, fall back to account Email
