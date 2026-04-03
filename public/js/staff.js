@@ -135,11 +135,13 @@ function openAddStaff() {
   modal.open('Add Staff Member', staffForm(), async () => {
     const name = val('f-name');
     if (!name) { toast('Name is required', 'error'); return; }
-    await api.post('/api/staff', {
-      Name: name, Role: val('f-role'), Email: val('f-email'),
-      Phone: val('f-phone'), Notes: val('f-notes'),
-      Locations: _getCheckedLocations(),
-    });
+    try {
+      await api.post('/api/staff', {
+        Name: name, Role: val('f-role'), Email: val('f-email'),
+        Phone: val('f-phone'), Notes: val('f-notes'),
+        Locations: _getCheckedLocations(),
+      });
+    } catch (err) { toast(err.message, 'error'); return; }
     modal.close();
     toast('Staff member added');
     loadStaff();
@@ -152,11 +154,13 @@ function openEditStaff(id) {
   modal.open('Edit Staff Member', staffForm(member), async () => {
     const name = val('f-name');
     if (!name) { toast('Name is required', 'error'); return; }
-    await api.put(`/api/staff/${id}`, {
-      Name: name, Role: val('f-role'), Email: val('f-email'),
-      Phone: val('f-phone'), Active: val('f-active'), Notes: val('f-notes'),
-      Locations: _getCheckedLocations(),
-    });
+    try {
+      await api.put(`/api/staff/${id}`, {
+        Name: name, Role: val('f-role'), Email: val('f-email'),
+        Phone: val('f-phone'), Active: val('f-active'), Notes: val('f-notes'),
+        Locations: _getCheckedLocations(),
+      });
+    } catch (err) { toast(err.message, 'error'); return; }
     modal.close();
     toast('Staff member updated');
     loadStaff();
