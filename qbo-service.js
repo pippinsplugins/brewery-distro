@@ -793,7 +793,7 @@ async function syncOrderToQbo(orderId) {
 
     // Skip if already synced or explicitly opted out
     if (order.QboSyncStatus === 'synced' && order.QboInvoiceId) return;
-    if (order.QboSyncStatus === 'skipped') return;
+    // If explicitly called on a skipped order, allow it to proceed
 
     const account = getRow('ACCOUNTS', order.AccountID);
     if (!account) {
@@ -889,7 +889,7 @@ async function syncOrderToQbo(orderId) {
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
     try {
-      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed', QboSyncError: err.message });
+      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed', QboSyncError: err.message || String(err) || 'An unexpected error occurred' });
     } catch { /* ignore update error */ }
   }
 }
