@@ -72,6 +72,7 @@ function renderInventory() {
         <p class="subtitle">${items.length} product${items.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
+        <button class="btn btn-success" onclick="openReceiveInventory()">Receive Inventory</button>
         <button class="btn btn-secondary" onclick="openAddInventory()">+ Add to Location</button>
         <button class="btn btn-primary" onclick="navigate('products')">Manage Products</button>
       </div>
@@ -294,6 +295,64 @@ function openAdjustInventory(id) {
     loadInventory();
   });
   setTimeout(() => initMentions('f-adj-notes'), 0);
+}
+
+function openReceiveInventory() {
+  const seen = new Set();
+  const items = (state.inventory || []).filter(i => {
+    const key = `${i.ProductID}|||${i.Format || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => {
+    const la = a.Format ? `${a.Name} — ${a.Format}` : a.Name;
+    const lb = b.Format ? `${b.Name} — ${b.Format}` : b.Name;
+    return la.localeCompare(lb);
+  });
+  if (items.length === 0) { toast('No products at this location', 'error'); return; }
+  modal.open('Receive Inventory', `
+    <div class="form-group">
+      <label>Product <span class="required">*</span></label>
+      <select class="form-control" id="f-recv-product" onchange="
+        var sel = this.options[this.selectedIndex];
+        document.getElementById('f-recv-stock').textContent = sel.value ? 'Current stock: ' + sel.dataset.units + ' units' : '';
+      ">
+        <option value="">-- Select Product --</option>
+        ${items.map(i => {
+          const label = i.Format ? `${i.Name} — ${i.Format}` : i.Name;
+          return `<option value="${esc(i.ID)}" data-units="${esc(i.Units || '0')}">${esc(label)}</option>`;
+        }).join('')}
+      </select>
+      <span id="f-recv-stock" class="text-muted text-sm"></span>
+    </div>
+    <div class="form-group">
+      <label>Quantity <span class="required">*</span></label>
+      <input class="form-control" id="f-recv-qty" type="number" min="1" placeholder="e.g. 10" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input class="form-control" id="f-recv-date" type="date" value="${today()}" />
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-control" id="f-recv-notes" rows="2" placeholder="Delivery details, PO number, etc."></textarea>
+    </div>`, async () => {
+    const inventoryId = val('f-recv-product');
+    if (!inventoryId) { toast('Please select a product', 'error'); return; }
+    const qty = parseInt(val('f-recv-qty'));
+    if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    const result = await api.post('/api/stock-movements', {
+      inventoryId,
+      type: 'received',
+      quantity: qty,
+      notes: val('f-recv-notes'),
+      date: val('f-recv-date'),
+    });
+    modal.close();
+    toast(`Stock received — new total: ${result.newUnits} units`);
+    loadInventory();
+  });
+  setTimeout(() => initMentions('f-recv-notes'), 0);
 }
 
 async function openInventoryHistory(id) {
