@@ -1,6 +1,6 @@
 'use strict';
 
-const ORDER_STATUSES = ['Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
+const ORDER_STATUSES = ['Draft', 'Pending', 'Paid', 'Cancelled', 'Pre-Sale'];
 
 let _qboAppUrl = '';
 let _orderCreditBalance = 0;
@@ -1091,7 +1091,7 @@ function renderOrders() {
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
                 <td>${orderStatusBadge(s.Status)}${s.PaymentMethod ? `<br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span>` : ''}</td>
-                <td class="mobile-hide text-center">${isPreSale ? '—'
+                <td class="mobile-hide text-center">${isPreSale || s.Status === 'Draft' ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
                   : `<input type="checkbox" onchange="toggleDelivered('${esc(s.ID)}')" />`}</td>
@@ -1099,7 +1099,7 @@ function renderOrders() {
                   <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                   <div class="mobile-actions-menu">
                   ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
-                  : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
+                  : `${s.Status === 'Pending' || s.Status === 'Draft' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
                   ${s.Delivered === 'true'
@@ -1187,7 +1187,11 @@ async function openAddOrder(presetAccountId = '') {
     const reloadFn = state.view === 'account-profile'
       ? () => loadAccountProfile(state.accountProfileId)
       : () => loadOrders();
-    promptQboSync(order.ID, reloadFn);
+    if (newStatus !== 'Draft') {
+      promptQboSync(order.ID, reloadFn);
+    } else {
+      reloadFn();
+    }
   });
   setTimeout(() => initMentions('f-notes'), 0);
   await refreshOrderProducts();
@@ -1288,7 +1292,16 @@ async function openEditOrder(id) {
           toast('Payment saved but QBO sync failed: ' + (err.message || 'unknown error'), 'error');
         }
       }
-      loadOrders();
+      // Prompt QBO sync when transitioning from Draft to Pending or Paid
+      const leavingDraft = order.Status === 'Draft' && newStatus !== 'Draft';
+      if (leavingDraft && !order.QboInvoiceId) {
+        const reloadFn = state.view === 'account-profile'
+          ? () => loadAccountProfile(state.accountProfileId)
+          : () => loadOrders();
+        promptQboSync(id, reloadFn);
+      } else {
+        loadOrders();
+      }
     });
   }
   setTimeout(() => initMentions('f-notes'), 0);

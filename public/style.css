@@ -715,6 +715,7 @@ tbody td {
 .badge-ok-stock  { background: var(--success-bg); color: var(--success-text); }
 
 /* Order status badges */
+.badge-draft     { background: #f5f5f5; color: #616161; }
 .badge-pre-sale  { background: #f3e5f5; color: #7b1fa2; }
 .badge-pending   { background: #e3f2fd; color: #1565c0; }
 .badge-paid      { background: var(--success-bg); color: var(--success-text); }
