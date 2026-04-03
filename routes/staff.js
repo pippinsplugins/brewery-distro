@@ -21,6 +21,12 @@ router.post('/', async (req, res) => {
     const { Name, Email, Phone, Role, Notes, Locations } = req.body;
     if (!Name) return res.status(400).json({ error: 'Name is required' });
 
+    if (Email && Email.trim()) {
+      const existing = await getAllRows('STAFF');
+      const dupe = existing.find(s => s.Email && s.Email.toLowerCase() === Email.trim().toLowerCase());
+      if (dupe) return res.status(409).json({ error: 'A staff member with this email already exists' });
+    }
+
     const member = {
       ID: uuidv4(),
       Name: Name.trim(),
@@ -46,6 +52,13 @@ router.put('/:id', async (req, res) => {
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
+
+    if (updates.Email && updates.Email.trim()) {
+      const existing = await getAllRows('STAFF');
+      const dupe = existing.find(s => s.ID !== req.params.id && s.Email && s.Email.toLowerCase() === updates.Email.trim().toLowerCase());
+      if (dupe) return res.status(409).json({ error: 'A staff member with this email already exists' });
+    }
+
     const updated = await updateRow('STAFF', req.params.id, updates);
     res.json(updated);
   } catch (err) {
