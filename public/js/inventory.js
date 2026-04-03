@@ -72,6 +72,7 @@ function renderInventory() {
         <p class="subtitle">${items.length} product${items.length !== 1 ? 's' : ''} at ${esc(state.location)}</p>
       </div>
       <div class="view-header-actions">
+        <button class="btn btn-success" onclick="openReceiveInventory()">Receive Inventory</button>
         <button class="btn btn-secondary" onclick="openAddInventory()">+ Add to Location</button>
         <button class="btn btn-primary" onclick="navigate('products')">Manage Products</button>
       </div>
@@ -111,7 +112,6 @@ function renderInventory() {
                   <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                   <div class="mobile-actions-menu">
                   <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Threshold</button>
-                  <button class="btn btn-ghost btn-sm text-success" onclick="openReceiveInventory('${esc(item.ID)}')">Receive</button>
                   <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
                   <button class="btn btn-ghost btn-sm" onclick="openInventoryHistory('${esc(item.ID)}')">History</button>
                   <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(item.Name)}" onclick="deleteInventory('${esc(item.ID)}', this.dataset.name)">Remove</button>
@@ -297,14 +297,28 @@ function openAdjustInventory(id) {
   setTimeout(() => initMentions('f-adj-notes'), 0);
 }
 
-function openReceiveInventory(id) {
-  const item = state.inventory.find(i => i.ID === id);
-  if (!item) return;
-  const label = item.Format ? `${item.Name} — ${item.Format}` : item.Name;
+function openReceiveInventory() {
+  const items = (state.inventory || []).slice().sort((a, b) => {
+    const la = a.Format ? `${a.Name} — ${a.Format}` : a.Name;
+    const lb = b.Format ? `${b.Name} — ${b.Format}` : b.Name;
+    return la.localeCompare(lb);
+  });
+  if (items.length === 0) { toast('No products at this location', 'error'); return; }
   modal.open('Receive Inventory', `
-    <p class="text-muted text-sm" style="margin-bottom:16px">
-      <strong>${esc(label)}</strong> &mdash; current stock: <strong>${esc(item.Units)} units</strong>
-    </p>
+    <div class="form-group">
+      <label>Product <span class="required">*</span></label>
+      <select class="form-control" id="f-recv-product" onchange="
+        var sel = this.options[this.selectedIndex];
+        document.getElementById('f-recv-stock').textContent = sel.value ? 'Current stock: ' + sel.dataset.units + ' units' : '';
+      ">
+        <option value="">-- Select Product --</option>
+        ${items.map(i => {
+          const label = i.Format ? `${i.Name} — ${i.Format}` : i.Name;
+          return `<option value="${esc(i.ID)}" data-units="${esc(i.Units || '0')}">${esc(label)}</option>`;
+        }).join('')}
+      </select>
+      <span id="f-recv-stock" class="text-muted text-sm"></span>
+    </div>
     <div class="form-group">
       <label>Quantity <span class="required">*</span></label>
       <input class="form-control" id="f-recv-qty" type="number" min="1" placeholder="e.g. 10" />
@@ -317,10 +331,12 @@ function openReceiveInventory(id) {
       <label>Notes</label>
       <textarea class="form-control" id="f-recv-notes" rows="2" placeholder="Delivery details, PO number, etc."></textarea>
     </div>`, async () => {
+    const inventoryId = val('f-recv-product');
+    if (!inventoryId) { toast('Please select a product', 'error'); return; }
     const qty = parseInt(val('f-recv-qty'));
     if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
     const result = await api.post('/api/stock-movements', {
-      inventoryId: id,
+      inventoryId,
       type: 'received',
       quantity: qty,
       notes: val('f-recv-notes'),
