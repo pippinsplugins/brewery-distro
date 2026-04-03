@@ -32,9 +32,9 @@ function renderInventory() {
   const stockFilter = _invStockFilter;
 
   let filtered = items;
-  if (stockFilter === 'in-stock') filtered = filtered.filter(i => parseInt(i.Units || '0') > 0);
-  else if (stockFilter === 'low') filtered = filtered.filter(i => { const u = parseInt(i.Units || '0'); return u > 0 && u <= parseInt(i.LowStockThreshold || '5'); });
-  else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Units || '0') <= 0);
+  if (stockFilter === 'in-stock') filtered = filtered.filter(i => parseInt(i.Available || i.Units || '0') > 0);
+  else if (stockFilter === 'low') filtered = filtered.filter(i => { const a = parseInt(i.Available || i.Units || '0'); return a > 0 && a <= parseInt(i.LowStockThreshold || '5'); });
+  else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Available || i.Units || '0') <= 0);
 
   if (search) filtered = filtered.filter(i =>
     (i.Name || '').toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
@@ -49,9 +49,11 @@ function renderInventory() {
     else if (col === 'ABV')   { av = parseFloat(a.ABV || 0);                 bv = parseFloat(b.ABV || 0); }
     else if (col === 'Format'){ av = (a.Format || '').toLowerCase();         bv = (b.Format || '').toLowerCase(); }
     else if (col === 'Units') { av = parseInt(a.Units || 0);                 bv = parseInt(b.Units || 0); }
+    else if (col === 'Allocated') { av = parseInt(a.Allocated || 0);        bv = parseInt(b.Allocated || 0); }
+    else if (col === 'Available') { av = parseInt(a.Available || 0);        bv = parseInt(b.Available || 0); }
     else if (col === 'Price') { av = parseFloat(a.PricePerUnit || 0);        bv = parseFloat(b.PricePerUnit || 0); }
-    else if (col === 'Stock') { av = parseInt(a.Units||0) <= parseInt(a.LowStockThreshold||5) ? 0 : 1;
-                                bv = parseInt(b.Units||0) <= parseInt(b.LowStockThreshold||5) ? 0 : 1; }
+    else if (col === 'Stock') { av = parseInt(a.Available||a.Units||0) <= parseInt(a.LowStockThreshold||5) ? 0 : 1;
+                                bv = parseInt(b.Available||b.Units||0) <= parseInt(b.LowStockThreshold||5) ? 0 : 1; }
     if (av < bv) return dir === 'asc' ? -1 : 1;
     if (av > bv) return dir === 'asc' ? 1 : -1;
     return 0;
@@ -91,21 +93,23 @@ function renderInventory() {
         <thead>
           <tr>
             ${th('Name', 'Name')}${th('Style', 'Style')}${th('ABV', 'ABV')}${th('Format', 'Format')}
-            ${th('Units', 'Units')}${th('Price/Unit', 'Price')}${th('Stock', 'Stock')}<th>Actions</th>
+            ${th('Units', 'Units')}${th('Allocated', 'Allocated')}${th('Available', 'Available')}${th('Price/Unit', 'Price')}${th('Stock', 'Stock')}<th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="8" class="empty-state">No products found at this location.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="10" class="empty-state">No products found at this location.</td></tr>` :
             pg.rows.map(item => {
-              const units = parseInt(item.Units || '0');
-              const low = units <= parseInt(item.LowStockThreshold || '5');
-              const out = units <= 0;
+              const available = parseInt(item.Available || item.Units || '0');
+              const low = available <= parseInt(item.LowStockThreshold || '5');
+              const out = available <= 0;
               return `<tr>
                 <td class="fw-600">${esc(item.Name)}</td>
                 <td>${esc(item.Style)}</td>
                 <td>${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
                 <td>${esc(item.Format) || '—'}</td>
                 <td>${esc(item.Units)}</td>
+                <td>${esc(item.Allocated || '0')}</td>
+                <td>${esc(item.Available || item.Units || '0')}</td>
                 <td>${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
