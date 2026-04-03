@@ -32,6 +32,28 @@ router.get('/', async (req, res) => {
     let items = await getAllRows('INVENTORY');
     if (location) items = items.filter(i => i.Location === location);
     items = await enrichInventory(items);
+
+    // Compute allocated units from non-cancelled, undelivered orders
+    const orders = await getAllRows('ORDERS');
+    const orderItems = await getAllRows('ORDER_ITEMS');
+    const activeOrderIds = new Set(
+      orders
+        .filter(o => o.Status !== 'Cancelled' && o.Delivered !== 'true')
+        .map(o => o.ID)
+    );
+    const allocMap = {};
+    for (const oi of orderItems) {
+      if (!activeOrderIds.has(oi.OrderID)) continue;
+      const invId = oi.InventoryID;
+      if (!invId) continue;
+      allocMap[invId] = (allocMap[invId] || 0) + parseInt(oi.Quantity || '0');
+    }
+    for (const item of items) {
+      const allocated = allocMap[item.ID] || 0;
+      item.Allocated = String(allocated);
+      item.Available = String(Math.max(0, parseInt(item.Units || '0') - allocated));
+    }
+
     res.json(items);
   } catch (err) {
     console.error(`[inventory] ${err.message}`);
