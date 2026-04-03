@@ -111,6 +111,7 @@ function renderInventory() {
                   <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                   <div class="mobile-actions-menu">
                   <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Threshold</button>
+                  <button class="btn btn-ghost btn-sm text-success" onclick="openReceiveInventory('${esc(item.ID)}')">Receive</button>
                   <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
                   <button class="btn btn-ghost btn-sm" onclick="openInventoryHistory('${esc(item.ID)}')">History</button>
                   <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(item.Name)}" onclick="deleteInventory('${esc(item.ID)}', this.dataset.name)">Remove</button>
@@ -294,6 +295,42 @@ function openAdjustInventory(id) {
     loadInventory();
   });
   setTimeout(() => initMentions('f-adj-notes'), 0);
+}
+
+function openReceiveInventory(id) {
+  const item = state.inventory.find(i => i.ID === id);
+  if (!item) return;
+  const label = item.Format ? `${item.Name} — ${item.Format}` : item.Name;
+  modal.open('Receive Inventory', `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      <strong>${esc(label)}</strong> &mdash; current stock: <strong>${esc(item.Units)} units</strong>
+    </p>
+    <div class="form-group">
+      <label>Quantity <span class="required">*</span></label>
+      <input class="form-control" id="f-recv-qty" type="number" min="1" placeholder="e.g. 10" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input class="form-control" id="f-recv-date" type="date" value="${today()}" />
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-control" id="f-recv-notes" rows="2" placeholder="Delivery details, PO number, etc."></textarea>
+    </div>`, async () => {
+    const qty = parseInt(val('f-recv-qty'));
+    if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    const result = await api.post('/api/stock-movements', {
+      inventoryId: id,
+      type: 'received',
+      quantity: qty,
+      notes: val('f-recv-notes'),
+      date: val('f-recv-date'),
+    });
+    modal.close();
+    toast(`Stock received — new total: ${result.newUnits} units`);
+    loadInventory();
+  });
+  setTimeout(() => initMentions('f-recv-notes'), 0);
 }
 
 async function openInventoryHistory(id) {
