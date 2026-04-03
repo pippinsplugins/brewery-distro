@@ -70,7 +70,7 @@ router.post('/', async (req, res) => {
       DepositAmount: DepositAmount || '0',
       Notes:     Notes     || '',
       RequestedProducts: RequestedProducts || '',
-      Status:    Status    || 'Pending',
+      Status:    Status    || 'Draft',
       Delivered: Delivered || 'false',
       CreatedAt: new Date().toISOString(),
     };

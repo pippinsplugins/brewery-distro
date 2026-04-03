@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
     // Date range + exclude Cancelled/Pre-Sale
     const salesOrders = orders.filter(o => {
       const d = (o.OrderDate || '').substring(0, 10);
-      return d >= start && d <= end && o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale';
+      return d >= start && d <= end && o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale' && o.Status !== 'Draft';
     });
 
     // Build account lookup

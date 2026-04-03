@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
       const d = (o.OrderDate || '').substring(0, 10);
       return d >= start && d <= end;
     });
-    const salesOrders = dateFilteredOrders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale');
+    const salesOrders = dateFilteredOrders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale' && o.Status !== 'Draft');
 
     // Build sets for quick lookups
     const salesOrderIds = new Set(salesOrders.map(o => o.ID));

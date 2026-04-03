@@ -205,7 +205,7 @@ async function handleOrderCreate(data) {
   const rawDate = orderDate || today;
   const fullDate = rawDate.includes('T') ? rawDate : rawDate + 'T' + now.split('T')[1];
 
-  const VALID_STATUSES = new Set(['Pending', 'Paid', 'Cancelled', 'Pre-Sale']);
+  const VALID_STATUSES = new Set(['Draft', 'Pending', 'Paid', 'Cancelled', 'Pre-Sale']);
   let orderStatus = status || 'Pending';
   orderStatus = orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1);
   if (!VALID_STATUSES.has(orderStatus)) orderStatus = 'Pending';
