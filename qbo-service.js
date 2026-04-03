@@ -101,50 +101,89 @@ async function getValidToken(forceRefresh = false) {
 }
 
 async function _doRefresh(tokens) {
-  // Retry once on transient failures (network glitches, 5xx, etc.)
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const oauthClient = getOAuthClient();
-      oauthClient.setToken({
-        access_token:  tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-        token_type:    'bearer',
-        expires_in:    0,
-      });
-      const authResponse = await oauthClient.refresh();
-      const refreshed = authResponse.getJson();
+  const TOKEN_ENDPOINT = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
+  const credentials = Buffer.from(`${QBO_CLIENT_ID}:${QBO_CLIENT_SECRET}`).toString('base64');
+  const tail = (s) => s ? s.slice(-4) : '????';
 
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // On retry, re-read tokens from DB — another concurrent request may have
+    // already refreshed successfully, giving us a new valid refresh token.
+    let currentTokens = tokens;
+    if (attempt > 0) {
+      const stored = await getStoredTokens();
+      if (stored && stored.refreshToken) {
+        // If the stored tokens are already valid (not expired), just use them
+        if (stored.expiresAt && Date.now() < stored.expiresAt - 60 * 1000) {
+          console.log(`[qbo-refresh] Attempt ${attempt}: stored tokens are already valid (expires ${new Date(stored.expiresAt).toISOString()}), using them`);
+          return stored;
+        }
+        currentTokens = stored;
+        console.log(`[qbo-refresh] Attempt ${attempt}: re-read tokens from DB (refresh …${tail(currentTokens.refreshToken)})`);
+      }
+    }
+
+    console.log(`[qbo-refresh] Attempt ${attempt}: refreshing with token …${tail(currentTokens.refreshToken)}`);
+
+    try {
+      const resp = await fetch(TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type':  'application/x-www-form-urlencoded',
+          'Accept':        'application/json',
+        },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(currentTokens.refreshToken)}`,
+      });
+
+      const body = await resp.text();
+      console.log(`[qbo-refresh] Attempt ${attempt}: Intuit responded ${resp.status}`);
+
+      if (!resp.ok) {
+        const isInvalidGrant = /invalid_grant/i.test(body);
+        if (isInvalidGrant) {
+          // On first attempt, don't clear yet — check if DB has newer tokens
+          if (attempt === 0) {
+            console.warn(`[qbo-refresh] Got invalid_grant on attempt 0, will retry with fresh DB tokens`);
+            await new Promise(r => setTimeout(r, 500));
+            continue;
+          }
+          console.error(`[qbo-refresh] Refresh token is invalid (invalid_grant) — clearing stored tokens`);
+          await clearTokens();
+          throw new Error('QuickBooks refresh token expired — please reconnect in Settings.');
+        }
+
+        // Transient error (5xx, network issue, etc.)
+        if (attempt === 0) {
+          console.warn(`[qbo-refresh] Transient error ${resp.status}, will retry: ${body.slice(0, 200)}`);
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+
+        throw new Error(`QuickBooks token refresh failed (${resp.status}) — try again shortly.`);
+      }
+
+      const refreshed = JSON.parse(body);
       const newTokens = {
         accessToken:  refreshed.access_token,
         refreshToken: refreshed.refresh_token,
-        realmId:      tokens.realmId,
+        realmId:      currentTokens.realmId,
         expiresAt:    Date.now() + (refreshed.expires_in || 3600) * 1000,
       };
       await storeTokens(newTokens);
+      console.log(`[qbo-refresh] Success — new access token stored, refresh …${tail(newTokens.refreshToken)}, expires ${new Date(newTokens.expiresAt).toISOString()}`);
       return newTokens;
     } catch (err) {
-      const msg = err.message || String(err);
-      const errDetail = msg + ' ' + String(err.authResponse || '') + ' ' + String(err.body || '');
+      // Re-throw our own errors (from the block above)
+      if (err.message.includes('QuickBooks')) throw err;
 
-      // Only clear tokens on definitively permanent failures (invalid_grant
-      // means the refresh token has been revoked or expired after 100 days).
-      // Do NOT clear on transient errors like network timeouts or 5xx.
-      const isInvalidGrant = /invalid_grant/i.test(errDetail);
-      if (isInvalidGrant) {
-        console.error('[qbo] Refresh token is invalid (invalid_grant) — clearing stored tokens');
-        await clearTokens();
-        throw new Error('QuickBooks refresh token expired — please reconnect in Settings.');
-      }
-
-      // On first attempt, log and retry after a brief pause
+      // Network-level failures (DNS, TLS, timeout, etc.)
       if (attempt === 0) {
-        console.warn(`[qbo] Token refresh attempt failed (will retry): ${msg}`);
+        console.warn(`[qbo-refresh] Network error on attempt 0 (will retry): ${err.message}`);
         await new Promise(r => setTimeout(r, 1000));
         continue;
       }
-
-      console.error('[qbo] Token refresh failed after retry:', msg);
-      throw new Error(`QuickBooks token refresh failed — try again shortly. (${msg})`);
+      console.error(`[qbo-refresh] Token refresh failed after retry:`, err.message);
+      throw new Error(`QuickBooks token refresh failed — try again shortly. (${err.message})`);
     }
   }
 }
@@ -227,16 +266,23 @@ async function findOrCreateCustomer(account) {
     }
   }
 
-  // Fall back to display name search
+  // Fall back to display name search (LIKE is case-insensitive in QBO)
   const displayName = (account.Name || '').replace(/'/g, "\\'");
-  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName}'`;
+  const query = `SELECT * FROM Customer WHERE DisplayName LIKE '${displayName}'`;
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
 
   if (result.QueryResponse?.Customer?.length > 0) {
     return cacheAndReturn(result.QueryResponse.Customer[0]);
   }
 
-  // Create new customer in QBO
+  // Also check inactive customers — QBO enforces name uniqueness across all customers
+  const inactiveQuery = `SELECT * FROM Customer WHERE Active IN (true, false) AND DisplayName LIKE '${displayName}'`;
+  const inactiveResult = await qboApiRequest('GET', `query?query=${encodeURIComponent(inactiveQuery)}`);
+  if (inactiveResult.QueryResponse?.Customer?.length > 0) {
+    return cacheAndReturn(inactiveResult.QueryResponse.Customer[0]);
+  }
+
+  // Build customer body for creation
   const customerBody = {
     DisplayName:    account.Name || '',
     PrimaryEmailAddr: (account.BillingEmail || account.Email)
@@ -266,15 +312,25 @@ async function findOrCreateCustomer(account) {
     return qboCustomerId;
   } catch (err) {
     // Handle "Duplicate Name Exists Error" (code 6240) — customer exists but
-    // the exact-match queries above missed it (casing, whitespace, etc.)
+    // the queries above missed it (encoding, sub-customers, CompanyName match, etc.)
     if (err.message.includes('6240') || err.message.includes('Duplicate Name')) {
-      console.log(`[qbo] Customer "${account.Name}" already exists in QBO, searching again…`);
-      const fuzzyQuery = `SELECT * FROM Customer WHERE DisplayName LIKE '%${displayName}%'`;
+      console.log(`[qbo] Customer "${account.Name}" already exists in QBO (6240), broadening search…`);
+
+      // Broad fuzzy search including inactive customers
+      const fuzzyQuery = `SELECT * FROM Customer WHERE Active IN (true, false) AND DisplayName LIKE '%${displayName}%'`;
       const retry = await qboApiRequest('GET', `query?query=${encodeURIComponent(fuzzyQuery)}`);
       if (retry.QueryResponse?.Customer?.length > 0) {
         return cacheAndReturn(retry.QueryResponse.Customer[0]);
       }
-      // Try email as last resort
+
+      // Try by CompanyName — QBO also enforces uniqueness across this field
+      const companyQuery = `SELECT * FROM Customer WHERE Active IN (true, false) AND CompanyName LIKE '${displayName}'`;
+      const companyResult = await qboApiRequest('GET', `query?query=${encodeURIComponent(companyQuery)}`);
+      if (companyResult.QueryResponse?.Customer?.length > 0) {
+        return cacheAndReturn(companyResult.QueryResponse.Customer[0]);
+      }
+
+      // Try email as another fallback
       if (email) {
         const emailEsc = email.replace(/'/g, "\\'");
         const emailRetry = await qboApiRequest('GET', `query?query=${encodeURIComponent(`SELECT * FROM Customer WHERE PrimaryEmailAddr = '${emailEsc}'`)}`);
@@ -282,6 +338,14 @@ async function findOrCreateCustomer(account) {
           return cacheAndReturn(emailRetry.QueryResponse.Customer[0]);
         }
       }
+
+      // Last resort: create with a unique suffix so the sync doesn't fail
+      console.warn(`[qbo] Could not find existing customer "${account.Name}" despite 6240 — creating with unique suffix`);
+      customerBody.DisplayName = `${account.Name || ''} (${account.ID.slice(0, 6)})`;
+      const fallback = await qboApiRequest('POST', 'customer', customerBody);
+      const fallbackId = String(fallback.Customer.Id);
+      await updateRow('ACCOUNTS', account.ID, { QboCustomerId: fallbackId });
+      return fallbackId;
     }
     throw err;
   }
