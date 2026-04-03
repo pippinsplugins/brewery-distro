@@ -298,7 +298,13 @@ function openAdjustInventory(id) {
 }
 
 function openReceiveInventory() {
-  const items = (state.inventory || []).slice().sort((a, b) => {
+  const seen = new Set();
+  const items = (state.inventory || []).filter(i => {
+    const key = `${i.ProductID}|||${i.Format || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => {
     const la = a.Format ? `${a.Name} — ${a.Format}` : a.Name;
     const lb = b.Format ? `${b.Name} — ${b.Format}` : b.Name;
     return la.localeCompare(lb);
