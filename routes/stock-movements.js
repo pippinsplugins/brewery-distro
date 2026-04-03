@@ -134,11 +134,12 @@ router.post('/', async (req, res) => {
     const { inventoryId, type, quantity, notes, date } = req.body;
     if (!inventoryId) return res.status(400).json({ error: 'inventoryId is required' });
 
-    const VALID_TYPES = ['received', 'write-off', 'adjustment'];
+    const VALID_TYPES = ['received', 'write-off', 'adjustment', 'recount'];
     if (!VALID_TYPES.includes(type)) return res.status(400).json({ error: `type must be one of: ${VALID_TYPES.join(', ')}` });
 
     const qty = parseInt(quantity);
-    if (!qty || qty <= 0) return res.status(400).json({ error: 'quantity must be a positive integer' });
+    if (type === 'recount' ? (isNaN(qty) || qty < 0) : (!qty || qty <= 0))
+      return res.status(400).json({ error: 'quantity must be a positive integer' });
 
     const inventory = await getAllRows('INVENTORY');
     const inv = inventory.find(i => i.ID === inventoryId);
@@ -150,8 +151,9 @@ router.post('/', async (req, res) => {
     const invName = inv.ProductName || product.Name || inv.Name || '';
     const invFormat = inv.Format || product.Format || '';
 
-    // received = add stock; write-off and adjustment = remove stock
-    const delta     = type === 'received' ? qty : -qty;
+    // received = add stock; write-off and adjustment = remove stock; recount = set absolute
+    const currentUnits = parseInt(inv.Units || '0');
+    const delta     = type === 'recount' ? (qty - currentUnits) : (type === 'received' ? qty : -qty);
     const movDate   = date || new Date().toISOString().split('T')[0];
     const createdAt = new Date().toISOString();
 
@@ -168,11 +170,14 @@ router.post('/', async (req, res) => {
     };
     await addRow('STOCK_MOVEMENTS', movement);
 
-    const newUnits = Math.max(0, parseInt(inv.Units || '0') + delta);
-    await updateRow('INVENTORY', inventoryId, {
-      Units:       String(newUnits),
-      LastUpdated: movDate,
-    });
+    // For recount with no change, still record movement but skip inventory update
+    const newUnits = delta === 0 ? currentUnits : Math.max(0, currentUnits + delta);
+    if (delta !== 0) {
+      await updateRow('INVENTORY', inventoryId, {
+        Units:       String(newUnits),
+        LastUpdated: movDate,
+      });
+    }
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     processMentions({
