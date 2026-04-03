@@ -485,6 +485,26 @@ async function getDepartmentMap() {
   return _qboDepartments;
 }
 
+// ── Payment method lookup (for PaymentMethodRef on payments) ─────
+
+let _qboPaymentMethods = null;
+
+async function getPaymentMethodMap() {
+  if (_qboPaymentMethods) return _qboPaymentMethods;
+
+  const query = "SELECT * FROM PaymentMethod WHERE Active = true MAXRESULTS 100";
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+  const methods = result.QueryResponse?.PaymentMethod || [];
+
+  _qboPaymentMethods = {};
+  for (const m of methods) {
+    if (m.Name) {
+      _qboPaymentMethods[m.Name.toLowerCase()] = String(m.Id);
+    }
+  }
+  return _qboPaymentMethods;
+}
+
 // ── Payment / Invoice lookup ─────────────────────────────────────
 
 async function getPayment(paymentId) {
@@ -591,6 +611,18 @@ async function createPayment(order, account) {
       }],
     }],
   };
+
+  if (order.PaymentMethod) {
+    try {
+      const methodMap = await getPaymentMethodMap();
+      const methodId = methodMap[order.PaymentMethod.toLowerCase()];
+      if (methodId) {
+        paymentBody.PaymentMethodRef = { value: methodId };
+      }
+    } catch (err) {
+      console.error('Could not look up QBO payment method:', err.message);
+    }
+  }
 
   const noteParts = [];
   if (order.PaymentMethod) noteParts.push(`Method: ${order.PaymentMethod}`);
