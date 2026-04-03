@@ -171,7 +171,11 @@ apiRouter.post('/sync/:orderId', async (req, res) => {
     await syncOrderToQbo(req.params.orderId);
     const { getRow } = require('../db');
     const order = getRow('ORDERS', req.params.orderId);
-    res.json(order || { error: 'Order not found' });
+    if (!order) return res.json({ error: 'Order not found' });
+    if (order.QboSyncStatus !== 'synced' && !order.QboSyncError) {
+      order.QboSyncError = 'QBO sync failed — check Settings for connection issues';
+    }
+    res.json(order);
   } catch (err) {
     console.error('[qbo]', err.message);
     res.status(500).json({ error: err.message });
