@@ -1001,15 +1001,16 @@ function renderOrders() {
     if (sortCol === 'OrderDate')   { av = a.OrderDate || '';             bv = b.OrderDate || ''; }
     else if (sortCol === 'Account'){ av = (a.AccountName||'').toLowerCase(); bv = (b.AccountName||'').toLowerCase(); }
     else if (sortCol === 'Amount') { av = parseFloat(a.OrderAmount||0);  bv = parseFloat(b.OrderAmount||0); }
-    else if (sortCol === 'Total')  { av = parseFloat(a.OrderAmount||0)+parseFloat(a.TaxAmount||0); bv = parseFloat(b.OrderAmount||0)+parseFloat(b.TaxAmount||0); }
+    else if (sortCol === 'Total')  { av = parseFloat(a.OrderAmount||0)+parseFloat(a.TaxAmount||0)+parseFloat(a.DepositAmount||0); bv = parseFloat(b.OrderAmount||0)+parseFloat(b.TaxAmount||0)+parseFloat(b.DepositAmount||0); }
     else if (sortCol === 'Status') { av = (a.Status||'').toLowerCase();  bv = (b.Status||'').toLowerCase(); }
     if (av < bv) return sortDir === 'asc' ? -1 : 1;
     if (av > bv) return sortDir === 'asc' ? 1 : -1;
     return 0;
   });
 
-  const totalOrder = filtered.reduce((sum, s) => sum + parseFloat(s.OrderAmount || 0), 0);
-  const totalTax   = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount   || 0), 0);
+  const totalOrder   = filtered.reduce((sum, s) => sum + parseFloat(s.OrderAmount   || 0), 0);
+  const totalTax     = filtered.reduce((sum, s) => sum + parseFloat(s.TaxAmount     || 0), 0);
+  const totalDeposit = filtered.reduce((sum, s) => sum + parseFloat(s.DepositAmount || 0), 0);
   const pg = paginate(filtered, 'orders');
 
   const acctOpts = `<option value="">All Accounts</option>` +
@@ -1081,7 +1082,7 @@ function renderOrders() {
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No orders found.</td></tr>` :
             pg.rows.map(s => {
-              const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
+              const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0);
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
@@ -1118,7 +1119,7 @@ function renderOrders() {
             <td class="mobile-hide"></td>
             <td class="mobile-hide">${fmtMoney(totalOrder)}</td>
             <td class="mobile-hide">${fmtMoney(totalTax)}</td>
-            <td class="fw-600">${fmtMoney(totalOrder + totalTax)}</td>
+            <td class="fw-600">${fmtMoney(totalOrder + totalTax + totalDeposit)}</td>
             <td></td>
             <td class="mobile-hide"></td>
             <td></td>
