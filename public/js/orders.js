@@ -1322,7 +1322,7 @@ async function openEditOrder(id) {
       taxEl.style.background = '#f5f5f5';
     }
   }
-  if (!isPaid) initOrderCredit(order.AccountID, id);
+  if (!isPaid) await initOrderCredit(order.AccountID, id);
 }
 
 async function deleteOrder(id) {
