@@ -456,6 +456,7 @@ function updateCreditApplication() {
       summary.textContent = '';
     }
   }
+  recalcOrderTotal();
 }
 
 function applyMaxCredit() {
