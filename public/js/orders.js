@@ -407,11 +407,16 @@ async function initOrderCredit(accountId, orderId) {
   section.style.display = '';
   // If editing, the saved OrderAmount was already reduced by the credit.
   // Restore the pre-credit amount so the save logic doesn't double-deduct.
+  // But skip this if line items are present — recalcOrderAmount() already
+  // calculated the pre-credit total from line item prices.
   if (existingApplied > 0) {
-    const amountEl = document.getElementById('f-amount');
-    if (amountEl) {
-      const currentAmt = parseFloat(amountEl.value) || 0;
-      amountEl.value = (currentAmt + existingApplied).toFixed(2);
+    const hasLineItems = document.querySelectorAll('#order-line-items .order-line-item').length > 0;
+    if (!hasLineItems) {
+      const amountEl = document.getElementById('f-amount');
+      if (amountEl) {
+        const currentAmt = parseFloat(amountEl.value) || 0;
+        amountEl.value = (currentAmt + existingApplied).toFixed(2);
+      }
     }
   }
   const info = document.getElementById('order-credit-info');
