@@ -373,7 +373,7 @@ async function loadAccountProfile(accountId) {
   _profileTodosCache = acctTodos;
   _profileOrdersCache = acctOrders;
 
-  const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0)), 0);
+  const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
 
   // Keg tracking calculations
@@ -669,7 +669,7 @@ function renderProfileOrders() {
   const rows = pg.rows.length === 0
     ? `<tr><td colspan="9" class="empty-state">No orders recorded yet.</td></tr>`
     : pg.rows.map(s => {
-        const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0);
+        const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0);
         const isPreSale = s.Status === 'Pre-Sale';
         return `<tr>
           <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
