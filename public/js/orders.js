@@ -407,11 +407,16 @@ async function initOrderCredit(accountId, orderId) {
   section.style.display = '';
   // If editing, the saved OrderAmount was already reduced by the credit.
   // Restore the pre-credit amount so the save logic doesn't double-deduct.
+  // But skip this if line items are present — recalcOrderAmount() already
+  // calculated the pre-credit total from line item prices.
   if (existingApplied > 0) {
-    const amountEl = document.getElementById('f-amount');
-    if (amountEl) {
-      const currentAmt = parseFloat(amountEl.value) || 0;
-      amountEl.value = (currentAmt + existingApplied).toFixed(2);
+    const hasLineItems = document.querySelectorAll('#order-line-items .order-line-item').length > 0;
+    if (!hasLineItems) {
+      const amountEl = document.getElementById('f-amount');
+      if (amountEl) {
+        const currentAmt = parseFloat(amountEl.value) || 0;
+        amountEl.value = (currentAmt + existingApplied).toFixed(2);
+      }
     }
   }
   const info = document.getElementById('order-credit-info');
@@ -605,7 +610,7 @@ function _buildTierDropdown(prices, selectedTier) {
   </select>`;
 }
 
-function addOrderLineItem(inventoryId, qty, priceTier) {
+function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice) {
   const wrap = document.getElementById('order-line-items');
   if (!wrap) return;
 
@@ -620,6 +625,10 @@ function addOrderLineItem(inventoryId, qty, priceTier) {
   } else if (prices.length === 1) {
     selectedPrice = parseFloat(prices[0].price || 0);
     selectedTierLabel = prices[0].label || '';
+  }
+  // Override with saved unit price from order item (preserves original price during edit)
+  if (savedUnitPrice !== undefined && parseFloat(savedUnitPrice) > 0) {
+    selectedPrice = parseFloat(savedUnitPrice);
   }
   const lineQty = qty || 1;
   const lineTotal = selectedPrice * lineQty;
@@ -775,7 +784,7 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   wrap.innerHTML = orderProductsHtml();
   for (const item of orderItems) {
     if (item.InventoryID) {
-      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined);
+      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
     }
   }
 }
@@ -1321,7 +1330,7 @@ async function openEditOrder(id) {
       taxEl.style.background = '#f5f5f5';
     }
   }
-  if (!isPaid) initOrderCredit(order.AccountID, id);
+  if (!isPaid) await initOrderCredit(order.AccountID, id);
 }
 
 async function deleteOrder(id) {
