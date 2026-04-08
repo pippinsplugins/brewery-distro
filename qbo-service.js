@@ -238,6 +238,20 @@ async function findOrCreateCustomer(account) {
   // Helper: cache QBO customer ID and ensure email is set
   const cacheAndReturn = async (existing) => {
     const qboId = String(existing.Id);
+    // Reactivate if the customer was made inactive in QBO
+    if (existing.Active === false) {
+      console.log(`[qbo] Reactivating inactive customer "${existing.DisplayName}" (ID ${qboId})…`);
+      try {
+        await qboApiRequest('POST', 'customer', {
+          Id: existing.Id,
+          SyncToken: existing.SyncToken,
+          sparse: true,
+          Active: true,
+        });
+      } catch (reactivateErr) {
+        console.error(`[qbo] Failed to reactivate customer:`, reactivateErr.message);
+      }
+    }
     await updateRow('ACCOUNTS', account.ID, { QboCustomerId: qboId });
     const email = account.BillingEmail || account.Email;
     if (email && !existing.PrimaryEmailAddr?.Address) {
@@ -359,19 +373,22 @@ let _qboProductItemId = null;
 async function getOrCreateProductItem() {
   if (_qboProductItemId) return _qboProductItemId;
 
-  // Look for an existing NonInventory item named "Product Sale"
-  const query = `SELECT * FROM Item WHERE Name = 'Product Sale' AND Type = 'NonInventory'`;
+  // Look for an existing item named "Product Sale" (including inactive)
+  const query = `SELECT * FROM Item WHERE Name = 'Product Sale' AND Active IN (true, false)`;
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
-  if (result.QueryResponse && result.QueryResponse.Item && result.QueryResponse.Item.length > 0) {
-    _qboProductItemId = String(result.QueryResponse.Item[0].Id);
-    return _qboProductItemId;
-  }
-
-  // Look for an existing item named "Product Sale" of any type
-  const query2 = `SELECT * FROM Item WHERE Name = 'Product Sale'`;
-  const result2 = await qboApiRequest('GET', `query?query=${encodeURIComponent(query2)}`);
-  if (result2.QueryResponse && result2.QueryResponse.Item && result2.QueryResponse.Item.length > 0) {
-    _qboProductItemId = String(result2.QueryResponse.Item[0].Id);
+  if (result.QueryResponse?.Item?.length > 0) {
+    const item = result.QueryResponse.Item[0];
+    // Reactivate if the item was made inactive in QBO
+    if (item.Active === false) {
+      console.log(`[qbo] Reactivating inactive "Product Sale" item (ID ${item.Id})…`);
+      await qboApiRequest('POST', 'item', {
+        Id: item.Id,
+        SyncToken: item.SyncToken,
+        sparse: true,
+        Active: true,
+      });
+    }
+    _qboProductItemId = String(item.Id);
     return _qboProductItemId;
   }
 
@@ -503,6 +520,15 @@ async function getPaymentMethodMap() {
     }
   }
   return _qboPaymentMethods;
+}
+
+// ── Clear all in-memory caches (used on 610 retry) ──────────────
+
+function clearAllCaches() {
+  _qboProductItemId = null;
+  _qboTaxInfo = null;
+  _qboDepartments = null;
+  _qboPaymentMethods = null;
 }
 
 // ── Payment / Invoice lookup ─────────────────────────────────────
@@ -664,7 +690,7 @@ async function getNextInvoiceNumber() {
 
 // ── Invoice creation ─────────────────────────────────────────────
 
-async function createInvoice(order, lineItems, account) {
+async function createInvoice(order, lineItems, account, _isRetry) {
   const customerId = await findOrCreateCustomer(account);
   const productItemId = await getOrCreateProductItem();
   const taxInfo = await getTaxInfo();
@@ -804,7 +830,25 @@ async function createInvoice(order, lineItems, account) {
   // Remove undefined values
   Object.keys(invoiceBody).forEach(k => invoiceBody[k] === undefined && delete invoiceBody[k]);
 
-  const result = await qboApiRequest('POST', 'invoice', invoiceBody);
+  let result;
+  try {
+    result = await qboApiRequest('POST', 'invoice', invoiceBody);
+  } catch (err) {
+    // 610 = "Object Not Found" — a referenced entity (customer, item, department,
+    // tax code) was deactivated in QBO.  Clear caches and retry once so the
+    // lookup functions fetch/reactivate the entities afresh.
+    if (!_isRetry && (err.message.includes('"code":"610"') || /made inactive/i.test(err.message))) {
+      console.warn(`[qbo] Invoice creation got 610 (inactive entity), clearing caches and retrying…`);
+      clearAllCaches();
+      if (account.QboCustomerId) {
+        try { await updateRow('ACCOUNTS', account.ID, { QboCustomerId: '' }); } catch (e) { /* ignore */ }
+        account.QboCustomerId = '';
+      }
+      return createInvoice(order, lineItems, account, true);
+    }
+    throw err;
+  }
+
   const invoice = result.Invoice;
   // Ensure DocNumber is always set — QBO may not echo it back in some configurations
   if (invoice && !invoice.DocNumber) invoice.DocNumber = docNumber;
