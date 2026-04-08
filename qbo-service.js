@@ -612,9 +612,26 @@ async function processQboPaymentWebhook(paymentId) {
       if (order.Status === 'Paid' || order.Status === 'Cancelled') continue;
       const paymentUpdates = { Status: 'Paid' };
       // Store payment metadata from QBO
-      if (payment.PaymentMethodRef?.name) paymentUpdates.PaymentMethod = payment.PaymentMethodRef.name;
       if (payment.TxnDate) paymentUpdates.PaymentDate = payment.TxnDate;
       if (payment.Id) paymentUpdates.QboPaymentId = String(payment.Id);
+
+      // Payment method: try PaymentMethodRef, then detect from credit card info
+      let method = payment.PaymentMethodRef?.name || '';
+      if (!method && payment.CreditCardPayment?.CreditChargeInfo) {
+        method = 'Credit Card';
+      }
+      // Normalise common QBO names to the app's PAYMENT_METHODS values
+      if (/credit\s*card/i.test(method)) method = 'Credit Card';
+      else if (/ach|bank/i.test(method)) method = 'ACH';
+      else if (/check/i.test(method)) method = 'Check';
+      else if (/cash/i.test(method)) method = 'Cash';
+      if (method) paymentUpdates.PaymentMethod = method;
+
+      // Payment reference: check number, CC transaction ID, or QBO payment ID
+      const ref = payment.PaymentRefNum
+        || payment.CreditCardPayment?.CreditChargeResponse?.CCTransId
+        || (payment.Id ? `QBO-${payment.Id}` : '');
+      if (ref) paymentUpdates.PaymentReference = ref;
       await updateRow('ORDERS', order.ID, paymentUpdates);
       console.log(`[qbo-webhook] Order ${order.ID} marked as Paid (Invoice ${invoice.Id} fully paid)`);
     }
