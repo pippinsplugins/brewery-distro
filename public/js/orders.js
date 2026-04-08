@@ -448,14 +448,7 @@ function updateCreditApplication() {
   }
   _orderCreditApplied = applied;
   const summary = document.getElementById('order-credit-summary');
-  if (summary) {
-    if (applied > 0) {
-      const net = Math.max(0, orderAmt - applied);
-      summary.textContent = `Credit applied: -${fmtMoney(applied)} · Net order total: ${fmtMoney(net)}`;
-    } else {
-      summary.textContent = '';
-    }
-  }
+  if (summary) summary.textContent = '';
   recalcOrderTotal();
 }
 
