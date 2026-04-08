@@ -219,14 +219,12 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     </div>
     ${readOnly ? '' : `<div id="order-credit-section" style="display:none">
       <hr class="form-divider" />
+      <div class="form-section-title">Account Credit</div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span class="form-section-title" style="margin:0">Account Credit</span>
         <span id="order-credit-info" class="text-sm"></span>
-        <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
-          <label class="text-sm" style="margin:0;white-space:nowrap">Apply ($)</label>
-          <input class="form-control" type="number" step="0.01" min="0" id="f-credit-apply" value="0" oninput="updateCreditApplication()" style="width:90px" />
-          <button type="button" class="btn btn-ghost btn-sm" onclick="applyMaxCredit()">Apply Max</button>
-        </div>
+        <label class="text-sm" style="margin:0;white-space:nowrap">Apply ($)</label>
+        <input class="form-control" type="number" step="0.01" min="0" id="f-credit-apply" value="0" oninput="updateCreditApplication()" style="width:90px" />
+        <button type="button" class="btn btn-ghost btn-sm" onclick="applyMaxCredit()">Apply Max</button>
       </div>
       <div id="order-credit-summary" class="text-sm" style="color:#2e7d32"></div>
     </div>`}
