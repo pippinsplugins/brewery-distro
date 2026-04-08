@@ -884,11 +884,12 @@ function recalcOrderTotal() {
     return;
   }
   el.style.display = '';
-  const parts = [`<strong>${fmtMoney(amount)}</strong> order`];
-  if (tax > 0) parts.push(`${fmtMoney(tax)} tax`);
-  if (deposit > 0) parts.push(`${fmtMoney(deposit)} deposits`);
-  if (credit > 0) parts.push(`<span style="color:#2e7d32">-${fmtMoney(credit)} credit</span>`);
-  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span class="text-sm">${parts.join(' + ')}</span><strong style="font-size:1.1em">Total: ${fmtMoney(total)}</strong></div>`;
+  let rows = `<div class="order-total-row"><span>Subtotal</span><span>${fmtMoney(amount)}</span></div>`;
+  if (tax > 0) rows += `<div class="order-total-row"><span>Tax</span><span>${fmtMoney(tax)}</span></div>`;
+  if (deposit > 0) rows += `<div class="order-total-row"><span>Keg Deposits</span><span>${fmtMoney(deposit)}</span></div>`;
+  if (credit > 0) rows += `<div class="order-total-row order-total-credit"><span>Credit Applied</span><span>-${fmtMoney(credit)}</span></div>`;
+  rows += `<div class="order-total-row order-total-final"><span>Total</span><span>${fmtMoney(total)}</span></div>`;
+  el.innerHTML = rows;
 }
 
 function collectOrderProducts() {
