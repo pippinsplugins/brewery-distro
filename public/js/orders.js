@@ -220,15 +220,11 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     ${readOnly ? '' : `<div id="order-credit-section" style="display:none">
       <hr class="form-divider" />
       <div class="form-section-title">Account Credit</div>
-      <div id="order-credit-info" class="text-sm" style="margin-bottom:14px"></div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Apply Credit ($)</label>
-          <input class="form-control" type="number" step="0.01" min="0" id="f-credit-apply" value="0" oninput="updateCreditApplication()" />
-        </div>
-        <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="applyMaxCredit()">Apply Max</button>
-        </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span id="order-credit-info" class="text-sm"></span>
+        <label class="text-sm" style="margin:0;white-space:nowrap">Apply ($)</label>
+        <input class="form-control" type="number" step="0.01" min="0" id="f-credit-apply" value="0" oninput="updateCreditApplication()" style="width:90px" />
+        <button type="button" class="btn btn-ghost btn-sm" onclick="applyMaxCredit()">Apply Max</button>
       </div>
       <div id="order-credit-summary" class="text-sm" style="color:#2e7d32"></div>
     </div>`}
@@ -448,14 +444,7 @@ function updateCreditApplication() {
   }
   _orderCreditApplied = applied;
   const summary = document.getElementById('order-credit-summary');
-  if (summary) {
-    if (applied > 0) {
-      const net = Math.max(0, orderAmt - applied);
-      summary.textContent = `Credit applied: -${fmtMoney(applied)} · Net order total: ${fmtMoney(net)}`;
-    } else {
-      summary.textContent = '';
-    }
-  }
+  if (summary) summary.textContent = '';
   recalcOrderTotal();
 }
 
@@ -884,11 +873,12 @@ function recalcOrderTotal() {
     return;
   }
   el.style.display = '';
-  const parts = [`<strong>${fmtMoney(amount)}</strong> order`];
-  if (tax > 0) parts.push(`${fmtMoney(tax)} tax`);
-  if (deposit > 0) parts.push(`${fmtMoney(deposit)} deposits`);
-  if (credit > 0) parts.push(`<span style="color:#2e7d32">-${fmtMoney(credit)} credit</span>`);
-  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span class="text-sm">${parts.join(' + ')}</span><strong style="font-size:1.1em">Total: ${fmtMoney(total)}</strong></div>`;
+  let rows = `<div class="order-total-row"><span>Subtotal</span><span>${fmtMoney(amount)}</span></div>`;
+  if (tax > 0) rows += `<div class="order-total-row"><span>Tax</span><span>${fmtMoney(tax)}</span></div>`;
+  if (deposit > 0) rows += `<div class="order-total-row"><span>Keg Deposits</span><span>${fmtMoney(deposit)}</span></div>`;
+  if (credit > 0) rows += `<div class="order-total-row order-total-credit"><span>Credit Applied</span><span>-${fmtMoney(credit)}</span></div>`;
+  rows += `<div class="order-total-row order-total-final"><span>Total</span><span>${fmtMoney(total)}</span></div>`;
+  el.innerHTML = rows;
 }
 
 function collectOrderProducts() {
