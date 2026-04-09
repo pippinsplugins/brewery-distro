@@ -124,10 +124,11 @@ function matchAccountByEmail(senderEmail, accounts) {
     // Check primary Email field
     if (a.Email && a.Email.toLowerCase().trim() === lower) return a;
 
-    // Check AdditionalEmails (one per line)
+    // Check AdditionalEmails (stored as JSON array)
     if (a.AdditionalEmails) {
-      const extras = a.AdditionalEmails.split(/[\n,]/).map(e => e.trim().toLowerCase()).filter(Boolean);
-      if (extras.includes(lower)) return a;
+      let extras = [];
+      try { extras = JSON.parse(a.AdditionalEmails); } catch { extras = []; }
+      if (Array.isArray(extras) && extras.some(e => e && e.toLowerCase().trim() === lower)) return a;
     }
   }
 
