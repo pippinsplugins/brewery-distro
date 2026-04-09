@@ -29,13 +29,16 @@ function renderInboundEmailQueue(emails) {
     if (e.Status === 'pending' || e.Status === 'error') {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="retryInboundEmail('${esc(e.ID)}')">Parse</button>`;
     }
-    if (e.Status === 'parsed') {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="createOrderFromEmail('${esc(e.ID)}')">Create Order</button>`;
+    if (e.Status === 'parsed' || (e.Status === 'order_created' && e._orderMissing)) {
+      actions += ` <button class="btn btn-ghost btn-sm" onclick="resetAndCreateOrder('${esc(e.ID)}')">Create Order</button>`;
     }
-    if (e.Status === 'order_created' && e.OrderID) {
+    if (e.Status === 'order_created' && e.OrderID && !e._orderMissing) {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="viewEmailOrder('${esc(e.OrderID)}')">View Order</button>`;
     }
     if (e.Status !== 'order_created' && e.Status !== 'skipped') {
+      actions += ` <button class="btn btn-ghost btn-sm" onclick="skipInboundEmail('${esc(e.ID)}')">Skip</button>`;
+    }
+    if (e.Status === 'order_created' && e._orderMissing) {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="skipInboundEmail('${esc(e.ID)}')">Skip</button>`;
     }
     actions += ` <button class="btn btn-ghost btn-sm text-danger" onclick="deleteInboundEmail('${esc(e.ID)}')">Delete</button>`;
@@ -44,7 +47,7 @@ function renderInboundEmailQueue(emails) {
       <td>${esc(date)}<br><span class="text-sm text-muted">${esc(time)}</span></td>
       <td>${esc(e.FromName || e.From)}</td>
       <td>${esc(e.Subject)}</td>
-      <td>${statusBadge(e.Status)}${e.Status === 'parsed' && e._accountMatched === false ? ' <span class="badge badge-warning" title="Account not matched">No account</span>' : ''}</td>
+      <td>${statusBadge(e.Status)}${e._orderMissing ? ' <span class="badge badge-danger" title="Linked order not found">Order missing</span>' : ''}${e.Status === 'parsed' && e._accountMatched === false ? ' <span class="badge badge-warning" title="Account not matched">No account</span>' : ''}</td>
       <td>${actions}</td>
     </tr>`;
   }).join('');
@@ -115,6 +118,11 @@ async function viewInboundEmailDetail(id) {
     }
 
     const errorHtml = email.Error ? `<div class="text-sm text-danger" style="margin-top:8px">Error: ${esc(email.Error)}</div>` : '';
+    const orderMissingHtml = email._orderMissing
+      ? `<div style="background:#fde8e8;border:1px solid #e53e3e;padding:8px 12px;border-radius:6px;margin-top:8px;font-size:13px">
+          <strong>Order not found:</strong> The linked order no longer exists. Click "Create Order" below to create a new one.
+        </div>`
+      : '';
 
     // Build action buttons for the detail view
     let detailActions = '';
@@ -122,13 +130,16 @@ async function viewInboundEmailDetail(id) {
     if (email.Status === 'pending' || email.Status === 'error') {
       btns.push(`<button class="btn btn-sm btn-secondary" onclick="retryInboundEmail('${esc(email.ID)}')">Parse</button>`);
     }
-    if (email.Status === 'parsed') {
-      btns.push(`<button class="btn btn-sm btn-primary" onclick="createOrderFromEmail('${esc(email.ID)}')">Create Order</button>`);
+    if (email.Status === 'parsed' || (email.Status === 'order_created' && email._orderMissing)) {
+      btns.push(`<button class="btn btn-sm btn-primary" onclick="resetAndCreateOrder('${esc(email.ID)}')">Create Order</button>`);
     }
-    if (email.Status === 'order_created' && email.OrderID) {
+    if (email.Status === 'order_created' && email.OrderID && !email._orderMissing) {
       btns.push(`<button class="btn btn-sm btn-secondary" onclick="viewEmailOrder('${esc(email.OrderID)}')">View Order</button>`);
     }
     if (email.Status !== 'order_created' && email.Status !== 'skipped') {
+      btns.push(`<button class="btn btn-sm btn-ghost" onclick="skipInboundEmail('${esc(email.ID)}')">Skip</button>`);
+    }
+    if (email.Status === 'order_created' && email._orderMissing) {
       btns.push(`<button class="btn btn-sm btn-ghost" onclick="skipInboundEmail('${esc(email.ID)}')">Skip</button>`);
     }
     if (btns.length > 0) {
@@ -146,6 +157,7 @@ async function viewInboundEmailDetail(id) {
         <div style="background:var(--bg-secondary);padding:12px;border-radius:6px;max-height:200px;overflow-y:auto;white-space:pre-wrap;font-size:13px">${esc(email.Body)}</div>
       </div>
       ${errorHtml}
+      ${orderMissingHtml}
       ${parsedHtml}
       ${detailActions}
     `;
@@ -175,6 +187,17 @@ async function createOrderFromEmail(id) {
     const result = await api.post(`/api/inbound-emails/${id}/create-order`);
     toast('Draft order created');
     loadInboundEmails();
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function resetAndCreateOrder(id) {
+  try {
+    // Reset to parsed first (clears stale OrderID if present)
+    await api.put(`/api/inbound-emails/${id}/reset`);
+    // Now create the order
+    await createOrderFromEmail(id);
   } catch (err) {
     toast('Error: ' + err.message, 'error');
   }

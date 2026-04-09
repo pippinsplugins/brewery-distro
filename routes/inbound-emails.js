@@ -16,13 +16,18 @@ router.get('/', (req, res) => {
     }
     // Sort newest first
     emails.sort((a, b) => (b.ReceivedAt || b.CreatedAt || '').localeCompare(a.ReceivedAt || a.CreatedAt || ''));
-    // Don't send full body in list view; include account match info
+    // Don't send full body in list view; include account match + order existence info
     const accounts = getAllRows('ACCOUNTS');
     res.json(emails.map(e => {
       const row = {
         ...e,
         Body: e.Body ? e.Body.substring(0, 200) + (e.Body.length > 200 ? '...' : '') : '',
       };
+      // Check if linked order actually exists
+      if (e.Status === 'order_created' && e.OrderID) {
+        const order = getRow('ORDERS', e.OrderID);
+        if (!order) row._orderMissing = true;
+      }
       if (e.ParsedData) {
         try {
           const parsed = JSON.parse(e.ParsedData);
@@ -63,8 +68,12 @@ router.get('/:id', (req, res) => {
     const email = getRow('INBOUND_EMAILS', req.params.id);
     if (!email) return res.status(404).json({ error: 'Email not found' });
 
-    // Include account match info when parsed data exists
+    // Include account match and order existence info
     const result = { ...email };
+    if (email.Status === 'order_created' && email.OrderID) {
+      const order = getRow('ORDERS', email.OrderID);
+      if (!order) result._orderMissing = true;
+    }
     if (email.ParsedData) {
       try {
         const parsed = JSON.parse(email.ParsedData);
@@ -165,6 +174,18 @@ router.post('/:id/create-order', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[inbound-emails] create-order error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/inbound-emails/:id/reset — reset to parsed (e.g. when linked order is missing)
+router.put('/:id/reset', (req, res) => {
+  try {
+    const email = getRow('INBOUND_EMAILS', req.params.id);
+    if (!email) return res.status(404).json({ error: 'Email not found' });
+    updateRow('INBOUND_EMAILS', email.ID, { Status: 'parsed', OrderID: '' });
+    res.json(getRow('INBOUND_EMAILS', email.ID));
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
