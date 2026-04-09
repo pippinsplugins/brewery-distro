@@ -108,8 +108,7 @@ router.get('/google', requireOAuthConfig, (req, res, next) => {
   passport.authenticate('google', {
     scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly'],
     accessType: 'offline',
-    prompt: forceConsent ? 'consent' : 'select_account',
-    approvalPrompt: forceConsent ? 'force' : undefined,
+    prompt: forceConsent ? 'consent select_account' : 'select_account',
   })(req, res, next);
 });
 
