@@ -94,6 +94,13 @@ function accountForm(acct = {}) {
           ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${acct.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
+      <div class="form-group">
+        <label>Check-in Frequency</label>
+        <select class="form-control" id="f-checkin-frequency">
+          <option value="">-- Not Set --</option>
+          ${CHECK_IN_FREQUENCIES.map(f => `<option value="${f}"${acct.CheckInFrequency === f ? ' selected' : ''}>${f}</option>`).join('')}
+        </select>
+      </div>
     </div>
     ${ACCOUNT_TAGS.length > 0 ? `<div class="form-group">
       <label>Tags</label>
@@ -196,13 +203,6 @@ function accountForm(acct = {}) {
         <input type="checkbox" id="f-taxable" ${acct.Taxable === 'true' ? 'checked' : ''} />
         Charge tax for this account
       </label>
-    </div>
-    <div class="form-group">
-      <label>Check-in Frequency</label>
-      <select class="form-control" id="f-checkin-frequency">
-        <option value="">-- Not Set --</option>
-        ${CHECK_IN_FREQUENCIES.map(f => `<option value="${f}"${acct.CheckInFrequency === f ? ' selected' : ''}>${f}</option>`).join('')}
-      </select>
     </div>
     <hr class="form-divider" />
     <div class="form-group">
