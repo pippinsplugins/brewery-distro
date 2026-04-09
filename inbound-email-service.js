@@ -24,6 +24,23 @@ function setSetting(key, value) {
   }
 }
 
+// ── Retry helper ────────────────────────────────────────────────────
+
+async function withRetry(fn, { retries = 3, baseDelay = 2000 } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err.message || '';
+      const isTransient = /503|429|service unavailable|overloaded|high demand|rate limit/i.test(msg);
+      if (!isTransient || attempt === retries) throw err;
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`[inbound-email] Transient error, retrying in ${delay}ms (attempt ${attempt + 1}/${retries}): ${msg}`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
 // ── Gemini parsing ──────────────────────────────────────────────────
 
 async function parseEmailWithGemini(emailBody, subject, accounts, products) {
@@ -75,7 +92,7 @@ Rules:
 - For dates, assume the current year (${currentYear}) unless a different year is explicitly stated.
 - Respond with ONLY the JSON object.`;
 
-  const result = await model.generateContent(prompt);
+  const result = await withRetry(() => model.generateContent(prompt));
   const text = result.response.text().trim();
 
   // Strip code fences if present
