@@ -87,30 +87,19 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// POST /api/inbound-emails/:id/retry — re-parse a failed/pending email
+// POST /api/inbound-emails/:id/retry — re-parse and auto-create order
 router.post('/:id/retry', async (req, res) => {
   try {
     const email = getRow('INBOUND_EMAILS', req.params.id);
     if (!email) return res.status(404).json({ error: 'Email not found' });
 
-    const accounts = getAllRows('ACCOUNTS');
-    const products = getAllRows('PRODUCTS');
-    const inventoryRows = getAllRows('INVENTORY');
-    const productList = products.map(p => {
-      const formats = inventoryRows
-        .filter(i => i.ProductID === p.ID && i.Format)
-        .map(i => i.Format);
-      return { Name: p.Name, formats: [...new Set(formats)] };
-    });
+    // Reset status so processInboundEmail picks it up cleanly
+    updateRow('INBOUND_EMAILS', email.ID, { Status: 'pending', Error: '', OrderID: '' });
+    const freshEmail = getRow('INBOUND_EMAILS', email.ID);
 
-    const parsed = await inboundService.parseEmailWithGemini(email.Body, email.Subject, accounts, productList);
-    updateRow('INBOUND_EMAILS', email.ID, {
-      Status: 'parsed',
-      ParsedData: JSON.stringify(parsed),
-      Error: '',
-    });
+    await inboundService.processInboundEmail(freshEmail);
 
-    res.json({ ...getRow('INBOUND_EMAILS', email.ID), parsedData: parsed });
+    res.json(getRow('INBOUND_EMAILS', email.ID));
   } catch (err) {
     console.error('[inbound-emails] retry error:', err.message);
     updateRow('INBOUND_EMAILS', req.params.id, { Status: 'error', Error: err.message });
