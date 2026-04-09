@@ -186,7 +186,9 @@ function renderSettings() {
             <button class="btn btn-primary" onclick="saveInboundEmailSettings()">Save</button>
             <button class="btn btn-secondary" onclick="pollInboundNow()">Poll Now</button>
             <button class="btn btn-secondary" onclick="openInboundEmailQueue()">View Email Queue</button>
+            <a class="btn btn-ghost" href="${BASE_PATH}/auth/google?prompt=consent">Re-authorize Google</a>
           </div>
+          <p class="text-sm text-muted" style="margin-top:8px">If you see "Insufficient Permission" errors, click <strong>Re-authorize Google</strong> to grant inbox read access.</p>
           <div id="inbound-email-status" style="margin-top:12px"></div>
         </div>
       </div>

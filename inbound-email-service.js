@@ -432,9 +432,14 @@ async function pollOnce() {
     setSetting('inboundEmailLastError', '');
     return { fetched: newEmails.length, ordersCreated, errors };
   } catch (err) {
-    console.error('[inbound-email] Poll error:', err.message);
-    setSetting('inboundEmailLastError', err.message);
-    throw err;
+    const msg = err.message || String(err);
+    // Surface a helpful message for scope/permission errors
+    const userMsg = /insufficient permission/i.test(msg)
+      ? 'Insufficient Permission — click "Re-authorize Google" in Settings to grant inbox read access, then try again.'
+      : msg;
+    console.error('[inbound-email] Poll error:', msg);
+    setSetting('inboundEmailLastError', userMsg);
+    throw new Error(userMsg);
   }
 }
 

@@ -100,11 +100,15 @@ function requireOAuthConfig(req, res, next) {
 const basePath = process.env.BASE_PATH || '';
 
 // Kick off OAuth flow – sends the user to Google.
-router.get('/google', requireOAuthConfig, passport.authenticate('google', {
-  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly'],
-  accessType: 'offline',
-  prompt: 'select_account',
-}));
+// Use ?prompt=consent to force re-consent (e.g. after adding new scopes).
+router.get('/google', requireOAuthConfig, (req, res, next) => {
+  const promptValue = req.query.prompt === 'consent' ? 'consent' : 'select_account';
+  passport.authenticate('google', {
+    scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly'],
+    accessType: 'offline',
+    prompt: promptValue,
+  })(req, res, next);
+});
 
 // Google redirects here after the user grants (or denies) access.
 router.get('/google/callback',
