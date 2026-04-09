@@ -29,33 +29,35 @@ function renderInboundEmailQueue(emails, total) {
   const rows = emails.map(e => {
     const date = e.ReceivedAt ? new Date(e.ReceivedAt).toLocaleDateString() : '';
     const time = e.ReceivedAt ? new Date(e.ReceivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    let actions = `<button class="btn btn-ghost btn-sm" onclick="viewInboundEmailDetail('${esc(e.ID)}')">Details</button>`;
 
+    // Build compact action links
+    const links = [];
+    links.push(`<a href="#" onclick="viewInboundEmailDetail('${esc(e.ID)}');return false">Details</a>`);
     if (e.Status === 'pending' || e.Status === 'error') {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="retryInboundEmail('${esc(e.ID)}')">Parse</button>`;
+      links.push(`<a href="#" onclick="retryInboundEmail('${esc(e.ID)}');return false">Parse</a>`);
     }
     if (e.Status === 'parsed' && e._accountMatched === false) {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="createAccountAndOrder('${esc(e.ID)}')">Create Account & Order</button>`;
+      links.push(`<a href="#" onclick="createAccountAndOrder('${esc(e.ID)}');return false">New Account + Order</a>`);
     } else if (e.Status === 'parsed' || (e.Status === 'order_created' && e._orderMissing)) {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="resetAndCreateOrder('${esc(e.ID)}')">Create Order</button>`;
+      links.push(`<a href="#" onclick="resetAndCreateOrder('${esc(e.ID)}');return false">Create Order</a>`);
     }
     if (e.Status === 'order_created' && e.OrderID && !e._orderMissing) {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="viewEmailOrder('${esc(e.OrderID)}')">View Order</button>`;
+      links.push(`<a href="#" onclick="viewEmailOrder('${esc(e.OrderID)}');return false">View Order</a>`);
     }
-    if (e.Status !== 'order_created' && e.Status !== 'skipped') {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="skipInboundEmail('${esc(e.ID)}')">Skip</button>`;
+    if ((e.Status !== 'order_created' && e.Status !== 'skipped') || (e.Status === 'order_created' && e._orderMissing)) {
+      links.push(`<a href="#" onclick="skipInboundEmail('${esc(e.ID)}');return false">Skip</a>`);
     }
-    if (e.Status === 'order_created' && e._orderMissing) {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="skipInboundEmail('${esc(e.ID)}')">Skip</button>`;
-    }
-    actions += ` <button class="btn btn-ghost btn-sm text-danger" onclick="deleteInboundEmail('${esc(e.ID)}')">Delete</button>`;
+    links.push(`<a href="#" class="text-danger" onclick="deleteInboundEmail('${esc(e.ID)}');return false">Delete</a>`);
+
+    const badges = statusBadge(e.Status)
+      + (e._orderMissing ? ' <span class="badge badge-danger">Order missing</span>' : '')
+      + (e.Status === 'parsed' && e._accountMatched === false ? ' <span class="badge badge-warning">No account</span>' : '');
 
     return `<tr>
       <td>${esc(date)}<br><span class="text-sm text-muted">${esc(time)}</span></td>
       <td>${esc(e.FromName || e.From)}</td>
       <td>${esc(e.Subject)}</td>
-      <td>${statusBadge(e.Status)}${e._orderMissing ? ' <span class="badge badge-danger" title="Linked order not found">Order missing</span>' : ''}${e.Status === 'parsed' && e._accountMatched === false ? ' <span class="badge badge-warning" title="Account not matched">No account</span>' : ''}</td>
-      <td>${actions}</td>
+      <td>${badges}<div class="text-sm" style="margin-top:4px">${links.join(' &middot; ')}</div></td>
     </tr>`;
   }).join('');
 
@@ -99,7 +101,7 @@ function renderInboundEmailQueue(emails, total) {
     ${emails.length === 0
       ? '<p class="empty-state">No emails found' + (_inboundEmailFilter ? ' with this status' : '') + '.</p>'
       : `<div class="table-wrap"><table class="data-table">
-          <thead><tr><th>Date</th><th>From</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Date</th><th>From</th><th>Subject</th><th>Status</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`
     }
