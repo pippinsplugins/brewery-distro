@@ -126,8 +126,10 @@ async function fetchNewEmails(gmail, targetAddress, lastPollIso) {
   }
 
   const query = `to:${targetAddress} after:${afterEpoch}`;
+  console.log(`[inbound-email] Gmail query: "${query}" (after date: ${new Date(afterEpoch * 1000).toISOString()})`);
   const listRes = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
   const messages = listRes.data.messages || [];
+  console.log(`[inbound-email] Gmail returned ${messages.length} message(s)`);
   if (messages.length === 0) return [];
 
   // Deduplicate against already-processed emails
