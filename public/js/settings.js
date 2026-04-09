@@ -155,6 +155,50 @@ function renderSettings() {
         </div>
       </div>
 
+      <div class="card" id="inbound-email-card">
+        <div class="card-header"><h3>Email Order Requests</h3></div>
+        <div style="padding:0 18px 18px" id="inbound-email-body">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Receive order emails via a Google Apps Script webhook, parse them with AI, and create Draft orders for review.
+          </p>
+          <div class="form-group">
+            <label>Target Email Address</label>
+            <input class="form-control" id="settings-inbound-email" value="${esc(s.inboundEmail || '')}" placeholder="e.g. orders@yourdomain.com" />
+          </div>
+          <div class="form-group">
+            <label>Gemini API Key</label>
+            <input class="form-control" id="settings-gemini-key" type="password" value="" placeholder="${s.geminiApiKeySet ? '••••••••  (saved)' : 'Enter Gemini API key'}" />
+            <p class="text-sm text-muted" style="margin-top:4px">Used to parse order emails with Google Gemini AI. <a href="https://aistudio.google.com/apikey" target="_blank">Get a key</a></p>
+          </div>
+          <div class="form-group">
+            <label>Webhook URL</label>
+            <div style="display:flex;gap:8px">
+              <input class="form-control" id="settings-webhook-url" value="${esc(location.origin + BASE_PATH + '/webhooks/inbound-email')}" readonly style="font-family:monospace;font-size:13px;background:var(--bg-secondary)" />
+              <button class="btn btn-secondary" onclick="copyToClipboard('settings-webhook-url','Webhook URL')">Copy</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Webhook Token</label>
+            <div style="display:flex;gap:8px">
+              <input class="form-control" id="settings-webhook-token" value="${s.inboundEmailWebhookTokenSet ? '••••••••••••••••' : '(not generated)'}" readonly style="font-family:monospace;font-size:13px;background:var(--bg-secondary)" />
+              <button class="btn btn-secondary" onclick="regenerateWebhookToken()">Generate</button>
+              <button class="btn btn-secondary" id="btn-copy-webhook-token" onclick="copyWebhookToken()" style="display:${s.inboundEmailWebhookTokenSet ? 'inline-flex' : 'none'}">Copy</button>
+            </div>
+            <p class="text-sm text-muted" style="margin-top:4px">
+              Generate a token, then paste it into your Google Apps Script configuration.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="saveInboundEmailSettings()">Save</button>
+            <button class="btn btn-secondary" onclick="openInboundEmailQueue()">View Email Queue</button>
+          </div>
+          <p class="text-sm text-muted" style="margin-top:12px">
+            <strong>Setup:</strong> Install the <a href="${BASE_PATH}/docs/inbound-email-apps-script.js" target="_blank">Google Apps Script</a> on the Gmail account that receives order emails.
+            Configure it with the webhook URL and token above, then run the <code>setup()</code> function to start polling every 5 minutes.
+          </p>
+        </div>
+      </div>
+
       <div class="card" id="qbo-settings-card">
         <div class="card-header"><h3>QuickBooks Online</h3></div>
         <div style="padding:0 18px 18px" id="qbo-settings-body">
@@ -503,4 +547,81 @@ async function disconnectQbo() {
       toast(err.message, 'error');
     }
   });
+}
+
+// ── Inbound Email Order Requests ──────────────────────────────────
+
+async function saveInboundEmailSettings() {
+  const settings = {
+    inboundEmail: val('settings-inbound-email'),
+  };
+
+  // Only send gemini key if user typed something
+  const geminiKey = val('settings-gemini-key');
+  if (geminiKey) {
+    settings.geminiApiKey = geminiKey;
+  }
+
+  try {
+    const updated = await api.put('/api/settings', settings);
+    state.settings = updated;
+    if (geminiKey) state.settings.geminiApiKeySet = true;
+    toast('Email order settings saved');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function regenerateWebhookToken() {
+  modal.confirm('Generate Webhook Token', 'Generate a new webhook token? Any existing Apps Script configuration using the old token will stop working.', async () => {
+    try {
+      const result = await api.post('/api/settings/inbound-email-webhook-token');
+      modal.close();
+      // Show the token for the user to copy
+      const tokenInput = document.getElementById('settings-webhook-token');
+      if (tokenInput) tokenInput.value = result.token;
+      const copyBtn = document.getElementById('btn-copy-webhook-token');
+      if (copyBtn) copyBtn.style.display = 'inline-flex';
+      state.settings.inboundEmailWebhookTokenSet = true;
+      toast('Webhook token generated — copy it now');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+}
+
+async function copyWebhookToken() {
+  const input = document.getElementById('settings-webhook-token');
+  if (!input || input.value.includes('••')) {
+    // Token is masked — need to fetch it fresh
+    try {
+      const result = await api.post('/api/settings/inbound-email-webhook-token/reveal');
+      input.value = result.token;
+      navigator.clipboard.writeText(result.token).then(() => toast('Webhook token copied'));
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+    return;
+  }
+  navigator.clipboard.writeText(input.value).then(() => toast('Webhook token copied')).catch(() => {
+    input.select();
+    toast('Press Ctrl+C to copy');
+  });
+}
+
+function copyToClipboard(inputId, label) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  navigator.clipboard.writeText(input.value).then(() => toast((label || 'Value') + ' copied')).catch(() => {
+    input.select();
+    toast('Press Ctrl+C to copy');
+  });
+}
+
+function openInboundEmailQueue() {
+  if (typeof loadInboundEmails === 'function') {
+    loadInboundEmails();
+  } else {
+    toast('Email queue module not loaded', 'error');
+  }
 }

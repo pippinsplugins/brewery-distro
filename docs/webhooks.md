@@ -272,6 +272,72 @@ All standard REST endpoints also accept API key authentication. Useful endpoints
 
 ---
 
+## Inbound Email Webhook
+
+**Endpoint:** `POST /webhooks/inbound-email`
+
+**Auth:** Bearer token (generated in Settings > Email Order Requests)
+
+```
+Authorization: Bearer <webhook-token>
+```
+
+> **Note:** This endpoint uses a dedicated webhook token, not an API key. Generate the token in Settings.
+
+**Content-Type:** `application/json`
+
+**Body format:**
+
+```json
+{
+  "messageId": "gmail-message-id",
+  "from": "Name <email@example.com>",
+  "to": "orders@yourdomain.com",
+  "subject": "Order request",
+  "body": "Plain text email body",
+  "receivedAt": "2026-04-09T12:00:00Z"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `messageId` | string | yes | Unique email ID (used for deduplication) |
+| `from` | string | no | Sender in `Name <email>` format |
+| `to` | string | no | Recipient address |
+| `subject` | string | no | Email subject line |
+| `body` | string | no | Plain text email body |
+| `receivedAt` | string | no | ISO 8601 timestamp. Defaults to now. |
+
+**Flow:**
+1. Validates the Bearer token against the stored `inboundEmailWebhookToken` setting
+2. Deduplicates by `messageId` — if already processed, returns `{ skipped: true, reason: "duplicate" }`
+3. Creates an `INBOUND_EMAILS` row with Status `pending`
+4. Parses the email with Gemini AI and attempts to create a Draft order
+5. Returns the email ID and final status
+
+**Response (new email):**
+
+```json
+{
+  "success": true,
+  "emailId": "uuid",
+  "status": "order_created"
+}
+```
+
+**Response (duplicate):**
+
+```json
+{
+  "skipped": true,
+  "reason": "duplicate"
+}
+```
+
+**Setup:** Install the [Google Apps Script](/docs/inbound-email-apps-script.js) on the Gmail account that receives order emails. Configure it with the webhook URL and token from Settings, then run the `setup()` function to start forwarding emails every 5 minutes.
+
+---
+
 ## Error Responses
 
 All errors return JSON with an `error` field:

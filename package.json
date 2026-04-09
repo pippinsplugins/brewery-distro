@@ -8,12 +8,13 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "better-sqlite3": "^12.6.2",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.0.0",
     "express-session": "^1.19.0",
-    "googleapis": "^128.0.0",
+    "googleapis": "^171.4.0",
     "helmet": "^8.0.0",
     "intuit-oauth": "^4.2.2",
     "multer": "^2.0.2",

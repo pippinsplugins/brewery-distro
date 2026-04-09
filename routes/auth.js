@@ -53,6 +53,7 @@ if (oauthConfigured) {
       let effectiveRefreshToken = refreshToken || '';
       if (effectiveRefreshToken) {
         // Save new refresh token
+        console.log(`[auth] New refresh token received for ${profile.displayName} — saving`);
         const existing = getRow('SETTINGS', settingsKey);
         if (existing) {
           updateRow('SETTINGS', settingsKey, { Value: effectiveRefreshToken, UpdatedAt: new Date().toISOString() });
@@ -60,6 +61,7 @@ if (oauthConfigured) {
           addRow('SETTINGS', { ID: settingsKey, Key: settingsKey, Value: effectiveRefreshToken, UpdatedAt: new Date().toISOString() });
         }
       } else {
+        console.log(`[auth] No new refresh token for ${profile.displayName} — using stored token`);
         // Load previously saved refresh token
         const saved = getRow('SETTINGS', settingsKey);
         if (saved && saved.Value) effectiveRefreshToken = saved.Value;
@@ -100,11 +102,15 @@ function requireOAuthConfig(req, res, next) {
 const basePath = process.env.BASE_PATH || '';
 
 // Kick off OAuth flow – sends the user to Google.
-router.get('/google', requireOAuthConfig, passport.authenticate('google', {
-  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
-  accessType: 'offline',
-  prompt: 'select_account',
-}));
+// Use ?prompt=consent to force re-consent (e.g. after adding new scopes).
+router.get('/google', requireOAuthConfig, (req, res, next) => {
+  const forceConsent = req.query.prompt === 'consent';
+  passport.authenticate('google', {
+    scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
+    accessType: 'offline',
+    prompt: forceConsent ? 'consent select_account' : 'select_account',
+  })(req, res, next);
+});
 
 // Google redirects here after the user grants (or denies) access.
 router.get('/google/callback',

@@ -23,13 +23,14 @@ function sanitizeHeader(value) {
 /**
  * Build a base64url-encoded RFC 2822 email message.
  */
-function buildRawMessage({ from, to, cc, bcc, subject, body }) {
+function buildRawMessage({ from, to, cc, bcc, replyTo, subject, body }) {
   const lines = [
     `From: ${sanitizeHeader(from)}`,
     `To: ${sanitizeHeader(to)}`,
   ];
   if (cc) lines.push(`Cc: ${sanitizeHeader(cc)}`);
   if (bcc) lines.push(`Bcc: ${sanitizeHeader(bcc)}`);
+  if (replyTo) lines.push(`Reply-To: ${sanitizeHeader(replyTo)}`);
   lines.push(
     `Subject: ${sanitizeHeader(subject)}`,
     'MIME-Version: 1.0',
@@ -52,7 +53,7 @@ function buildRawMessage({ from, to, cc, bcc, subject, body }) {
  * @param {string} opts.body         - Plain-text body
  * @returns {Promise<object>}        - Gmail API response
  */
-async function sendEmail({ user, to, cc, bcc, subject, body }) {
+async function sendEmail({ user, to, cc, bcc, replyTo, subject, body }) {
   if (!isEmailConfigured()) {
     throw new Error('Email is not configured. Google OAuth credentials are missing.');
   }
@@ -77,6 +78,7 @@ async function sendEmail({ user, to, cc, bcc, subject, body }) {
     to:      toAddress,
     cc:      ccAddress,
     bcc:     bccAddress,
+    replyTo,
     subject,
     body,
   });

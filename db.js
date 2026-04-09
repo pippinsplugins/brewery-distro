@@ -26,6 +26,7 @@ const TABLES = {
   NOTIFICATIONS:   'Notifications',
   ACCOUNT_CREDITS: 'AccountCredits',
   WEBHOOK_LOG:     'WebhookLog',
+  INBOUND_EMAILS:  'InboundEmails',
 };
 
 // HEADERS defines every column each table should have.
@@ -47,6 +48,7 @@ const HEADERS = {
   NOTIFICATIONS:   ['ID', 'Type', 'Channel', 'RecipientStaffID', 'RecipientName', 'RecipientEmail', 'SenderName', 'SenderEmail', 'EntityType', 'EntityID', 'EntityName', 'Message', 'Status', 'Error', 'CreatedAt'],
   ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],
   WEBHOOK_LOG:     ['ID', 'ApiKeyName', 'Action', 'Payload', 'Status', 'Error', 'CreatedAt'],
+  INBOUND_EMAILS:  ['ID', 'GmailMessageId', 'GmailThreadId', 'From', 'FromName', 'To', 'Subject', 'Body', 'ReceivedAt', 'Status', 'ParsedData', 'OrderID', 'Error', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────

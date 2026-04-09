@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { addRow, updateRow } = require('../db');
+const { addRow, updateRow, getAllRows } = require('../db');
 const { isEmailConfigured, sendEmail } = require('../email-service');
 
 const router = express.Router();
@@ -11,6 +11,12 @@ const router = express.Router();
 
 function today() {
   return new Date().toISOString().split('T')[0];
+}
+
+function getReplyToAddress(user) {
+  const rows = getAllRows('SETTINGS');
+  const row = rows.find(r => r.Key === 'inboundEmail');
+  return (row && row.Value) ? row.Value : (user.email || '');
 }
 
 /**
@@ -64,7 +70,7 @@ router.post('/send', async (req, res) => {
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, subject, body });
+      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, replyTo: getReplyToAddress(req.user), subject, body });
     } catch (err) {
       status = 'failed';
       error  = err.message;
@@ -139,7 +145,7 @@ router.post('/bulk', async (req, res) => {
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, bcc: bccEmails, subject, body });
+      await sendEmail({ user: req.user, bcc: bccEmails, replyTo: getReplyToAddress(req.user), subject, body });
     } catch (err) {
       status = 'failed';
       error  = err.message;
