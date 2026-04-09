@@ -3,6 +3,8 @@
 const ACCOUNT_TYPES = ['Bar', 'Distributor', 'Restaurant', 'Retail Store', 'Grocery Store', 'Hotel', 'Event Venue', 'Individual', 'Other'];
 const CONTACT_METHODS = ['Email', 'Phone', 'SMS', 'In-Person', 'Any'];
 const ACCOUNT_STATUSES = ['Active', 'Prospect', 'Inactive'];
+const CHECK_IN_FREQUENCIES = ['Weekly', 'Biweekly', 'Monthly', 'Quarterly'];
+const CHECK_IN_DAYS = { Weekly: 7, Biweekly: 14, Monthly: 30, Quarterly: 90 };
 
 let _profileOutreachCache = [];
 let _profileTodosCache = [];
@@ -39,6 +41,34 @@ function collectAdditionalEmails() {
   return JSON.stringify(emails);
 }
 
+function computeOrderFrequencyStats(orders) {
+  const valid = orders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Draft' && o.Status !== 'Pre-Sale');
+  const sorted = valid.slice().sort((a, b) => (a.OrderDate || '').localeCompare(b.OrderDate || ''));
+  const orderCount = sorted.length;
+  let avgDaysBetween = null;
+  let avgOrderAmount = null;
+  let daysSinceLastOrder = null;
+
+  if (orderCount >= 1) {
+    const totals = sorted.reduce((sum, o) => sum + (parseFloat(o.OrderAmount) || 0), 0);
+    avgOrderAmount = totals / orderCount;
+  }
+  if (orderCount >= 2) {
+    let totalDays = 0;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i - 1].OrderDate);
+      const curr = new Date(sorted[i].OrderDate);
+      totalDays += (curr - prev) / (1000 * 60 * 60 * 24);
+    }
+    avgDaysBetween = Math.round(totalDays / (sorted.length - 1));
+  }
+  if (orderCount >= 1) {
+    const last = new Date(sorted[sorted.length - 1].OrderDate);
+    daysSinceLastOrder = Math.round((new Date() - last) / (1000 * 60 * 60 * 24));
+  }
+  return { orderCount, avgDaysBetween, avgOrderAmount, daysSinceLastOrder };
+}
+
 function accountForm(acct = {}) {
   let acctTags = [];
   try { acctTags = JSON.parse(acct.Tags || '[]'); } catch (e) { acctTags = []; }
@@ -62,6 +92,13 @@ function accountForm(acct = {}) {
         <label>Status</label>
         <select class="form-control" id="f-status">
           ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${acct.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Check-in Frequency</label>
+        <select class="form-control" id="f-checkin-frequency">
+          <option value="">-- Not Set --</option>
+          ${CHECK_IN_FREQUENCIES.map(f => `<option value="${f}"${acct.CheckInFrequency === f ? ' selected' : ''}>${f}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -288,11 +325,11 @@ function renderAccounts() {
           <tr>
             ${state.emailConfigured ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
             <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Type</th><th>Contact</th>
-            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Sales Rep</th><th class="mobile-hide">Location</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
+            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Sales Rep</th><th class="mobile-hide">Location</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Check-in</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 10 : 9}" class="empty-state">No accounts found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 11 : 10}" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
               ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span>${(() => { let t = []; try { t = JSON.parse(a.Tags || '[]'); } catch(e) {} return t.length > 0 ? '<div class="tag-badges">' + t.map(x => '<span class="badge badge-tag">' + esc(x) + '</span>').join(' ') + '</div>' : ''; })()}</td>
@@ -303,6 +340,7 @@ function renderAccounts() {
               <td class="mobile-hide text-sm">${esc(a.ServicedBy) || '<span class="text-muted">—</span>'}</td>
               <td>${statusBadge(a.Status)}</td>
               <td class="mobile-hide text-sm text-muted">${formatDate(a.LastContacted)}</td>
+              <td class="mobile-hide text-sm">${esc(a.CheckInFrequency) || '<span class="text-muted">—</span>'}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                 <div class="mobile-actions-menu">
@@ -375,6 +413,7 @@ async function loadAccountProfile(accountId) {
 
   const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
+  const freqStats = computeOrderFrequencyStats(acctOrders);
 
   // Keg tracking calculations
   const acctKegs = (kegRecords || []).sort((a, b) => (b.DeliveredDate || '').localeCompare(a.DeliveredDate || ''));
@@ -431,6 +470,7 @@ async function loadAccountProfile(accountId) {
     acct.StaffName    ? `<div class="profile-info-item"><span class="profile-info-label">Sales Rep</span><span>${esc(acct.StaffName)}</span></div>` : '',
     acct.ServicedBy   ? `<div class="profile-info-item"><span class="profile-info-label">Serviced By</span><span>${esc(acct.ServicedBy)}</span></div>` : '',
     acct.LastContacted ? `<div class="profile-info-item"><span class="profile-info-label">Last Contact</span><span>${formatDate(acct.LastContacted)}</span></div>` : '',
+    acct.CheckInFrequency ? `<div class="profile-info-item"><span class="profile-info-label">Check-in Frequency</span><span>${esc(acct.CheckInFrequency)}</span></div>` : '',
     acct.Notes        ? `<div class="profile-info-item profile-info-full"><span class="profile-info-label">Notes</span><span>${esc(acct.Notes)}</span></div>` : '',
   ].filter(Boolean).join('');
 
@@ -495,6 +535,9 @@ async function loadAccountProfile(accountId) {
       <div class="profile-stat"><div class="stat-value">${activeTodos}</div><div class="stat-label">Open Todos</div></div>
       <div class="profile-stat"><div class="stat-value">${acctOrders.length}</div><div class="stat-label">Orders</div></div>
       <div class="profile-stat"><div class="stat-value">${fmtMoney(totalRevenue)}</div><div class="stat-label">Total Revenue</div></div>
+      <div class="profile-stat"><div class="stat-value">${freqStats.avgDaysBetween != null ? freqStats.avgDaysBetween + 'd' : '--'}</div><div class="stat-label">Avg Days Between Orders</div></div>
+      <div class="profile-stat"><div class="stat-value">${freqStats.avgOrderAmount != null ? fmtMoney(freqStats.avgOrderAmount) : '--'}</div><div class="stat-label">Avg Order</div></div>
+      <div class="profile-stat"><div class="stat-value${freqStats.daysSinceLastOrder != null && acct.CheckInFrequency && freqStats.daysSinceLastOrder > (CHECK_IN_DAYS[acct.CheckInFrequency] || Infinity) ? ' text-danger' : ''}">${freqStats.daysSinceLastOrder != null ? freqStats.daysSinceLastOrder + 'd' : '--'}</div><div class="stat-label">Since Last Order</div></div>
       <div class="profile-stat"><div class="stat-value${outstandingKegs > 0 ? ' text-danger' : ''}">${outstandingKegs}</div><div class="stat-label">Kegs Out</div></div>
       ${depositsOutstanding > 0 ? `<div class="profile-stat"><div class="stat-value text-danger">${fmtMoney(depositsOutstanding)}</div><div class="stat-label">Deposits Owed</div></div>` : ''}
       ${totalCreditAvailable > 0 ? `<div class="profile-stat"><div class="stat-value" style="color:#2e7d32">${fmtMoney(totalCreditAvailable)}</div><div class="stat-label">Credit Balance${creditOnPending > 0 ? `<br><span class="text-sm text-muted">(${fmtMoney(creditOnPending)} on pending)</span>` : ''}</div></div>` : ''}
@@ -1086,6 +1129,7 @@ function openAddAccount() {
       ABCLicense: val('f-abc-license'),
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
+      CheckInFrequency: val('f-checkin-frequency'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
       ServicedBy: val('f-serviced-by') || '',
     });
@@ -1113,6 +1157,7 @@ function openEditAccount(id) {
       ABCLicense: val('f-abc-license'),
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
+      CheckInFrequency: val('f-checkin-frequency'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
       ServicedBy: val('f-serviced-by') || '',
     });
