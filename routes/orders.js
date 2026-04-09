@@ -35,8 +35,8 @@ router.get('/', async (req, res) => {
     if (accountId) orders = orders.filter(s => s.AccountID === accountId);
     if (staffId)   orders = orders.filter(s => s.StaffID === staffId);
     if (location)  orders = orders.filter(s => s.Location === location);
-    // Sort newest first
-    orders.sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
+    // Sort newest first by OrderDate, then by CreatedAt as tiebreaker
+    orders.sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || '') || (b.CreatedAt || '').localeCompare(a.CreatedAt || ''));
     res.json(orders);
   } catch (err) {
     console.error(`[orders] ${err.message}`);
