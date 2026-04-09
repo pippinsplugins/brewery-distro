@@ -32,9 +32,9 @@ function renderInventory() {
   const stockFilter = _invStockFilter;
 
   let filtered = items;
-  if (stockFilter === 'in-stock') filtered = filtered.filter(i => parseInt(i.Available || i.Units || '0') > 0);
-  else if (stockFilter === 'low') filtered = filtered.filter(i => { const a = parseInt(i.Available || i.Units || '0'); return a > 0 && a <= parseInt(i.LowStockThreshold || '5'); });
-  else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Available || i.Units || '0') <= 0);
+  if (stockFilter === 'in-stock') filtered = filtered.filter(i => parseInt(i.Units || '0') > 0);
+  else if (stockFilter === 'low') filtered = filtered.filter(i => { const u = parseInt(i.Units || '0'); return u > 0 && u <= parseInt(i.LowStockThreshold || '5'); });
+  else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Units || '0') <= 0);
 
   if (search) filtered = filtered.filter(i =>
     (i.Name || '').toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
