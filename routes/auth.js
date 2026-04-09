@@ -101,7 +101,7 @@ const basePath = process.env.BASE_PATH || '';
 
 // Kick off OAuth flow – sends the user to Google.
 router.get('/google', requireOAuthConfig, passport.authenticate('google', {
-  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
+  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly'],
   accessType: 'offline',
   prompt: 'select_account',
 }));

@@ -1031,6 +1031,15 @@ function renderOrders() {
     return `<th class="sortable-th${active ? ' sorted' : ''}" onclick="sortOrders('${colKey}')">${label}${arrow}</th>`;
   };
 
+  // Email draft orders banner
+  const emailDrafts = orders.filter(o => o.Status === 'Draft' && (o.Notes || '').includes('[Email Order]'));
+  const emailDraftBanner = emailDrafts.length > 0
+    ? `<div class="info-banner" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">&#128233;</span>
+        <span>${emailDrafts.length} email order request${emailDrafts.length !== 1 ? 's' : ''} awaiting review. Filter by <a href="#" onclick="event.preventDefault(); document.getElementById('orders-status').value='Draft'; _paginationReset('orders'); renderOrders()">Draft status</a> to see them.</span>
+      </div>`
+    : '';
+
   setContent(`
     <div class="view-header">
       <div>
@@ -1043,6 +1052,7 @@ function renderOrders() {
         <button class="btn btn-primary" onclick="openAddOrder()">+ Log Order</button>
       </div>
     </div>
+    ${emailDraftBanner}
     <div class="filter-bar">
       <input type="search" id="orders-search" placeholder="Search account, invoice…" value="${esc(search)}" oninput="_paginationReset('orders'); renderOrders()" />
       <select id="orders-account" onchange="_paginationReset('orders'); renderOrders()">${acctOpts}</select>

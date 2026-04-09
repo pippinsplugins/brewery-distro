@@ -155,6 +155,42 @@ function renderSettings() {
         </div>
       </div>
 
+      <div class="card" id="inbound-email-card">
+        <div class="card-header"><h3>Email Order Requests</h3></div>
+        <div style="padding:0 18px 18px" id="inbound-email-body">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Automatically monitor a shared inbox for order emails, parse them with AI, and create Draft orders for review.
+          </p>
+          <div class="form-group">
+            <label>Target Email Address</label>
+            <input class="form-control" id="settings-inbound-email" value="${esc(s.inboundEmail || '')}" placeholder="e.g. orders@yourdomain.com" />
+          </div>
+          <div class="form-group">
+            <label>Polling Interval</label>
+            <select class="form-control" id="settings-inbound-interval">
+              ${[['60','1 min'],['120','2 min'],['300','5 min'],['600','10 min'],['900','15 min'],['1800','30 min']].map(([v,l]) =>
+                `<option value="${v}" ${(s.inboundEmailInterval || '300') === v ? 'selected' : ''}>${l}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Gemini API Key</label>
+            <input class="form-control" id="settings-gemini-key" type="password" value="" placeholder="${s.geminiApiKeySet ? '••••••••  (saved)' : 'Enter Gemini API key'}" />
+            <p class="text-sm text-muted" style="margin-top:4px">Used to parse order emails with Google Gemini AI. <a href="https://aistudio.google.com/apikey" target="_blank">Get a key</a></p>
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="settings-inbound-enabled" ${s.inboundEmailEnabled === 'true' ? 'checked' : ''} />
+            <label for="settings-inbound-enabled" style="margin:0">Enable automatic polling</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="saveInboundEmailSettings()">Save</button>
+            <button class="btn btn-secondary" onclick="pollInboundNow()">Poll Now</button>
+            <button class="btn btn-secondary" onclick="openInboundEmailQueue()">View Email Queue</button>
+          </div>
+          <div id="inbound-email-status" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <div class="card" id="qbo-settings-card">
         <div class="card-header"><h3>QuickBooks Online</h3></div>
         <div style="padding:0 18px 18px" id="qbo-settings-body">
@@ -163,9 +199,10 @@ function renderSettings() {
       </div>
     </div>`);
 
-  // Load API keys and QBO status asynchronously
+  // Load API keys, QBO status, and inbound email status asynchronously
   loadApiKeys();
   loadQboStatus();
+  loadInboundEmailStatus();
 }
 
 function saveCompanyName() {
@@ -503,4 +540,97 @@ async function disconnectQbo() {
       toast(err.message, 'error');
     }
   });
+}
+
+// ── Inbound Email Order Requests ──────────────────────────────────
+
+async function loadInboundEmailStatus() {
+  const container = document.getElementById('inbound-email-status');
+  if (!container) return;
+  try {
+    const status = await api.get('/api/inbound-emails/polling/status');
+    const parts = [];
+    if (status.isRunning) {
+      parts.push('<span class="badge badge-success">Running</span>');
+    } else {
+      parts.push('<span class="badge badge-neutral">Stopped</span>');
+    }
+    if (status.lastPoll) {
+      const ago = timeAgo(status.lastPoll);
+      parts.push(`<span class="text-sm text-muted">Last poll: ${ago}</span>`);
+    }
+    if (status.lastError) {
+      parts.push(`<span class="text-sm text-danger">Error: ${esc(status.lastError)}</span>`);
+    }
+    container.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${parts.join('')}</div>`;
+  } catch {
+    container.innerHTML = '';
+  }
+}
+
+function timeAgo(isoStr) {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+async function saveInboundEmailSettings() {
+  const settings = {
+    inboundEmail: val('settings-inbound-email'),
+    inboundEmailInterval: document.getElementById('settings-inbound-interval')?.value || '300',
+    inboundEmailEnabled: document.getElementById('settings-inbound-enabled')?.checked ? 'true' : 'false',
+  };
+
+  // Only send gemini key if user typed something
+  const geminiKey = val('settings-gemini-key');
+  if (geminiKey) {
+    settings.geminiApiKey = geminiKey;
+  }
+
+  try {
+    const updated = await api.put('/api/settings', settings);
+    state.settings = updated;
+    // Mark that key is saved for placeholder display
+    if (geminiKey) state.settings.geminiApiKeySet = true;
+
+    // Restart polling with new settings
+    if (settings.inboundEmailEnabled === 'true') {
+      await api.post('/api/inbound-emails/polling/start');
+    } else {
+      await api.post('/api/inbound-emails/polling/stop');
+    }
+
+    toast('Email order settings saved');
+    loadInboundEmailStatus();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function pollInboundNow() {
+  try {
+    toast('Polling for new emails...');
+    const result = await api.post('/api/inbound-emails/poll-now');
+    if (result.skipped) {
+      toast('Poll skipped: ' + (result.reason || 'unknown'), 'error');
+    } else {
+      toast(`Poll complete: ${result.fetched || 0} new email(s), ${result.ordersCreated || 0} order(s) created`);
+    }
+    loadInboundEmailStatus();
+  } catch (err) {
+    toast('Poll error: ' + err.message, 'error');
+    loadInboundEmailStatus();
+  }
+}
+
+function openInboundEmailQueue() {
+  if (typeof loadInboundEmails === 'function') {
+    loadInboundEmails();
+  } else {
+    toast('Email queue module not loaded', 'error');
+  }
 }

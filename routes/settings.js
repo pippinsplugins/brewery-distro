@@ -15,9 +15,12 @@ router.get('/', async (req, res) => {
     for (const row of rows) {
       settings[row.Key] = row.Value;
     }
-    // Strip sensitive data
+    // Strip sensitive data — flag presence before deleting
+    const hasGeminiKey = !!settings.geminiApiKey;
     delete settings.qboTokens;
     delete settings.apiKeys;
+    delete settings.geminiApiKey;
+    if (hasGeminiKey) settings.geminiApiKeySet = true;
     // Parse JSON values
     if (settings.locations) {
       try { settings.locations = JSON.parse(settings.locations); }
@@ -67,6 +70,7 @@ router.put('/', async (req, res) => {
     }
     delete result.qboTokens;
     delete result.apiKeys;
+    delete result.geminiApiKey;
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }

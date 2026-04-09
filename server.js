@@ -40,6 +40,8 @@ const reportsRoutes        = require('./routes/reports');
 const gallonageRoutes      = require('./routes/gallonage');
 const creditsRoutes        = require('./routes/credits');
 const apiWebhooksRoutes    = require('./routes/api-webhooks');
+const inboundEmailRoutes   = require('./routes/inbound-emails');
+const inboundEmailService  = require('./inbound-email-service');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -130,6 +132,7 @@ app.use('/api/reports',        requireAuth, reportsRoutes);
 app.use('/api/gallonage',     requireAuth, gallonageRoutes);
 app.use('/api/credits',        requireAuth, creditsRoutes);
 app.use('/api/webhooks',       requireAuth, apiWebhooksRoutes);
+app.use('/api/inbound-emails', requireAuth, inboundEmailRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
@@ -156,6 +159,8 @@ async function start() {
     await migrateInventoryToProducts();
     await migrateProductFormatsToInventory();
     console.log('Database initialized successfully.');
+    // Start inbound email polling (if enabled in settings)
+    try { inboundEmailService.startPolling(); } catch (e) { console.warn('[inbound-email] Polling not started:', e.message); }
     app.listen(PORT, () => {
       console.log(`Brewery Distribution app running at http://localhost:${PORT}`);
     });
