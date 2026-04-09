@@ -43,7 +43,7 @@ var CONFIG = {
 
 function processNewEmails() {
   var label = getOrCreateLabel(CONFIG.processedLabel);
-  var query = 'to:' + CONFIG.targetAddress + ' -label:' + CONFIG.processedLabel;
+  var query = 'to:' + CONFIG.targetAddress + ' newer_than:7d -label:' + CONFIG.processedLabel;
   var threads = GmailApp.search(query, 0, 20);
 
   if (threads.length === 0) {
