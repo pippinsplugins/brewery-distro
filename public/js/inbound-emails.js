@@ -132,9 +132,10 @@ async function viewInboundEmailDetail(id) {
           medium: 'badge-warning',
           low: 'badge-danger',
         };
-        const accountWarning = (email._accountMatched === false && parsed.accountName)
+        const senderEmail = email.From ? ((email.From.match(/<([^>]+)>/) || [])[1] || email.From) : '';
+        const accountWarning = (email._accountMatched === false)
           ? `<div style="background:var(--warning-bg, #fff3cd);border:1px solid var(--warning-border, #ffc107);padding:8px 12px;border-radius:6px;margin-top:12px;font-size:13px">
-              <strong>Account not matched:</strong> "${esc(parsed.accountName)}" does not match any known account. You can still create a draft order manually.
+              <strong>Account not matched:</strong> No account found for ${senderEmail ? 'sender <strong>' + esc(senderEmail) + '</strong>' : 'this email'}${parsed.accountName ? ' or name "' + esc(parsed.accountName) + '"' : ''}. You can still create a draft order manually.
             </div>`
           : (email._accountMatched && email._accountMatchedName && email._accountMatchedName !== parsed.accountName
             ? `<div class="text-sm text-muted" style="margin-top:4px">Matched to: ${esc(email._accountMatchedName)}</div>`
@@ -197,7 +198,7 @@ async function viewInboundEmailDetail(id) {
 
     const html = `
       <div class="form-row">
-        <div class="form-group" style="flex:1"><label>From</label><p>${esc(email.FromName || email.From)}</p></div>
+        <div class="form-group" style="flex:1"><label>From</label><p>${esc(email.FromName || email.From)}${email.From ? `<br><span class="text-sm text-muted">${esc(email.From)}</span>` : ''}</p></div>
         <div class="form-group" style="flex:1"><label>Date</label><p>${email.ReceivedAt ? new Date(email.ReceivedAt).toLocaleString() : '—'}</p></div>
       </div>
       <div class="form-group"><label>Subject</label><p>${esc(email.Subject)}</p></div>

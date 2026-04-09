@@ -58,9 +58,13 @@ function processNewEmails() {
     for (var m = 0; m < messages.length; m++) {
       var msg = messages[m];
 
+      // getFrom() may omit the email address — extract it from the raw headers
+      var fromRaw = msg.getFrom();
+      var fromHeader = msg.getHeader('From') || fromRaw;
+
       var payload = {
         messageId: msg.getId(),
-        from: msg.getFrom(),
+        from: fromHeader,
         to: msg.getTo(),
         subject: msg.getSubject(),
         body: msg.getPlainBody() || '',
