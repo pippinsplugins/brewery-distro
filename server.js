@@ -149,6 +149,16 @@ app.get('/api/status', (req, res) => {
 // Webhook routes (protected by their own bearer-token auth, not session auth).
 app.use('/webhooks', webhooksRoutes);
 
+// ── Public home page ────────────────────────────────────────────────────────
+// Google app verification requires the home page to be accessible without login.
+// Authenticated users get the SPA; guests see the landing/login page.
+app.get('/', (req, res) => {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
 // ── SPA catch-all (requires auth) ─────────────────────────────────────────
 app.get('*', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
