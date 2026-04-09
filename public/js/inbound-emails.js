@@ -33,7 +33,7 @@ function renderInboundEmailQueue(emails) {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="createOrderFromEmail('${esc(e.ID)}')">Create Order</button>`;
     }
     if (e.Status === 'order_created' && e.OrderID) {
-      actions += ` <button class="btn btn-ghost btn-sm" onclick="modal.close(); location.hash='orders'; setTimeout(() => openEditOrder('${esc(e.OrderID)}'), 300)">View Order</button>`;
+      actions += ` <button class="btn btn-ghost btn-sm" onclick="viewEmailOrder('${esc(e.OrderID)}')">View Order</button>`;
     }
     if (e.Status !== 'order_created' && e.Status !== 'skipped') {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="skipInboundEmail('${esc(e.ID)}')">Skip</button>`;
@@ -159,6 +159,21 @@ async function skipInboundEmail(id) {
   } catch (err) {
     toast(err.message, 'error');
   }
+}
+
+async function viewEmailOrder(orderId) {
+  modal.close();
+  location.hash = 'orders';
+  // Wait for orders view to load, then open the order
+  const tryOpen = (attempts) => {
+    if (attempts <= 0) return;
+    if (typeof openEditOrder === 'function' && typeof _ordersCache !== 'undefined' && _ordersCache.length > 0) {
+      openEditOrder(orderId);
+    } else {
+      setTimeout(() => tryOpen(attempts - 1), 200);
+    }
+  };
+  tryOpen(15);
 }
 
 async function deleteInboundEmail(id) {
