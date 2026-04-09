@@ -32,22 +32,22 @@ function renderInboundEmailQueue(emails, total) {
 
     // Build compact action links
     const links = [];
-    links.push(`<a href="#" onclick="viewInboundEmailDetail('${esc(e.ID)}');return false">Details</a>`);
+    links.push(`<a href="#" class="action-link" onclick="viewInboundEmailDetail('${esc(e.ID)}');return false">Details</a>`);
     if (e.Status === 'pending' || e.Status === 'error') {
-      links.push(`<a href="#" onclick="retryInboundEmail('${esc(e.ID)}');return false">Parse</a>`);
+      links.push(`<a href="#" class="action-link" onclick="retryInboundEmail('${esc(e.ID)}');return false">Parse</a>`);
     }
     if (e.Status === 'parsed' && e._accountMatched === false) {
-      links.push(`<a href="#" onclick="createAccountAndOrder('${esc(e.ID)}');return false">New Account + Order</a>`);
+      links.push(`<a href="#" class="action-link" onclick="createAccountAndOrder('${esc(e.ID)}');return false">New Account + Order</a>`);
     } else if (e.Status === 'parsed' || (e.Status === 'order_created' && e._orderMissing)) {
-      links.push(`<a href="#" onclick="resetAndCreateOrder('${esc(e.ID)}');return false">Create Order</a>`);
+      links.push(`<a href="#" class="action-link" onclick="resetAndCreateOrder('${esc(e.ID)}');return false">Create Order</a>`);
     }
     if (e.Status === 'order_created' && e.OrderID && !e._orderMissing) {
-      links.push(`<a href="#" onclick="viewEmailOrder('${esc(e.OrderID)}');return false">View Order</a>`);
+      links.push(`<a href="#" class="action-link" onclick="viewEmailOrder('${esc(e.OrderID)}');return false">View Order</a>`);
     }
     if ((e.Status !== 'order_created' && e.Status !== 'skipped') || (e.Status === 'order_created' && e._orderMissing)) {
-      links.push(`<a href="#" onclick="skipInboundEmail('${esc(e.ID)}');return false">Skip</a>`);
+      links.push(`<a href="#" class="action-link" onclick="skipInboundEmail('${esc(e.ID)}');return false">Skip</a>`);
     }
-    links.push(`<a href="#" class="text-danger" onclick="deleteInboundEmail('${esc(e.ID)}');return false">Delete</a>`);
+    links.push(`<a href="#" class="action-link text-danger" onclick="deleteInboundEmail('${esc(e.ID)}');return false">Delete</a>`);
 
     const badges = statusBadge(e.Status)
       + (e._orderMissing ? ' <span class="badge badge-danger">Order missing</span>' : '')
