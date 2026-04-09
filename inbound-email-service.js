@@ -365,6 +365,57 @@ async function createDraftOrder(parsedData, inboundEmailId) {
   return { orderId, order, orderItems };
 }
 
+// ── Email parsing pipeline ──────────────────────────────────────────
+
+async function parseEmails(emails) {
+  let ordersCreated = 0;
+  let errors = 0;
+
+  const geminiKey = getSetting('geminiApiKey');
+  if (!geminiKey) {
+    console.warn('[inbound-email] Gemini API key not configured — emails stored but not parsed');
+    return { ordersCreated: 0, errors: 0 };
+  }
+
+  const accounts = getAllRows('ACCOUNTS');
+  const products = getAllRows('PRODUCTS');
+  const inventoryRows = getAllRows('INVENTORY');
+  const productList = products.map(p => {
+    const formats = inventoryRows
+      .filter(i => i.ProductID === p.ID && i.Format)
+      .map(i => i.Format);
+    return { Name: p.Name, formats: [...new Set(formats)] };
+  });
+
+  for (const email of emails) {
+    try {
+      const parsed = await parseEmailWithGemini(email.Body, email.Subject, accounts, productList);
+      updateRow('INBOUND_EMAILS', email.ID, {
+        Status: 'parsed',
+        ParsedData: JSON.stringify(parsed),
+        Error: '',
+      });
+
+      // Auto-create draft if confidence is not low and has items
+      if (parsed.confidence !== 'low' && parsed.items && parsed.items.length > 0) {
+        await createDraftOrder(parsed, email.ID);
+        ordersCreated++;
+      } else if (parsed.confidence === 'low') {
+        updateRow('INBOUND_EMAILS', email.ID, { Status: 'skipped' });
+      }
+    } catch (err) {
+      console.error(`[inbound-email] Error parsing email ${email.ID}:`, err.message);
+      updateRow('INBOUND_EMAILS', email.ID, {
+        Status: 'error',
+        Error: err.message,
+      });
+      errors++;
+    }
+  }
+
+  return { ordersCreated, errors };
+}
+
 // ── Poll orchestrator ───────────────────────────────────────────────
 
 async function pollOnce(userTokens) {
@@ -384,51 +435,12 @@ async function pollOnce(userTokens) {
     const newEmails = await fetchNewEmails(gmail, targetAddress);
     console.log(`[inbound-email] Fetched ${newEmails.length} new email(s)`);
 
-    let ordersCreated = 0;
-    let errors = 0;
+    // Collect emails that need parsing: newly fetched + any pending/error in the queue
+    const queued = getAllRows('INBOUND_EMAILS')
+      .filter(e => e.Status === 'pending' || e.Status === 'error');
+    const emailsToParse = [...newEmails, ...queued.filter(q => !newEmails.some(n => n.ID === q.ID))];
 
-    // Parse each email with Gemini and optionally create draft orders
-    const geminiKey = getSetting('geminiApiKey');
-    if (!geminiKey) {
-      console.warn('[inbound-email] Gemini API key not configured — emails stored but not parsed');
-      return { fetched: newEmails.length, parsed: 0, ordersCreated: 0 };
-    }
-
-    const accounts = getAllRows('ACCOUNTS');
-    // Build product list with formats
-    const products = getAllRows('PRODUCTS');
-    const inventoryRows = getAllRows('INVENTORY');
-    const productList = products.map(p => {
-      const formats = inventoryRows
-        .filter(i => i.ProductID === p.ID && i.Format)
-        .map(i => i.Format);
-      return { Name: p.Name, formats: [...new Set(formats)] };
-    });
-
-    for (const email of newEmails) {
-      try {
-        const parsed = await parseEmailWithGemini(email.Body, email.Subject, accounts, productList);
-        updateRow('INBOUND_EMAILS', email.ID, {
-          Status: 'parsed',
-          ParsedData: JSON.stringify(parsed),
-        });
-
-        // Auto-create draft if confidence is not low and has items
-        if (parsed.confidence !== 'low' && parsed.items && parsed.items.length > 0) {
-          await createDraftOrder(parsed, email.ID);
-          ordersCreated++;
-        } else if (parsed.confidence === 'low') {
-          updateRow('INBOUND_EMAILS', email.ID, { Status: 'skipped' });
-        }
-      } catch (err) {
-        console.error(`[inbound-email] Error parsing email ${email.ID}:`, err.message);
-        updateRow('INBOUND_EMAILS', email.ID, {
-          Status: 'error',
-          Error: err.message,
-        });
-        errors++;
-      }
-    }
+    const { ordersCreated, errors } = await parseEmails(emailsToParse);
 
     setSetting('inboundEmailLastError', '');
     return { fetched: newEmails.length, ordersCreated, errors };
