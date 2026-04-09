@@ -31,10 +31,9 @@ router.get('/', (req, res) => {
       if (e.ParsedData) {
         try {
           const parsed = JSON.parse(e.ParsedData);
-          if (parsed.accountName) {
-            const matched = matchAccount(parsed.accountName, accounts);
-            row._accountMatched = !!matched;
-          }
+          const senderEmail = e.From ? (e.From.match(/<([^>]+)>/) || [])[1] || e.From : '';
+          const matched = matchAccount(parsed.accountName, accounts, senderEmail);
+          row._accountMatched = !!matched;
         } catch { /* ignore */ }
       }
       return row;
@@ -77,12 +76,11 @@ router.get('/:id', (req, res) => {
     if (email.ParsedData) {
       try {
         const parsed = JSON.parse(email.ParsedData);
-        if (parsed.accountName) {
-          const accounts = getAllRows('ACCOUNTS');
-          const matched = matchAccount(parsed.accountName, accounts);
-          result._accountMatched = !!matched;
-          result._accountMatchedName = matched ? matched.Name : '';
-        }
+        const accounts = getAllRows('ACCOUNTS');
+        const senderEmail = email.From ? (email.From.match(/<([^>]+)>/) || [])[1] || email.From : '';
+        const matched = matchAccount(parsed.accountName, accounts, senderEmail);
+        result._accountMatched = !!matched;
+        result._accountMatchedName = matched ? matched.Name : '';
       } catch { /* ignore parse errors */ }
     }
     res.json(result);
@@ -170,7 +168,9 @@ router.post('/:id/create-order', async (req, res) => {
       return res.status(400).json({ error: 'Email has no parsed data. Retry parsing first.' });
     }
 
-    const result = await inboundService.createDraftOrder(parsed, email.ID);
+    // Extract sender email for account matching
+    const senderEmail = email.From ? (email.From.match(/<([^>]+)>/) || [])[1] || email.From : '';
+    const result = await inboundService.createDraftOrder(parsed, email.ID, senderEmail);
     res.json(result);
   } catch (err) {
     console.error('[inbound-emails] create-order error:', err.message);

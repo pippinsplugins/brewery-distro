@@ -227,9 +227,43 @@ Rules:
   }
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────
+
+function extractEmailAddress(from) {
+  if (!from) return '';
+  // Extract email from "Name <email@example.com>" or plain "email@example.com"
+  const match = from.match(/<([^>]+)>/);
+  return match ? match[1].trim().toLowerCase() : from.trim().toLowerCase();
+}
+
 // ── Account & Product matching ──────────────────────────────────────
 
-function matchAccount(name, accounts) {
+function matchAccountByEmail(senderEmail, accounts) {
+  if (!senderEmail) return null;
+  const lower = senderEmail.toLowerCase().trim();
+
+  for (const a of accounts) {
+    // Check primary Email field
+    if (a.Email && a.Email.toLowerCase().trim() === lower) return a;
+
+    // Check AdditionalEmails (one per line)
+    if (a.AdditionalEmails) {
+      const extras = a.AdditionalEmails.split(/[\n,]/).map(e => e.trim().toLowerCase()).filter(Boolean);
+      if (extras.includes(lower)) return a;
+    }
+  }
+
+  return null;
+}
+
+function matchAccount(name, accounts, senderEmail) {
+  // Primary: match by sender email address
+  if (senderEmail) {
+    const byEmail = matchAccountByEmail(senderEmail, accounts);
+    if (byEmail) return byEmail;
+  }
+
+  // Fallback: match by account name from parsed data
   if (!name) return null;
   const lower = name.toLowerCase().trim();
   const normalize = s => s.toLowerCase().replace(/[''`.,\-!?&]/g, '').replace(/\s+/g, ' ').trim();
@@ -284,12 +318,12 @@ function matchInventoryItem(productName, format, inventory) {
 
 // ── Draft order creation ────────────────────────────────────────────
 
-async function createDraftOrder(parsedData, inboundEmailId) {
+async function createDraftOrder(parsedData, inboundEmailId, senderEmail) {
   const accounts = getAllRows('ACCOUNTS');
   const inventory = getAllRows('INVENTORY');
 
-  // Match account
-  const account = matchAccount(parsedData.accountName, accounts);
+  // Match account — by sender email first, then by name
+  const account = matchAccount(parsedData.accountName, accounts, senderEmail);
   const accountId = account ? account.ID : '';
   const accountName = account ? account.Name : (parsedData.accountName || 'Unknown');
 
@@ -398,21 +432,24 @@ async function parseEmails(emails) {
 
       console.log(`[inbound-email] Parsed email ${email.ID}: confidence=${parsed.confidence}, items=${(parsed.items || []).length}, account=${parsed.accountName || '?'}`);
 
+      // Extract sender email from From field (e.g. "Name <email@example.com>")
+      const senderEmail = extractEmailAddress(email.From);
+
       if (parsed.confidence === 'low') {
         updateRow('INBOUND_EMAILS', email.ID, { Status: 'skipped' });
         console.log(`[inbound-email] Skipped email ${email.ID} (low confidence)`);
       } else if (!parsed.items || parsed.items.length === 0) {
         console.log(`[inbound-email] No order created for email ${email.ID} (no items parsed)`);
       } else {
-        // Check if account can be matched before auto-creating
-        const accountMatch = matchAccount(parsed.accountName, accounts);
+        // Check if account can be matched (by email first, then by name)
+        const accountMatch = matchAccount(parsed.accountName, accounts, senderEmail);
         if (accountMatch) {
-          await createDraftOrder(parsed, email.ID);
+          await createDraftOrder(parsed, email.ID, senderEmail);
           ordersCreated++;
           console.log(`[inbound-email] Draft order created for email ${email.ID} (account: ${accountMatch.Name})`);
         } else {
           // Leave as "parsed" for manual review — user can create order from the queue
-          console.log(`[inbound-email] Account "${parsed.accountName || '?'}" not matched — email ${email.ID} left for manual review`);
+          console.log(`[inbound-email] Account not matched (name="${parsed.accountName || '?'}", email="${senderEmail || '?'}") — email ${email.ID} left for manual review`);
         }
       }
     } catch (err) {
@@ -509,5 +546,6 @@ module.exports = {
   createDraftOrder,
   parseEmailWithGemini,
   matchAccount,
+  matchAccountByEmail,
   getSetting,
 };
