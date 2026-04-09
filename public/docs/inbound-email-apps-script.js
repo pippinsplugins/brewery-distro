@@ -19,9 +19,9 @@
  * === HOW IT WORKS ===
  *
  * Every 5 minutes the script:
- *   1. Searches for unread emails sent to the target address
+ *   1. Searches for emails sent to the target address (read or unread)
  *   2. POSTs each email's data to your webhook endpoint
- *   3. Marks the email as read and applies a "Processed" label
+ *   3. Applies a "Processed" label so they aren't sent again
  */
 
 // ─── Configuration ─────────────────────────────────────────────────
@@ -43,7 +43,7 @@ var CONFIG = {
 
 function processNewEmails() {
   var label = getOrCreateLabel(CONFIG.processedLabel);
-  var query = 'to:' + CONFIG.targetAddress + ' is:unread -label:' + CONFIG.processedLabel;
+  var query = 'to:' + CONFIG.targetAddress + ' -label:' + CONFIG.processedLabel;
   var threads = GmailApp.search(query, 0, 20);
 
   if (threads.length === 0) {
@@ -57,7 +57,6 @@ function processNewEmails() {
     var messages = threads[t].getMessages();
     for (var m = 0; m < messages.length; m++) {
       var msg = messages[m];
-      if (!msg.isUnread()) continue;
 
       var payload = {
         messageId: msg.getId(),
@@ -82,7 +81,6 @@ function processNewEmails() {
         var code = response.getResponseCode();
         if (code >= 200 && code < 300) {
           Logger.log('Sent message ' + msg.getId() + ' — ' + response.getContentText());
-          msg.markRead();
         } else {
           Logger.log('Webhook returned ' + code + ' for message ' + msg.getId() + ': ' + response.getContentText());
         }
