@@ -235,6 +235,23 @@ Rules:
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+function buildEmailOrderNotes(parsedData, emailRow) {
+  const parts = ['[Email Order]'];
+  if (parsedData.notes) parts.push(parsedData.notes);
+  if (emailRow) {
+    parts.push('');
+    parts.push('--- Original Email ---');
+    parts.push(`From: ${emailRow.FromName || emailRow.From || ''}`);
+    parts.push(`Subject: ${emailRow.Subject || ''}`);
+    parts.push(`Date: ${emailRow.ReceivedAt ? new Date(emailRow.ReceivedAt).toLocaleString() : ''}`);
+    parts.push('');
+    // Include body, truncated to avoid bloating the notes field
+    const body = (emailRow.Body || '').trim();
+    parts.push(body.length > 1000 ? body.substring(0, 1000) + '...' : body);
+  }
+  return parts.join('\n').trim();
+}
+
 function extractEmailAddress(from) {
   if (!from) return '';
   // Extract email from "Name <email@example.com>" or plain "email@example.com"
@@ -324,7 +341,7 @@ function matchInventoryItem(productName, format, inventory) {
 
 // ── Draft order creation ────────────────────────────────────────────
 
-async function createDraftOrder(parsedData, inboundEmailId, senderEmail) {
+async function createDraftOrder(parsedData, inboundEmailId, senderEmail, emailRow) {
   const accounts = getAllRows('ACCOUNTS');
   const inventory = getAllRows('INVENTORY');
 
@@ -374,7 +391,7 @@ async function createDraftOrder(parsedData, inboundEmailId, senderEmail) {
     OrderAmount: orderAmount.toFixed(2),
     TaxAmount: '',
     DepositAmount: '',
-    Notes: `[Email Order] ${parsedData.notes || ''}`.trim(),
+    Notes: buildEmailOrderNotes(parsedData, emailRow),
     RequestedProducts: '',
     Status: 'Draft',
     Delivered: '',
@@ -459,7 +476,7 @@ async function parseEmails(emails) {
       } else if (!parsed.items || parsed.items.length === 0) {
         console.log(`[inbound-email] No order created for email ${email.ID} (no items parsed)`);
       } else if (accountMatch) {
-        await createDraftOrder(parsed, email.ID, senderEmail);
+        await createDraftOrder(parsed, email.ID, senderEmail, email);
         ordersCreated++;
         console.log(`[inbound-email] Draft order created for email ${email.ID} (account: ${accountMatch.Name})`);
       } else {

@@ -170,7 +170,7 @@ router.post('/:id/create-order', async (req, res) => {
 
     // Extract sender email for account matching
     const senderEmail = email.From ? (email.From.match(/<([^>]+)>/) || [])[1] || email.From : '';
-    const result = await inboundService.createDraftOrder(parsed, email.ID, senderEmail);
+    const result = await inboundService.createDraftOrder(parsed, email.ID, senderEmail, email);
     res.json(result);
   } catch (err) {
     console.error('[inbound-emails] create-order error:', err.message);
