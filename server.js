@@ -159,9 +159,8 @@ async function start() {
     await migrateInventoryToProducts();
     await migrateProductFormatsToInventory();
     console.log('Database initialized successfully.');
-    // Fix email orders with missing Location, then start polling
+    // Fix email orders with missing Location
     try { inboundEmailService.fixEmailOrderLocations(); } catch (e) { console.warn('[inbound-email] fixEmailOrderLocations:', e.message); }
-    try { inboundEmailService.startPolling(); } catch (e) { console.warn('[inbound-email] Polling not started:', e.message); }
     app.listen(PORT, () => {
       console.log(`Brewery Distribution app running at http://localhost:${PORT}`);
     });

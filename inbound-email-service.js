@@ -1,16 +1,9 @@
 'use strict';
 
-const { google } = require('googleapis');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, getRow, addRow, updateRow } = require('./db');
 require('dotenv').config();
-
-const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '';
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-
-let _pollTimer = null;
-let _isPolling = false;
 
 // ── Settings helpers ────────────────────────────────────────────────
 
@@ -29,144 +22,6 @@ function setSetting(key, value) {
   } else {
     addRow('SETTINGS', { ID: uuidv4(), Key: key, Value: String(value), UpdatedAt: now });
   }
-}
-
-// ── Google Auth ─────────────────────────────────────────────────────
-
-function getStoredGoogleTokens() {
-  const rows = getAllRows('SETTINGS');
-  const tokenRow = rows.find(r => r.Key && r.Key.startsWith('google_refresh_token:'));
-  if (!tokenRow || !tokenRow.Value) return null;
-  return { refreshToken: tokenRow.Value };
-}
-
-function createGmailClient(userTokens) {
-  if (!CLIENT_ID || !CLIENT_SECRET) return null;
-
-  // Prefer explicit user tokens (from a logged-in session) over stored refresh token.
-  // Session tokens always reflect the latest granted scopes.
-  const tokens = userTokens || getStoredGoogleTokens();
-  if (!tokens || (!tokens.refreshToken && !tokens.accessToken)) return null;
-
-  const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-  const creds = {};
-  if (tokens.accessToken)  creds.access_token  = tokens.accessToken;
-  if (tokens.refreshToken) creds.refresh_token = tokens.refreshToken;
-  oauth2Client.setCredentials(creds);
-  return google.gmail({ version: 'v1', auth: oauth2Client });
-}
-
-// ── Email fetching ──────────────────────────────────────────────────
-
-function extractPlainText(payload) {
-  if (!payload) return '';
-
-  // Single-part message
-  if (payload.mimeType === 'text/plain' && payload.body && payload.body.data) {
-    return Buffer.from(payload.body.data, 'base64').toString('utf-8');
-  }
-
-  // Multipart — walk recursively
-  if (payload.parts) {
-    // Prefer text/plain
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body && part.body.data) {
-        return Buffer.from(part.body.data, 'base64').toString('utf-8');
-      }
-    }
-    // Recurse into nested parts
-    for (const part of payload.parts) {
-      const text = extractPlainText(part);
-      if (text) return text;
-    }
-    // Fall back to HTML with tag stripping
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/html' && part.body && part.body.data) {
-        const html = Buffer.from(part.body.data, 'base64').toString('utf-8');
-        return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                   .replace(/<[^>]+>/g, ' ')
-                   .replace(/&nbsp;/g, ' ')
-                   .replace(/&amp;/g, '&')
-                   .replace(/&lt;/g, '<')
-                   .replace(/&gt;/g, '>')
-                   .replace(/&#\d+;/g, '')
-                   .replace(/\s+/g, ' ')
-                   .trim();
-      }
-    }
-  }
-
-  // Single-part HTML fallback
-  if (payload.mimeType === 'text/html' && payload.body && payload.body.data) {
-    const html = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-    return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-               .replace(/<[^>]+>/g, ' ')
-               .replace(/&nbsp;/g, ' ')
-               .replace(/\s+/g, ' ')
-               .trim();
-  }
-
-  return '';
-}
-
-function getHeader(headers, name) {
-  const h = (headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
-  return h ? h.value : '';
-}
-
-async function fetchNewEmails(gmail, targetAddress) {
-  // Use a fixed 7-day lookback window. Deduplication by GmailMessageId
-  // ensures already-processed emails are never imported twice.
-  const afterEpoch = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
-
-  const query = `to:${targetAddress} after:${afterEpoch}`;
-  console.log(`[inbound-email] Gmail query: "${query}"`);
-  const listRes = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
-  const messages = listRes.data.messages || [];
-  console.log(`[inbound-email] Gmail returned ${messages.length} message(s)`);
-  if (messages.length === 0) return [];
-
-  // Deduplicate against already-processed emails
-  const existing = getAllRows('INBOUND_EMAILS');
-  const existingIds = new Set(existing.map(e => e.GmailMessageId));
-
-  const newEmails = [];
-  for (const msg of messages) {
-    if (existingIds.has(msg.id)) continue;
-
-    const full = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'full' });
-    const payload = full.data.payload || {};
-    const headers = payload.headers || [];
-
-    const from = getHeader(headers, 'From');
-    const fromName = from.replace(/<[^>]+>/, '').trim().replace(/^"(.*)"$/, '$1');
-    const to = getHeader(headers, 'To');
-    const subject = getHeader(headers, 'Subject');
-    const date = getHeader(headers, 'Date');
-    const body = extractPlainText(payload);
-
-    const emailRow = {
-      ID: uuidv4(),
-      GmailMessageId: msg.id,
-      GmailThreadId: msg.threadId || '',
-      From: from,
-      FromName: fromName,
-      To: to,
-      Subject: subject,
-      Body: body,
-      ReceivedAt: date ? new Date(date).toISOString() : new Date().toISOString(),
-      Status: 'pending',
-      ParsedData: '',
-      OrderID: '',
-      Error: '',
-      CreatedAt: new Date().toISOString(),
-    };
-
-    addRow('INBOUND_EMAILS', emailRow);
-    newEmails.push(emailRow);
-  }
-
-  return newEmails;
 }
 
 // ── Gemini parsing ──────────────────────────────────────────────────
@@ -423,16 +278,13 @@ async function createDraftOrder(parsedData, inboundEmailId, senderEmail, emailRo
   return { orderId, order, orderItems };
 }
 
-// ── Email parsing pipeline ──────────────────────────────────────────
+// ── Process a single inbound email (webhook entry point) ────────────
 
-async function parseEmails(emails) {
-  let ordersCreated = 0;
-  let errors = 0;
-
+async function processInboundEmail(emailRow) {
   const geminiKey = getSetting('geminiApiKey');
   if (!geminiKey) {
-    console.warn('[inbound-email] Gemini API key not configured — emails stored but not parsed');
-    return { ordersCreated: 0, errors: 0 };
+    console.warn('[inbound-email] Gemini API key not configured — email stored but not parsed');
+    return { status: 'pending', reason: 'gemini_key_missing' };
   }
 
   const accounts = getAllRows('ACCOUNTS');
@@ -445,128 +297,53 @@ async function parseEmails(emails) {
     return { Name: p.Name, formats: [...new Set(formats)] };
   });
 
-  for (const email of emails) {
-    try {
-      const parsed = await parseEmailWithGemini(email.Body, email.Subject, accounts, productList);
-
-      // Extract sender email from From field (e.g. "Name <email@example.com>")
-      const senderEmail = extractEmailAddress(email.From);
-
-      // Fill in blanks from email metadata + account match
-      const accountMatch = matchAccount(parsed.accountName, accounts, senderEmail);
-      if (accountMatch) {
-        if (!parsed.accountName) parsed.accountName = accountMatch.Name;
-      }
-      if (!parsed.contactName && email.FromName) {
-        parsed.contactName = email.FromName;
-      }
-
-      updateRow('INBOUND_EMAILS', email.ID, {
-        Status: 'parsed',
-        ParsedData: JSON.stringify(parsed),
-        Error: '',
-      });
-
-      console.log(`[inbound-email] Parsed email ${email.ID}: confidence=${parsed.confidence}, items=${(parsed.items || []).length}, account=${parsed.accountName || '?'}`);
-
-
-      if (parsed.confidence === 'low') {
-        updateRow('INBOUND_EMAILS', email.ID, { Status: 'skipped' });
-        console.log(`[inbound-email] Skipped email ${email.ID} (low confidence)`);
-      } else if (!parsed.items || parsed.items.length === 0) {
-        console.log(`[inbound-email] No order created for email ${email.ID} (no items parsed)`);
-      } else if (accountMatch) {
-        await createDraftOrder(parsed, email.ID, senderEmail, email);
-        ordersCreated++;
-        console.log(`[inbound-email] Draft order created for email ${email.ID} (account: ${accountMatch.Name})`);
-      } else {
-        // Leave as "parsed" for manual review — user can create order from the queue
-        console.log(`[inbound-email] Account not matched (name="${parsed.accountName || '?'}", email="${senderEmail || '?'}") — email ${email.ID} left for manual review`);
-      }
-    } catch (err) {
-      console.error(`[inbound-email] Error parsing email ${email.ID}:`, err.message);
-      updateRow('INBOUND_EMAILS', email.ID, {
-        Status: 'error',
-        Error: err.message,
-      });
-      errors++;
-    }
-  }
-
-  return { ordersCreated, errors };
-}
-
-// ── Poll orchestrator ───────────────────────────────────────────────
-
-async function pollOnce(userTokens) {
-  const enabled = getSetting('inboundEmailEnabled');
-  if (enabled !== 'true') return { skipped: true, reason: 'disabled' };
-
-  const targetAddress = getSetting('inboundEmail');
-  if (!targetAddress) return { skipped: true, reason: 'no target address' };
-
-  const gmail = createGmailClient(userTokens);
-  if (!gmail) return { skipped: true, reason: 'no Google OAuth tokens — log in to grant access' };
-
   try {
-    setSetting('inboundEmailLastPoll', new Date().toISOString());
+    const parsed = await parseEmailWithGemini(emailRow.Body, emailRow.Subject, accounts, productList);
 
-    // Fetch new emails (7-day lookback, deduped by GmailMessageId)
-    const newEmails = await fetchNewEmails(gmail, targetAddress);
-    console.log(`[inbound-email] Fetched ${newEmails.length} new email(s)`);
+    // Extract sender email from From field (e.g. "Name <email@example.com>")
+    const senderEmail = extractEmailAddress(emailRow.From);
 
-    // Collect emails that need parsing: newly fetched + any pending/error in the queue
-    const queued = getAllRows('INBOUND_EMAILS')
-      .filter(e => e.Status === 'pending' || e.Status === 'error');
-    const emailsToParse = [...newEmails, ...queued.filter(q => !newEmails.some(n => n.ID === q.ID))];
-
-    const { ordersCreated, errors } = await parseEmails(emailsToParse);
-
-    setSetting('inboundEmailLastError', '');
-    return { fetched: newEmails.length, ordersCreated, errors };
-  } catch (err) {
-    const msg = err.message || String(err);
-    // Surface a helpful message for scope/permission errors
-    const userMsg = /insufficient permission/i.test(msg)
-      ? 'Insufficient Permission — click "Re-authorize Google" in Settings to grant inbox read access, then try again.'
-      : msg;
-    console.error('[inbound-email] Poll error:', msg);
-    setSetting('inboundEmailLastError', userMsg);
-    throw new Error(userMsg);
-  }
-}
-
-function startPolling() {
-  if (_pollTimer) return;
-  const enabled = getSetting('inboundEmailEnabled');
-  if (enabled !== 'true') return;
-
-  const intervalSec = parseInt(getSetting('inboundEmailInterval')) || 300;
-  console.log(`[inbound-email] Starting polling every ${intervalSec}s`);
-
-  _pollTimer = setInterval(async () => {
-    if (_isPolling) return;
-    _isPolling = true;
-    try {
-      await pollOnce();
-    } catch (e) {
-      // already logged in pollOnce
-    } finally {
-      _isPolling = false;
+    // Fill in blanks from email metadata + account match
+    const accountMatch = matchAccount(parsed.accountName, accounts, senderEmail);
+    if (accountMatch) {
+      if (!parsed.accountName) parsed.accountName = accountMatch.Name;
     }
-  }, intervalSec * 1000);
-}
+    if (!parsed.contactName && emailRow.FromName) {
+      parsed.contactName = emailRow.FromName;
+    }
 
-function stopPolling() {
-  if (_pollTimer) {
-    clearInterval(_pollTimer);
-    _pollTimer = null;
-    console.log('[inbound-email] Polling stopped');
+    updateRow('INBOUND_EMAILS', emailRow.ID, {
+      Status: 'parsed',
+      ParsedData: JSON.stringify(parsed),
+      Error: '',
+    });
+
+    console.log(`[inbound-email] Parsed email ${emailRow.ID}: confidence=${parsed.confidence}, items=${(parsed.items || []).length}, account=${parsed.accountName || '?'}`);
+
+    if (parsed.confidence === 'low') {
+      updateRow('INBOUND_EMAILS', emailRow.ID, { Status: 'skipped' });
+      console.log(`[inbound-email] Skipped email ${emailRow.ID} (low confidence)`);
+      return { status: 'skipped', reason: 'low_confidence' };
+    } else if (!parsed.items || parsed.items.length === 0) {
+      console.log(`[inbound-email] No order created for email ${emailRow.ID} (no items parsed)`);
+      return { status: 'parsed', reason: 'no_items' };
+    } else if (accountMatch) {
+      await createDraftOrder(parsed, emailRow.ID, senderEmail, emailRow);
+      console.log(`[inbound-email] Draft order created for email ${emailRow.ID} (account: ${accountMatch.Name})`);
+      return { status: 'order_created' };
+    } else {
+      // Leave as "parsed" for manual review
+      console.log(`[inbound-email] Account not matched (name="${parsed.accountName || '?'}", email="${senderEmail || '?'}") — email ${emailRow.ID} left for manual review`);
+      return { status: 'parsed', reason: 'account_not_matched' };
+    }
+  } catch (err) {
+    console.error(`[inbound-email] Error parsing email ${emailRow.ID}:`, err.message);
+    updateRow('INBOUND_EMAILS', emailRow.ID, {
+      Status: 'error',
+      Error: err.message,
+    });
+    return { status: 'error', error: err.message };
   }
-}
-
-function isRunning() {
-  return !!_pollTimer;
 }
 
 // ── Startup fix: backfill Location on email orders ──────────────────
@@ -592,14 +369,15 @@ function fixEmailOrderLocations() {
 }
 
 module.exports = {
-  pollOnce,
-  startPolling,
-  stopPolling,
-  isRunning,
+  processInboundEmail,
   fixEmailOrderLocations,
   createDraftOrder,
   parseEmailWithGemini,
   matchAccount,
   matchAccountByEmail,
+  extractEmailAddress,
+  matchInventoryItem,
+  buildEmailOrderNotes,
   getSetting,
+  setSetting,
 };

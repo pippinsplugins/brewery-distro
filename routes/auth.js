@@ -106,7 +106,7 @@ const basePath = process.env.BASE_PATH || '';
 router.get('/google', requireOAuthConfig, (req, res, next) => {
   const forceConsent = req.query.prompt === 'consent';
   passport.authenticate('google', {
-    scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly'],
+    scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.send'],
     accessType: 'offline',
     prompt: forceConsent ? 'consent select_account' : 'select_account',
   })(req, res, next);

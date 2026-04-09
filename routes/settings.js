@@ -17,10 +17,13 @@ router.get('/', async (req, res) => {
     }
     // Strip sensitive data — flag presence before deleting
     const hasGeminiKey = !!settings.geminiApiKey;
+    const hasWebhookToken = !!settings.inboundEmailWebhookToken;
     delete settings.qboTokens;
     delete settings.apiKeys;
     delete settings.geminiApiKey;
+    delete settings.inboundEmailWebhookToken;
     if (hasGeminiKey) settings.geminiApiKeySet = true;
+    if (hasWebhookToken) settings.inboundEmailWebhookTokenSet = true;
     // Parse JSON values
     if (settings.locations) {
       try { settings.locations = JSON.parse(settings.locations); }
@@ -71,6 +74,7 @@ router.put('/', async (req, res) => {
     delete result.qboTokens;
     delete result.apiKeys;
     delete result.geminiApiKey;
+    delete result.inboundEmailWebhookToken;
     if (result.locations) {
       try { result.locations = JSON.parse(result.locations); }
       catch (e) { result.locations = []; }
@@ -196,6 +200,40 @@ router.put('/rename-account-tag', async (req, res) => {
     }
     result._renamed = { accountsUpdated };
     res.json(result);
+  } catch (err) {
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Inbound Email Webhook Token ──────────────────────────────────
+
+// POST /api/settings/inbound-email-webhook-token — generate a new webhook token
+router.post('/inbound-email-webhook-token', async (req, res) => {
+  try {
+    const token = crypto.randomBytes(32).toString('hex');
+    const rows = await getAllRows('SETTINGS');
+    const existing = rows.find(r => r.Key === 'inboundEmailWebhookToken');
+    const now = new Date().toISOString().split('T')[0];
+    if (existing) {
+      await updateRow('SETTINGS', existing.ID, { Value: token, UpdatedAt: now });
+    } else {
+      await addRow('SETTINGS', { ID: uuidv4(), Key: 'inboundEmailWebhookToken', Value: token, UpdatedAt: now });
+    }
+    res.json({ token });
+  } catch (err) {
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/settings/inbound-email-webhook-token/reveal — return the current token
+router.post('/inbound-email-webhook-token/reveal', async (req, res) => {
+  try {
+    const rows = await getAllRows('SETTINGS');
+    const row = rows.find(r => r.Key === 'inboundEmailWebhookToken');
+    if (!row || !row.Value) return res.status(404).json({ error: 'No webhook token configured. Generate one first.' });
+    res.json({ token: row.Value });
   } catch (err) {
     console.error(`[settings] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

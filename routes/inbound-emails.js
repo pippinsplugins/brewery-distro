@@ -58,23 +58,6 @@ router.get('/', (req, res) => {
   }
 });
 
-// GET /api/inbound-emails/polling/status — polling status
-router.get('/polling/status', (req, res) => {
-  try {
-    res.json({
-      enabled: inboundService.getSetting('inboundEmailEnabled') === 'true',
-      interval: parseInt(inboundService.getSetting('inboundEmailInterval')) || 300,
-      lastPoll: inboundService.getSetting('inboundEmailLastPoll') || '',
-      lastError: inboundService.getSetting('inboundEmailLastError') || '',
-      isRunning: inboundService.isRunning(),
-      targetAddress: inboundService.getSetting('inboundEmail') || '',
-    });
-  } catch (err) {
-    console.error('[inbound-emails]', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // GET /api/inbound-emails/:id — single email detail
 router.get('/:id', (req, res) => {
   try {
@@ -101,39 +84,6 @@ router.get('/:id', (req, res) => {
   } catch (err) {
     console.error('[inbound-emails]', err.message);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/inbound-emails/poll-now — trigger immediate poll
-// Uses the logged-in user's OAuth tokens (most up-to-date scopes).
-router.post('/poll-now', async (req, res) => {
-  try {
-    const userTokens = req.user ? { accessToken: req.user.accessToken, refreshToken: req.user.refreshToken } : null;
-    const result = await inboundService.pollOnce(userTokens);
-    res.json(result);
-  } catch (err) {
-    console.error('[inbound-emails] poll-now error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/inbound-emails/polling/start — start polling
-router.post('/polling/start', (req, res) => {
-  try {
-    inboundService.startPolling();
-    res.json({ success: true, isRunning: inboundService.isRunning() });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/inbound-emails/polling/stop — stop polling
-router.post('/polling/stop', (req, res) => {
-  try {
-    inboundService.stopPolling();
-    res.json({ success: true, isRunning: false });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 

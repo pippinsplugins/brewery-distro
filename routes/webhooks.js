@@ -3,7 +3,10 @@
 const crypto = require('crypto');
 
 const express = require('express');
+const { v4: uuidv4 } = require('uuid');
 const { processQboPaymentWebhook, getStoredTokens } = require('../qbo-service');
+const { getAllRows, addRow } = require('../db');
+const inboundEmailService = require('../inbound-email-service');
 
 const router = express.Router();
 
@@ -80,6 +83,70 @@ router.post('/qbo', verifyQboSignature, (req, res) => {
       }
     }
   })();
+});
+
+// ── Inbound Email Webhook — Apps Script posts email data here ─────
+
+router.post('/inbound-email', async (req, res) => {
+  // Authenticate via Bearer token
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const expectedToken = inboundEmailService.getSetting('inboundEmailWebhookToken');
+
+  if (!expectedToken || !token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Constant-time comparison
+  const tokenBuf = Buffer.from(token);
+  const expectedBuf = Buffer.from(expectedToken);
+  if (tokenBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { messageId, from, to, subject, body, receivedAt } = req.body;
+  if (!messageId) {
+    return res.status(400).json({ error: 'messageId is required' });
+  }
+
+  // Deduplicate by GmailMessageId
+  const existing = getAllRows('INBOUND_EMAILS');
+  if (existing.some(e => e.GmailMessageId === messageId)) {
+    return res.json({ skipped: true, reason: 'duplicate' });
+  }
+
+  // Extract FromName from "Name <email>" format
+  const fromName = (from || '').replace(/<[^>]+>/, '').trim().replace(/^"(.*)"$/, '$1');
+
+  const emailRow = {
+    ID: uuidv4(),
+    GmailMessageId: messageId,
+    GmailThreadId: '',
+    From: from || '',
+    FromName: fromName,
+    To: to || '',
+    Subject: subject || '',
+    Body: body || '',
+    ReceivedAt: receivedAt ? new Date(receivedAt).toISOString() : new Date().toISOString(),
+    Status: 'pending',
+    ParsedData: '',
+    OrderID: '',
+    Error: '',
+    CreatedAt: new Date().toISOString(),
+  };
+
+  addRow('INBOUND_EMAILS', emailRow);
+
+  // Process asynchronously — parse with Gemini and create draft order
+  const result = await inboundEmailService.processInboundEmail(emailRow);
+
+  // Re-read to get the latest status after processing
+  const updated = getAllRows('INBOUND_EMAILS').find(e => e.ID === emailRow.ID);
+  res.json({
+    success: true,
+    emailId: emailRow.ID,
+    status: updated ? updated.Status : result.status,
+  });
 });
 
 module.exports = router;
