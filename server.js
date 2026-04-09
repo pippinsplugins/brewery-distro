@@ -104,9 +104,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/auth', authRoutes);
 app.use('/auth/qbo', qboRoutes.authRouter);
 
-// Serve the login page directly.
+// Serve public pages (no auth required).
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'privacy.html'));
+});
+app.get('/terms', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
 
 // ── Protected API routes ──────────────────────────────────────────────────
