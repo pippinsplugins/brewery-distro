@@ -646,6 +646,34 @@ function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice) {
   recalcOrderAmount();
 }
 
+function resolveInventoryMatch(productName, format) {
+  if (!productName || !_orderFormInventory.length) return null;
+  const pLower = productName.toLowerCase().trim();
+  const fLower = (format || '').toLowerCase().trim();
+
+  // Exact name + format
+  if (fLower) {
+    const exact = _orderFormInventory.find(i =>
+      (i.Name || '').toLowerCase().trim() === pLower &&
+      (i.Format || '').toLowerCase().trim() === fLower
+    );
+    if (exact) return exact;
+  }
+
+  // Exact name only (pick first match)
+  const byName = _orderFormInventory.find(i =>
+    (i.Name || '').toLowerCase().trim() === pLower
+  );
+  if (byName) return byName;
+
+  // Fuzzy name match
+  const fuzzy = _orderFormInventory.find(i => {
+    const n = (i.Name || '').toLowerCase().trim();
+    return n && (pLower.includes(n) || n.includes(pLower));
+  });
+  return fuzzy || null;
+}
+
 function addUnmatchedLineItem(item) {
   const wrap = document.getElementById('order-line-items');
   if (!wrap) return;
@@ -800,9 +828,13 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
     if (item.InventoryID && _orderFormInventory.find(i => i.ID === item.InventoryID)) {
       addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
     } else if (item.ProductName) {
-      // Item has no matching inventory (out of stock, different location, or unmatched)
-      // Show as a non-editable line so the user can see what was ordered
-      addUnmatchedLineItem(item);
+      // Try to match by product name + format against current inventory
+      const resolved = resolveInventoryMatch(item.ProductName, item.Format);
+      if (resolved) {
+        addOrderLineItem(resolved.ID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
+      } else {
+        addUnmatchedLineItem(item);
+      }
     }
   }
 }
