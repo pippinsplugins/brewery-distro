@@ -287,19 +287,17 @@ function renderAccounts() {
         <thead>
           <tr>
             ${state.emailConfigured ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
-            <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Type</th><th>Contact</th>
-            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Sales Rep</th><th class="mobile-hide">Location</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
+            <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Type</th>
+            <th class="mobile-hide">Preferred</th><th class="mobile-hide">Location</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 10 : 9}" class="empty-state">No accounts found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 8 : 7}" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
               ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span>${(() => { let t = []; try { t = JSON.parse(a.Tags || '[]'); } catch(e) {} return t.length > 0 ? '<div class="tag-badges">' + t.map(x => '<span class="badge badge-tag">' + esc(x) + '</span>').join(' ') + '</div>' : ''; })()}</td>
               <td class="mobile-hide">${esc(a.Type)}</td>
-              <td>${esc(a.ContactName) || '—'}</td>
               <td class="mobile-hide">${methodBadge(a.PreferredMethod)}</td>
-              <td class="mobile-hide text-sm">${esc(a.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td class="mobile-hide text-sm">${esc(a.ServicedBy) || '<span class="text-muted">—</span>'}</td>
               <td>${statusBadge(a.Status)}</td>
               <td class="mobile-hide text-sm text-muted">${formatDate(a.LastContacted)}</td>
