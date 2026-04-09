@@ -115,12 +115,23 @@ function getHeader(headers, name) {
 }
 
 async function fetchNewEmails(gmail, targetAddress) {
-  const query = `to:${targetAddress} is:unread`;
-  const listRes = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 20 });
+  // Use after: date filter instead of is:unread so auto-read inboxes still work.
+  // Gmail after: uses epoch seconds. Default to last 24h on first poll.
+  const lastPoll = getSetting('inboundEmailLastPoll');
+  let afterEpoch;
+  if (lastPoll) {
+    // Subtract 60s buffer to avoid missing emails due to clock drift
+    afterEpoch = Math.floor(new Date(lastPoll).getTime() / 1000) - 60;
+  } else {
+    afterEpoch = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+  }
+
+  const query = `to:${targetAddress} after:${afterEpoch}`;
+  const listRes = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
   const messages = listRes.data.messages || [];
   if (messages.length === 0) return [];
 
-  // Get existing GmailMessageIds to deduplicate
+  // Deduplicate against already-processed emails
   const existing = getAllRows('INBOUND_EMAILS');
   const existingIds = new Set(existing.map(e => e.GmailMessageId));
 
@@ -158,17 +169,6 @@ async function fetchNewEmails(gmail, targetAddress) {
 
     addRow('INBOUND_EMAILS', emailRow);
     newEmails.push(emailRow);
-
-    // Mark as read in Gmail so we don't re-fetch
-    try {
-      await gmail.users.messages.modify({
-        userId: 'me',
-        id: msg.id,
-        requestBody: { removeLabelIds: ['UNREAD'] },
-      });
-    } catch (e) {
-      console.warn(`[inbound-email] Failed to mark message ${msg.id} as read:`, e.message);
-    }
   }
 
   return newEmails;
