@@ -114,19 +114,13 @@ function getHeader(headers, name) {
   return h ? h.value : '';
 }
 
-async function fetchNewEmails(gmail, targetAddress, lastPollIso) {
-  // Use after: date filter instead of is:unread so auto-read inboxes still work.
-  // Gmail after: uses epoch seconds. Default to last 24h on first poll.
-  let afterEpoch;
-  if (lastPollIso) {
-    // Subtract 60s buffer to avoid missing emails due to clock drift
-    afterEpoch = Math.floor(new Date(lastPollIso).getTime() / 1000) - 60;
-  } else {
-    afterEpoch = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
-  }
+async function fetchNewEmails(gmail, targetAddress) {
+  // Use a fixed 7-day lookback window. Deduplication by GmailMessageId
+  // ensures already-processed emails are never imported twice.
+  const afterEpoch = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
 
   const query = `to:${targetAddress} after:${afterEpoch}`;
-  console.log(`[inbound-email] Gmail query: "${query}" (after date: ${new Date(afterEpoch * 1000).toISOString()})`);
+  console.log(`[inbound-email] Gmail query: "${query}"`);
   const listRes = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 50 });
   const messages = listRes.data.messages || [];
   console.log(`[inbound-email] Gmail returned ${messages.length} message(s)`);
@@ -384,12 +378,10 @@ async function pollOnce(userTokens) {
   if (!gmail) return { skipped: true, reason: 'no Google OAuth tokens — log in to grant access' };
 
   try {
-    // Read last poll time BEFORE updating it, so fetchNewEmails uses the previous value
-    const previousPoll = getSetting('inboundEmailLastPoll');
     setSetting('inboundEmailLastPoll', new Date().toISOString());
 
-    // Fetch new emails since the previous poll
-    const newEmails = await fetchNewEmails(gmail, targetAddress, previousPoll);
+    // Fetch new emails (7-day lookback, deduped by GmailMessageId)
+    const newEmails = await fetchNewEmails(gmail, targetAddress);
     console.log(`[inbound-email] Fetched ${newEmails.length} new email(s)`);
 
     let ordersCreated = 0;
