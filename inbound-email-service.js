@@ -396,12 +396,24 @@ async function parseEmails(emails) {
         Error: '',
       });
 
-      // Auto-create draft if confidence is not low and has items
-      if (parsed.confidence !== 'low' && parsed.items && parsed.items.length > 0) {
-        await createDraftOrder(parsed, email.ID);
-        ordersCreated++;
-      } else if (parsed.confidence === 'low') {
+      console.log(`[inbound-email] Parsed email ${email.ID}: confidence=${parsed.confidence}, items=${(parsed.items || []).length}, account=${parsed.accountName || '?'}`);
+
+      if (parsed.confidence === 'low') {
         updateRow('INBOUND_EMAILS', email.ID, { Status: 'skipped' });
+        console.log(`[inbound-email] Skipped email ${email.ID} (low confidence)`);
+      } else if (!parsed.items || parsed.items.length === 0) {
+        console.log(`[inbound-email] No order created for email ${email.ID} (no items parsed)`);
+      } else {
+        // Check if account can be matched before auto-creating
+        const accountMatch = matchAccount(parsed.accountName, accounts);
+        if (accountMatch) {
+          await createDraftOrder(parsed, email.ID);
+          ordersCreated++;
+          console.log(`[inbound-email] Draft order created for email ${email.ID} (account: ${accountMatch.Name})`);
+        } else {
+          // Leave as "parsed" for manual review — user can create order from the queue
+          console.log(`[inbound-email] Account "${parsed.accountName || '?'}" not matched — email ${email.ID} left for manual review`);
+        }
       }
     } catch (err) {
       console.error(`[inbound-email] Error parsing email ${email.ID}:`, err.message);
@@ -496,5 +508,6 @@ module.exports = {
   isRunning,
   createDraftOrder,
   parseEmailWithGemini,
+  matchAccount,
   getSetting,
 };

@@ -3,6 +3,7 @@
 const express = require('express');
 const { getAllRows, getRow, updateRow, deleteRow } = require('../db');
 const inboundService = require('../inbound-email-service');
+const { matchAccount } = inboundService;
 
 const router = express.Router();
 
@@ -15,11 +16,24 @@ router.get('/', (req, res) => {
     }
     // Sort newest first
     emails.sort((a, b) => (b.ReceivedAt || b.CreatedAt || '').localeCompare(a.ReceivedAt || a.CreatedAt || ''));
-    // Don't send full body in list view
-    res.json(emails.map(e => ({
-      ...e,
-      Body: e.Body ? e.Body.substring(0, 200) + (e.Body.length > 200 ? '...' : '') : '',
-    })));
+    // Don't send full body in list view; include account match info
+    const accounts = getAllRows('ACCOUNTS');
+    res.json(emails.map(e => {
+      const row = {
+        ...e,
+        Body: e.Body ? e.Body.substring(0, 200) + (e.Body.length > 200 ? '...' : '') : '',
+      };
+      if (e.ParsedData) {
+        try {
+          const parsed = JSON.parse(e.ParsedData);
+          if (parsed.accountName) {
+            const matched = matchAccount(parsed.accountName, accounts);
+            row._accountMatched = !!matched;
+          }
+        } catch { /* ignore */ }
+      }
+      return row;
+    }));
   } catch (err) {
     console.error('[inbound-emails]', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -48,7 +62,21 @@ router.get('/:id', (req, res) => {
   try {
     const email = getRow('INBOUND_EMAILS', req.params.id);
     if (!email) return res.status(404).json({ error: 'Email not found' });
-    res.json(email);
+
+    // Include account match info when parsed data exists
+    const result = { ...email };
+    if (email.ParsedData) {
+      try {
+        const parsed = JSON.parse(email.ParsedData);
+        if (parsed.accountName) {
+          const accounts = getAllRows('ACCOUNTS');
+          const matched = matchAccount(parsed.accountName, accounts);
+          result._accountMatched = !!matched;
+          result._accountMatchedName = matched ? matched.Name : '';
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    res.json(result);
   } catch (err) {
     console.error('[inbound-emails]', err.message);
     res.status(500).json({ error: 'Internal server error' });

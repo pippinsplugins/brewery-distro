@@ -44,7 +44,7 @@ function renderInboundEmailQueue(emails) {
       <td>${esc(date)}<br><span class="text-sm text-muted">${esc(time)}</span></td>
       <td>${esc(e.FromName || e.From)}</td>
       <td>${esc(e.Subject)}</td>
-      <td>${statusBadge(e.Status)}</td>
+      <td>${statusBadge(e.Status)}${e.Status === 'parsed' && e._accountMatched === false ? ' <span class="badge badge-warning" title="Account not matched">No account</span>' : ''}</td>
       <td>${actions}</td>
     </tr>`;
   }).join('');
@@ -81,9 +81,18 @@ async function viewInboundEmailDetail(id) {
           medium: 'badge-warning',
           low: 'badge-danger',
         };
+        const accountWarning = (email._accountMatched === false && parsed.accountName)
+          ? `<div style="background:var(--warning-bg, #fff3cd);border:1px solid var(--warning-border, #ffc107);padding:8px 12px;border-radius:6px;margin-top:12px;font-size:13px">
+              <strong>Account not matched:</strong> "${esc(parsed.accountName)}" does not match any known account. You can still create a draft order manually.
+            </div>`
+          : (email._accountMatched && email._accountMatchedName && email._accountMatchedName !== parsed.accountName
+            ? `<div class="text-sm text-muted" style="margin-top:4px">Matched to: ${esc(email._accountMatchedName)}</div>`
+            : '');
+
         parsedHtml = `
           <div style="margin-top:16px">
             <h4>Parsed Data <span class="badge ${confidenceBadge[parsed.confidence] || 'badge-neutral'}">${esc(parsed.confidence)} confidence</span></h4>
+            ${accountWarning}
             <div class="form-row" style="margin-top:8px">
               <div class="form-group" style="flex:1"><label>Account</label><p>${esc(parsed.accountName || '—')}</p></div>
               <div class="form-group" style="flex:1"><label>Contact</label><p>${esc(parsed.contactName || '—')}</p></div>
@@ -107,6 +116,25 @@ async function viewInboundEmailDetail(id) {
 
     const errorHtml = email.Error ? `<div class="text-sm text-danger" style="margin-top:8px">Error: ${esc(email.Error)}</div>` : '';
 
+    // Build action buttons for the detail view
+    let detailActions = '';
+    const btns = [];
+    if (email.Status === 'pending' || email.Status === 'error') {
+      btns.push(`<button class="btn btn-sm btn-secondary" onclick="retryInboundEmail('${esc(email.ID)}')">Parse</button>`);
+    }
+    if (email.Status === 'parsed') {
+      btns.push(`<button class="btn btn-sm btn-primary" onclick="createOrderFromEmail('${esc(email.ID)}')">Create Order</button>`);
+    }
+    if (email.Status === 'order_created' && email.OrderID) {
+      btns.push(`<button class="btn btn-sm btn-secondary" onclick="viewEmailOrder('${esc(email.OrderID)}')">View Order</button>`);
+    }
+    if (email.Status !== 'order_created' && email.Status !== 'skipped') {
+      btns.push(`<button class="btn btn-sm btn-ghost" onclick="skipInboundEmail('${esc(email.ID)}')">Skip</button>`);
+    }
+    if (btns.length > 0) {
+      detailActions = `<div style="margin-top:16px;display:flex;gap:8px">${btns.join('')}</div>`;
+    }
+
     const html = `
       <div class="form-row">
         <div class="form-group" style="flex:1"><label>From</label><p>${esc(email.FromName || email.From)}</p></div>
@@ -119,6 +147,7 @@ async function viewInboundEmailDetail(id) {
       </div>
       ${errorHtml}
       ${parsedHtml}
+      ${detailActions}
     `;
 
     modal.open('Email Detail', html);
