@@ -326,6 +326,7 @@ async function createDraftOrder(parsedData, inboundEmailId, senderEmail) {
   const account = matchAccount(parsedData.accountName, accounts, senderEmail);
   const accountId = account ? account.ID : '';
   const accountName = account ? account.Name : (parsedData.accountName || 'Unknown');
+  const location = account ? (account.ServicedBy || '') : '';
 
   // Build order items
   const orderItems = [];
@@ -358,7 +359,7 @@ async function createDraftOrder(parsedData, inboundEmailId, senderEmail) {
     ID: orderId,
     AccountID: accountId,
     AccountName: accountName,
-    Location: '',
+    Location: location,
     StaffID: '',
     StaffName: '',
     OrderDate: new Date().toISOString().split('T')[0],
