@@ -40,13 +40,19 @@ function getStoredGoogleTokens() {
   return { refreshToken: tokenRow.Value };
 }
 
-function createGmailClient() {
+function createGmailClient(userTokens) {
   if (!CLIENT_ID || !CLIENT_SECRET) return null;
-  const tokens = getStoredGoogleTokens();
-  if (!tokens) return null;
+
+  // Prefer explicit user tokens (from a logged-in session) over stored refresh token.
+  // Session tokens always reflect the latest granted scopes.
+  const tokens = userTokens || getStoredGoogleTokens();
+  if (!tokens || (!tokens.refreshToken && !tokens.accessToken)) return null;
 
   const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-  oauth2Client.setCredentials({ refresh_token: tokens.refreshToken });
+  const creds = {};
+  if (tokens.accessToken)  creds.access_token  = tokens.accessToken;
+  if (tokens.refreshToken) creds.refresh_token = tokens.refreshToken;
+  oauth2Client.setCredentials(creds);
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
 
@@ -366,14 +372,14 @@ async function createDraftOrder(parsedData, inboundEmailId) {
 
 // ── Poll orchestrator ───────────────────────────────────────────────
 
-async function pollOnce() {
+async function pollOnce(userTokens) {
   const enabled = getSetting('inboundEmailEnabled');
   if (enabled !== 'true') return { skipped: true, reason: 'disabled' };
 
   const targetAddress = getSetting('inboundEmail');
   if (!targetAddress) return { skipped: true, reason: 'no target address' };
 
-  const gmail = createGmailClient();
+  const gmail = createGmailClient(userTokens);
   if (!gmail) return { skipped: true, reason: 'no Google OAuth tokens — log in to grant access' };
 
   try {

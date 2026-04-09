@@ -56,9 +56,11 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/inbound-emails/poll-now — trigger immediate poll
+// Uses the logged-in user's OAuth tokens (most up-to-date scopes).
 router.post('/poll-now', async (req, res) => {
   try {
-    const result = await inboundService.pollOnce();
+    const userTokens = req.user ? { accessToken: req.user.accessToken, refreshToken: req.user.refreshToken } : null;
+    const result = await inboundService.pollOnce(userTokens);
     res.json(result);
   } catch (err) {
     console.error('[inbound-emails] poll-now error:', err.message);
