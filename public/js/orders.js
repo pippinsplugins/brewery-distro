@@ -646,6 +646,30 @@ function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice) {
   recalcOrderAmount();
 }
 
+function addUnmatchedLineItem(item) {
+  const wrap = document.getElementById('order-line-items');
+  if (!wrap) return;
+  const price = parseFloat(item.UnitPrice || 0);
+  const qty = parseInt(item.Quantity || 0);
+  const total = price * qty;
+
+  const div = document.createElement('div');
+  div.className = 'order-line-item';
+  div.setAttribute('data-inventory-id', item.InventoryID || '');
+  div.setAttribute('data-unit-price', price.toFixed(2));
+  div.setAttribute('data-price-tier', item.PriceTier || '');
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  div.innerHTML = `
+    <span style="flex:2;min-width:120px;font-size:13px" title="Not in current location inventory">${esc(item.ProductName)}${item.Format ? ' — ' + esc(item.Format) : ''}</span>
+    <span class="line-item-price text-sm" style="min-width:55px">${price ? '$' + price.toFixed(2) : '—'}</span>
+    <input class="form-control line-item-qty" type="number" min="0" value="${qty}" style="width:60px"
+      onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
+    <span class="line-item-total text-sm fw-600" style="min-width:55px">${total ? '$' + total.toFixed(2) : ''}</span>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
+  wrap.appendChild(div);
+  recalcOrderAmount();
+}
+
 function removeOrderLineItem(btn) {
   const row = btn.closest('.order-line-item');
   if (row) row.remove();
@@ -712,12 +736,12 @@ function getOrderLineItems() {
   const rows = document.querySelectorAll('#order-line-items .order-line-item');
   const items = [];
   rows.forEach(row => {
-    const invId = row.getAttribute('data-inventory-id');
+    const invId = row.getAttribute('data-inventory-id') || '';
     const qtyEl = row.querySelector('.line-item-qty');
     const qty = parseInt(qtyEl?.value) || 0;
     const unitPrice = row.getAttribute('data-unit-price') || '';
     const priceTier = row.getAttribute('data-price-tier') || '';
-    if (invId && qty > 0) {
+    if (qty > 0) {
       items.push({ inventoryId: invId, qty, unitPrice, priceTier });
     }
   });
@@ -773,8 +797,12 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   // Editable mode: render line-item builder and populate from order items
   wrap.innerHTML = orderProductsHtml();
   for (const item of orderItems) {
-    if (item.InventoryID) {
+    if (item.InventoryID && _orderFormInventory.find(i => i.ID === item.InventoryID)) {
       addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
+    } else if (item.ProductName) {
+      // Item has no matching inventory (out of stock, different location, or unmatched)
+      // Show as a non-editable line so the user can see what was ordered
+      addUnmatchedLineItem(item);
     }
   }
 }
@@ -897,11 +925,17 @@ function collectOrderProducts() {
 
 function collectOrderItems() {
   const items = [];
-  for (const { inventoryId, qty, unitPrice, priceTier } of getOrderLineItems()) {
-    if (qty > 0) {
-      const item = _orderFormInventory.find(i => i.ID === inventoryId);
-      if (!item) continue;
-      const price = unitPrice ? parseFloat(unitPrice) : parseFloat(item.PricePerUnit || 0);
+  const rows = document.querySelectorAll('#order-line-items .order-line-item');
+  rows.forEach(row => {
+    const invId = row.getAttribute('data-inventory-id') || '';
+    const qtyEl = row.querySelector('.line-item-qty');
+    const qty = parseInt(qtyEl?.value) || 0;
+    if (qty <= 0) return;
+    const unitPrice = row.getAttribute('data-unit-price') || '';
+    const priceTier = row.getAttribute('data-price-tier') || '';
+    const item = invId ? _orderFormInventory.find(i => i.ID === invId) : null;
+    const price = unitPrice ? parseFloat(unitPrice) : (item ? parseFloat(item.PricePerUnit || 0) : 0);
+    if (item) {
       items.push({
         InventoryID: item.ID,
         ProductName: item.Name,
@@ -911,8 +945,22 @@ function collectOrderItems() {
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
       });
+    } else {
+      // Unmatched item — preserve the product name from the row text
+      const nameSpan = row.querySelector('span[title]');
+      const text = nameSpan ? nameSpan.textContent : '';
+      const [productName, format] = text.includes(' — ') ? text.split(' — ', 2) : [text, ''];
+      items.push({
+        InventoryID: invId,
+        ProductName: productName.trim(),
+        Format: (format || '').trim(),
+        PriceTier: priceTier || '',
+        Quantity: qty,
+        UnitPrice: price.toFixed(2),
+        LineTotal: (qty * price).toFixed(2),
+      });
     }
-  }
+  });
   return items;
 }
 
