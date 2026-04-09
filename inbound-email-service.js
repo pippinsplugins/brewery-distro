@@ -424,6 +424,19 @@ async function parseEmails(emails) {
   for (const email of emails) {
     try {
       const parsed = await parseEmailWithGemini(email.Body, email.Subject, accounts, productList);
+
+      // Extract sender email from From field (e.g. "Name <email@example.com>")
+      const senderEmail = extractEmailAddress(email.From);
+
+      // Fill in blanks from email metadata + account match
+      const accountMatch = matchAccount(parsed.accountName, accounts, senderEmail);
+      if (accountMatch) {
+        if (!parsed.accountName) parsed.accountName = accountMatch.Name;
+      }
+      if (!parsed.contactName && email.FromName) {
+        parsed.contactName = email.FromName;
+      }
+
       updateRow('INBOUND_EMAILS', email.ID, {
         Status: 'parsed',
         ParsedData: JSON.stringify(parsed),
@@ -432,25 +445,19 @@ async function parseEmails(emails) {
 
       console.log(`[inbound-email] Parsed email ${email.ID}: confidence=${parsed.confidence}, items=${(parsed.items || []).length}, account=${parsed.accountName || '?'}`);
 
-      // Extract sender email from From field (e.g. "Name <email@example.com>")
-      const senderEmail = extractEmailAddress(email.From);
 
       if (parsed.confidence === 'low') {
         updateRow('INBOUND_EMAILS', email.ID, { Status: 'skipped' });
         console.log(`[inbound-email] Skipped email ${email.ID} (low confidence)`);
       } else if (!parsed.items || parsed.items.length === 0) {
         console.log(`[inbound-email] No order created for email ${email.ID} (no items parsed)`);
+      } else if (accountMatch) {
+        await createDraftOrder(parsed, email.ID, senderEmail);
+        ordersCreated++;
+        console.log(`[inbound-email] Draft order created for email ${email.ID} (account: ${accountMatch.Name})`);
       } else {
-        // Check if account can be matched (by email first, then by name)
-        const accountMatch = matchAccount(parsed.accountName, accounts, senderEmail);
-        if (accountMatch) {
-          await createDraftOrder(parsed, email.ID, senderEmail);
-          ordersCreated++;
-          console.log(`[inbound-email] Draft order created for email ${email.ID} (account: ${accountMatch.Name})`);
-        } else {
-          // Leave as "parsed" for manual review — user can create order from the queue
-          console.log(`[inbound-email] Account not matched (name="${parsed.accountName || '?'}", email="${senderEmail || '?'}") — email ${email.ID} left for manual review`);
-        }
+        // Leave as "parsed" for manual review — user can create order from the queue
+        console.log(`[inbound-email] Account not matched (name="${parsed.accountName || '?'}", email="${senderEmail || '?'}") — email ${email.ID} left for manual review`);
       }
     } catch (err) {
       console.error(`[inbound-email] Error parsing email ${email.ID}:`, err.message);
