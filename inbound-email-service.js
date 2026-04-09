@@ -184,7 +184,12 @@ async function parseEmailWithGemini(emailBody, subject, accounts, products) {
     return `${p.Name}${formats ? ` (${formats})` : ''}`;
   }).join('; ');
 
+  const today = new Date().toISOString().split('T')[0];
+  const currentYear = new Date().getFullYear();
+
   const prompt = `You are an order-parsing assistant for a brewery distribution company. Extract order details from the email below.
+
+Today's date is ${today}.
 
 Known accounts: ${accountNames || '(none)'}
 Known products: ${productList || '(none)'}
@@ -212,6 +217,7 @@ Rules:
 - Use "medium" when some items or the account are ambiguous.
 - Use "low" when the email doesn't appear to be an order at all.
 - For quantities, default to 1 if not specified.
+- For dates, assume the current year (${currentYear}) unless a different year is explicitly stated.
 - Respond with ONLY the JSON object.`;
 
   const result = await model.generateContent(prompt);
@@ -546,11 +552,34 @@ function isRunning() {
   return !!_pollTimer;
 }
 
+// ── Startup fix: backfill Location on email orders ──────────────────
+
+function fixEmailOrderLocations() {
+  try {
+    const orders = getAllRows('ORDERS');
+    const accounts = getAllRows('ACCOUNTS');
+    let fixed = 0;
+    for (const order of orders) {
+      if (!order.Location && (order.Notes || '').includes('[Email Order]') && order.AccountID) {
+        const account = accounts.find(a => a.ID === order.AccountID);
+        if (account && account.ServicedBy) {
+          updateRow('ORDERS', order.ID, { Location: account.ServicedBy });
+          fixed++;
+        }
+      }
+    }
+    if (fixed > 0) console.log(`[inbound-email] Fixed Location on ${fixed} email order(s)`);
+  } catch (err) {
+    console.error('[inbound-email] fixEmailOrderLocations error:', err.message);
+  }
+}
+
 module.exports = {
   pollOnce,
   startPolling,
   stopPolling,
   isRunning,
+  fixEmailOrderLocations,
   createDraftOrder,
   parseEmailWithGemini,
   matchAccount,
