@@ -1006,6 +1006,10 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 .text-sm      { font-size: 12px; }
 .hidden       { display: none !important; }
 .text-danger  { color: #c62828; }
+.action-link  { color: var(--text-secondary); text-decoration: none; font-weight: 500; }
+.action-link:hover { color: var(--accent); }
+.action-link.text-danger { color: #c62828; }
+.action-link.text-danger:hover { color: #b71c1c; }
 .text-warning { color: #e65100; }
 .text-success { color: var(--green-dark); }
 .fw-600       { font-weight: 600; }
