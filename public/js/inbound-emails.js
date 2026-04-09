@@ -34,7 +34,9 @@ function renderInboundEmailQueue(emails, total) {
     if (e.Status === 'pending' || e.Status === 'error') {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="retryInboundEmail('${esc(e.ID)}')">Parse</button>`;
     }
-    if (e.Status === 'parsed' || (e.Status === 'order_created' && e._orderMissing)) {
+    if (e.Status === 'parsed' && e._accountMatched === false) {
+      actions += ` <button class="btn btn-ghost btn-sm" onclick="createAccountAndOrder('${esc(e.ID)}')">Create Account & Order</button>`;
+    } else if (e.Status === 'parsed' || (e.Status === 'order_created' && e._orderMissing)) {
       actions += ` <button class="btn btn-ghost btn-sm" onclick="resetAndCreateOrder('${esc(e.ID)}')">Create Order</button>`;
     }
     if (e.Status === 'order_created' && e.OrderID && !e._orderMissing) {
@@ -179,7 +181,10 @@ async function viewInboundEmailDetail(id) {
     if (email.Status === 'pending' || email.Status === 'error') {
       btns.push(`<button class="btn btn-sm btn-secondary" onclick="retryInboundEmail('${esc(email.ID)}')">Parse</button>`);
     }
-    if (email.Status === 'parsed' || (email.Status === 'order_created' && email._orderMissing)) {
+    if (email.Status === 'parsed' && email._accountMatched === false) {
+      btns.push(`<button class="btn btn-sm btn-primary" onclick="createAccountAndOrder('${esc(email.ID)}')">Create Account & Order</button>`);
+      btns.push(`<button class="btn btn-sm btn-secondary" onclick="resetAndCreateOrder('${esc(email.ID)}')">Create Order Without Account</button>`);
+    } else if (email.Status === 'parsed' || (email.Status === 'order_created' && email._orderMissing)) {
       btns.push(`<button class="btn btn-sm btn-primary" onclick="resetAndCreateOrder('${esc(email.ID)}')">Create Order</button>`);
     }
     if (email.Status === 'order_created' && email.OrderID && !email._orderMissing) {
@@ -276,6 +281,71 @@ async function viewEmailOrder(orderId) {
     }
   };
   tryOpen(15);
+}
+
+async function createAccountAndOrder(emailId) {
+  try {
+    const email = await api.get(`/api/inbound-emails/${emailId}`);
+    let parsed = {};
+    try { parsed = JSON.parse(email.ParsedData || '{}'); } catch { /* ignore */ }
+
+    const senderEmail = email.From ? ((email.From.match(/<([^>]+)>/) || [])[1] || email.From) : '';
+    const contactName = parsed.contactName || email.FromName || '';
+    const accountName = parsed.accountName || contactName || '';
+
+    modal.open('Create Account & Order', `
+      <p class="text-sm text-muted" style="margin-bottom:12px">Create a new account from this email, then automatically create the draft order.</p>
+      <div class="form-group">
+        <label>Account / Business Name <span class="required">*</span></label>
+        <input class="form-control" id="f-acct-name" value="${esc(accountName)}" placeholder="e.g. The Rusty Tap" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contact Name</label>
+          <input class="form-control" id="f-acct-contact" value="${esc(contactName)}" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-control" id="f-acct-email" type="email" value="${esc(senderEmail)}" />
+        </div>
+      </div>
+      ${typeof LOCATIONS !== 'undefined' && LOCATIONS.length > 1 ? `<div class="form-group">
+        <label>Serviced By</label>
+        <select class="form-control" id="f-acct-location">
+          <option value="">-- None --</option>
+          ${LOCATIONS.map(l => '<option value="' + esc(l) + '">' + esc(l) + '</option>').join('')}
+        </select>
+      </div>` : ''}
+    `, async () => {
+      const name = val('f-acct-name');
+      if (!name) { toast('Account name is required', 'error'); return; }
+
+      try {
+        // Create the account
+        const account = await api.post('/api/accounts', {
+          Name: name,
+          ContactName: val('f-acct-contact'),
+          Email: val('f-acct-email'),
+          ServicedBy: document.getElementById('f-acct-location') ? val('f-acct-location') : '',
+          Status: 'Active',
+        });
+
+        toast('Account created — creating order...');
+
+        // Reset email and create the order (processInboundEmail will now match the new account)
+        await api.put('/api/inbound-emails/' + emailId + '/reset');
+        await api.post('/api/inbound-emails/' + emailId + '/create-order');
+
+        modal.close();
+        toast('Account and draft order created');
+        loadInboundEmails();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+  } catch (err) {
+    toast('Failed to load email: ' + err.message, 'error');
+  }
 }
 
 async function deleteInboundEmail(id) {
