@@ -67,14 +67,14 @@ if (oauthConfigured) {
         if (saved && saved.Value) effectiveRefreshToken = saved.Value;
       }
 
-      // Store only the fields we actually need in the session.
+      // Only store non-sensitive profile fields in the session.
+      // OAuth tokens are NOT stored in the session — refresh tokens are
+      // persisted in the Settings table and looked up by user ID when needed.
       const user = {
         id:           profile.id,
         name:         profile.displayName,
         email:        (profile.emails && profile.emails[0] && profile.emails[0].value) || '',
         photo:        (profile.photos && profile.photos[0] && profile.photos[0].value) || '',
-        accessToken:  accessToken  || '',
-        refreshToken: effectiveRefreshToken,
       };
 
       return done(null, user);
@@ -84,7 +84,10 @@ if (oauthConfigured) {
   console.warn('[auth] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not set – OAuth login is disabled.');
 }
 
-passport.serializeUser((user, done) => done(null, user));
+// Only store safe profile fields in the session — never OAuth tokens.
+passport.serializeUser((user, done) => {
+  done(null, { id: user.id, name: user.name, email: user.email, photo: user.photo });
+});
 passport.deserializeUser((user, done) => done(null, user));
 
 // Helper – used by OAuth routes to reject when not configured.

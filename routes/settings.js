@@ -7,6 +7,44 @@ const { getAllRows, addRow, updateRow } = require('../db');
 
 const router = express.Router();
 
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/** Strip sensitive keys and parse JSON values before returning settings to the client. */
+function sanitizeSettings(settings) {
+  // Flag presence of secrets before removing them
+  const hasGeminiKey = !!settings.geminiApiKey;
+  const hasWebhookToken = !!settings.inboundEmailWebhookToken;
+
+  // Remove known secret keys
+  delete settings.qboTokens;
+  delete settings.apiKeys;
+  delete settings.geminiApiKey;
+  delete settings.inboundEmailWebhookToken;
+
+  // Remove Google refresh tokens (stored as google_refresh_token:<profileId>)
+  for (const key of Object.keys(settings)) {
+    if (key.startsWith('google_refresh_token:')) delete settings[key];
+  }
+
+  if (hasGeminiKey) settings.geminiApiKeySet = true;
+  if (hasWebhookToken) settings.inboundEmailWebhookTokenSet = true;
+
+  // Parse JSON values
+  if (settings.locations) {
+    try { settings.locations = JSON.parse(settings.locations); }
+    catch (e) { settings.locations = []; }
+  }
+  if (settings.accountTags) {
+    try { settings.accountTags = JSON.parse(settings.accountTags); }
+    catch (e) { settings.accountTags = []; }
+  }
+  if (settings.kegDeposits) {
+    try { settings.kegDeposits = JSON.parse(settings.kegDeposits); }
+    catch (e) { settings.kegDeposits = {}; }
+  }
+  return settings;
+}
+
 // GET /api/settings — returns settings as a key-value map
 router.get('/', async (req, res) => {
   try {
@@ -15,34 +53,20 @@ router.get('/', async (req, res) => {
     for (const row of rows) {
       settings[row.Key] = row.Value;
     }
-    // Strip sensitive data — flag presence before deleting
-    const hasGeminiKey = !!settings.geminiApiKey;
-    const hasWebhookToken = !!settings.inboundEmailWebhookToken;
-    delete settings.qboTokens;
-    delete settings.apiKeys;
-    delete settings.geminiApiKey;
-    delete settings.inboundEmailWebhookToken;
-    if (hasGeminiKey) settings.geminiApiKeySet = true;
-    if (hasWebhookToken) settings.inboundEmailWebhookTokenSet = true;
-    // Parse JSON values
-    if (settings.locations) {
-      try { settings.locations = JSON.parse(settings.locations); }
-      catch (e) { settings.locations = []; }
-    }
-    if (settings.accountTags) {
-      try { settings.accountTags = JSON.parse(settings.accountTags); }
-      catch (e) { settings.accountTags = []; }
-    }
-    if (settings.kegDeposits) {
-      try { settings.kegDeposits = JSON.parse(settings.kegDeposits); }
-      catch (e) { settings.kegDeposits = {}; }
-    }
-    res.json(settings);
+    res.json(sanitizeSettings(settings));
   } catch (err) {
     console.error(`[settings] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Keys that may be set through the general settings PUT endpoint.
+// Secrets (qboTokens, apiKeys, google_refresh_token:*, inboundEmailWebhookToken)
+// are managed through dedicated endpoints and cannot be overwritten here.
+const ALLOWED_SETTINGS_KEYS = new Set([
+  'locations', 'accountTags', 'kegDeposits', 'companyName',
+  'inboundEmail', 'geminiApiKey', 'qboTaxCodeId',
+]);
 
 // PUT /api/settings — accepts a key-value map, upserts each key
 router.put('/', async (req, res) => {
@@ -55,6 +79,7 @@ router.put('/', async (req, res) => {
     }
 
     for (const [key, rawValue] of Object.entries(incoming)) {
+      if (!ALLOWED_SETTINGS_KEYS.has(key)) continue; // Skip unknown/sensitive keys
       const value = (typeof rawValue === 'object') ? JSON.stringify(rawValue) : String(rawValue);
       const now = new Date().toISOString().split('T')[0];
 
@@ -68,26 +93,8 @@ router.put('/', async (req, res) => {
     // Return updated settings
     const updated = await getAllRows('SETTINGS');
     const result = {};
-    for (const row of updated) {
-      result[row.Key] = row.Value;
-    }
-    delete result.qboTokens;
-    delete result.apiKeys;
-    delete result.geminiApiKey;
-    delete result.inboundEmailWebhookToken;
-    if (result.locations) {
-      try { result.locations = JSON.parse(result.locations); }
-      catch (e) { result.locations = []; }
-    }
-    if (result.accountTags) {
-      try { result.accountTags = JSON.parse(result.accountTags); }
-      catch (e) { result.accountTags = []; }
-    }
-    if (result.kegDeposits) {
-      try { result.kegDeposits = JSON.parse(result.kegDeposits); }
-      catch (e) { result.kegDeposits = {}; }
-    }
-    res.json(result);
+    for (const row of updated) result[row.Key] = row.Value;
+    res.json(sanitizeSettings(result));
   } catch (err) {
     console.error(`[settings] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
@@ -136,17 +143,9 @@ router.put('/rename-location', async (req, res) => {
     const updated = await getAllRows('SETTINGS');
     const result = {};
     for (const row of updated) result[row.Key] = row.Value;
-    delete result.qboTokens;
-    if (result.locations) {
-      try { result.locations = JSON.parse(result.locations); }
-      catch (e) { result.locations = []; }
-    }
-    if (result.accountTags) {
-      try { result.accountTags = JSON.parse(result.accountTags); }
-      catch (e) { result.accountTags = []; }
-    }
-    result._renamed = { inventoryUpdated, ordersUpdated };
-    res.json(result);
+    const safe = sanitizeSettings(result);
+    safe._renamed = { inventoryUpdated, ordersUpdated };
+    res.json(safe);
   } catch (err) {
     console.error(`[settings] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
@@ -189,17 +188,9 @@ router.put('/rename-account-tag', async (req, res) => {
     const updated = await getAllRows('SETTINGS');
     const result = {};
     for (const row of updated) result[row.Key] = row.Value;
-    delete result.qboTokens;
-    if (result.locations) {
-      try { result.locations = JSON.parse(result.locations); }
-      catch (e) { result.locations = []; }
-    }
-    if (result.accountTags) {
-      try { result.accountTags = JSON.parse(result.accountTags); }
-      catch (e) { result.accountTags = []; }
-    }
-    result._renamed = { accountsUpdated };
-    res.json(result);
+    const safe = sanitizeSettings(result);
+    safe._renamed = { accountsUpdated };
+    res.json(safe);
   } catch (err) {
     console.error(`[settings] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

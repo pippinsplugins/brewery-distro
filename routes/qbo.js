@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto      = require('crypto');
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
 const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, QBO_APP_URL } = require('../qbo-service');
@@ -19,10 +20,14 @@ authRouter.get('/', (req, res) => {
   const redirectUri = process.env.QBO_REDIRECT_URI
     || `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
 
+  // Generate a random nonce to prevent CSRF on the OAuth callback
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.qboOAuthState = state;
+
   const oauthClient = getOAuthClient(redirectUri);
   const authUri = oauthClient.authorizeUri({
     scope:    [OAuthClient.scopes.Accounting],
-    state:    'qbo-connect',
+    state,
   });
   res.redirect(authUri);
 });
@@ -31,6 +36,14 @@ authRouter.get('/', (req, res) => {
 authRouter.get('/callback', async (req, res) => {
   try {
     const basePath = process.env.BASE_PATH || '';
+
+    // Verify the OAuth state nonce to prevent CSRF
+    if (!req.session.qboOAuthState || req.query.state !== req.session.qboOAuthState) {
+      console.error('[qbo] OAuth state mismatch — possible CSRF attempt');
+      return res.redirect(basePath + '/#settings?qboError=invalid_state');
+    }
+    delete req.session.qboOAuthState;
+
     const redirectUri = process.env.QBO_REDIRECT_URI
       || `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
 
@@ -127,7 +140,12 @@ apiRouter.get('/invoice-pdf/:orderId', (req, res) => {
     if (!order || !order.InvoicePdf) {
       return res.status(404).json({ error: 'Invoice PDF not found' });
     }
-    const pdfPath = path.join(__dirname, '..', 'data', 'invoices', order.InvoicePdf);
+    const invoicesDir = path.resolve(path.join(__dirname, '..', 'data', 'invoices'));
+    const pdfPath = path.resolve(path.join(invoicesDir, order.InvoicePdf));
+    // Prevent path traversal — resolved path must stay within invoices directory
+    if (!pdfPath.startsWith(invoicesDir + path.sep)) {
+      return res.status(400).json({ error: 'Invalid invoice path' });
+    }
     if (!fs.existsSync(pdfPath)) {
       return res.status(404).json({ error: 'Invoice PDF file missing' });
     }
