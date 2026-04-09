@@ -114,14 +114,13 @@ function getHeader(headers, name) {
   return h ? h.value : '';
 }
 
-async function fetchNewEmails(gmail, targetAddress) {
+async function fetchNewEmails(gmail, targetAddress, lastPollIso) {
   // Use after: date filter instead of is:unread so auto-read inboxes still work.
   // Gmail after: uses epoch seconds. Default to last 24h on first poll.
-  const lastPoll = getSetting('inboundEmailLastPoll');
   let afterEpoch;
-  if (lastPoll) {
+  if (lastPollIso) {
     // Subtract 60s buffer to avoid missing emails due to clock drift
-    afterEpoch = Math.floor(new Date(lastPoll).getTime() / 1000) - 60;
+    afterEpoch = Math.floor(new Date(lastPollIso).getTime() / 1000) - 60;
   } else {
     afterEpoch = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
   }
@@ -383,10 +382,12 @@ async function pollOnce(userTokens) {
   if (!gmail) return { skipped: true, reason: 'no Google OAuth tokens — log in to grant access' };
 
   try {
+    // Read last poll time BEFORE updating it, so fetchNewEmails uses the previous value
+    const previousPoll = getSetting('inboundEmailLastPoll');
     setSetting('inboundEmailLastPoll', new Date().toISOString());
 
-    // Fetch new emails
-    const newEmails = await fetchNewEmails(gmail, targetAddress);
+    // Fetch new emails since the previous poll
+    const newEmails = await fetchNewEmails(gmail, targetAddress, previousPoll);
     console.log(`[inbound-email] Fetched ${newEmails.length} new email(s)`);
 
     let ordersCreated = 0;
