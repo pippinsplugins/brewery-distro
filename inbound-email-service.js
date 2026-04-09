@@ -176,7 +176,7 @@ async function parseEmailWithGemini(emailBody, subject, accounts, products) {
   if (!apiKey) throw new Error('Gemini API key not configured');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const accountNames = accounts.map(a => a.Name).filter(Boolean).join(', ');
   const productList = products.map(p => {
