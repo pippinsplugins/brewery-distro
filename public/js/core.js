@@ -35,6 +35,7 @@ const _pagination = {
   profileTodos:    { page: 1, perPage: 10 },
   profileOrders:   { page: 1, perPage: 10 },
   profileKegs:     { page: 1, perPage: 10 },
+  inboundEmails:   { page: 1, perPage: 25 },
 };
 
 function paginate(filtered, viewKey) {

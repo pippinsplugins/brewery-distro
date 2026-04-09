@@ -7,7 +7,7 @@ const { matchAccount } = inboundService;
 
 const router = express.Router();
 
-// GET /api/inbound-emails — list emails (optional ?status= filter)
+// GET /api/inbound-emails — list emails (optional ?status= filter, paginated)
 router.get('/', (req, res) => {
   try {
     let emails = getAllRows('INBOUND_EMAILS');
@@ -16,9 +16,21 @@ router.get('/', (req, res) => {
     }
     // Sort newest first
     emails.sort((a, b) => (b.ReceivedAt || b.CreatedAt || '').localeCompare(a.ReceivedAt || a.CreatedAt || ''));
-    // Don't send full body in list view; include account match + order existence info
+
+    const total = emails.length;
+
+    // Pagination — default to first 25
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const perPage = parseInt(req.query.perPage) || 25;
+    if (perPage > 0) {
+      const start = (page - 1) * perPage;
+      emails = emails.slice(start, start + perPage);
+    }
+
+    // Load accounts once for all match checks
     const accounts = getAllRows('ACCOUNTS');
-    res.json(emails.map(e => {
+
+    const items = emails.map(e => {
       const row = {
         ...e,
         Body: e.Body ? e.Body.substring(0, 200) + (e.Body.length > 200 ? '...' : '') : '',
@@ -37,7 +49,9 @@ router.get('/', (req, res) => {
         } catch { /* ignore */ }
       }
       return row;
-    }));
+    });
+
+    res.json({ items, total, page, perPage });
   } catch (err) {
     console.error('[inbound-emails]', err.message);
     res.status(500).json({ error: 'Internal server error' });

@@ -1,15 +1,20 @@
 'use strict';
 
+let _inboundEmailFilter = '';  // '' = all, or a specific status
+
 async function loadInboundEmails() {
   try {
-    const emails = await api.get('/api/inbound-emails');
-    renderInboundEmailQueue(emails);
+    const pg = _pagination.inboundEmails;
+    let url = `/api/inbound-emails?page=${pg.page}&perPage=${pg.perPage}`;
+    if (_inboundEmailFilter) url += `&status=${encodeURIComponent(_inboundEmailFilter)}`;
+    const data = await api.get(url);
+    renderInboundEmailQueue(data.items, data.total);
   } catch (err) {
     toast('Failed to load email queue: ' + err.message, 'error');
   }
 }
 
-function renderInboundEmailQueue(emails) {
+function renderInboundEmailQueue(emails, total) {
   const statusBadge = (s) => {
     const map = {
       pending: 'badge-neutral',
@@ -52,23 +57,66 @@ function renderInboundEmailQueue(emails) {
     </tr>`;
   }).join('');
 
+  // Status filter tabs
+  const statuses = ['', 'pending', 'parsed', 'order_created', 'skipped', 'error'];
+  const labels = { '': 'All', pending: 'Pending', parsed: 'Parsed', order_created: 'Orders Created', skipped: 'Skipped', error: 'Errors' };
+  const filterTabs = statuses.map(s =>
+    `<button class="btn btn-sm ${_inboundEmailFilter === s ? 'btn-primary' : 'btn-ghost'}" onclick="_setInboundEmailFilter('${s}')">${labels[s]}</button>`
+  ).join('');
+
+  // Pagination
+  const pg = _pagination.inboundEmails;
+  const totalPages = pg.perPage > 0 ? Math.max(1, Math.ceil(total / pg.perPage)) : 1;
+  const showStart = total === 0 ? 0 : (pg.page - 1) * pg.perPage + 1;
+  const showEnd = total === 0 ? 0 : Math.min(pg.page * pg.perPage, total);
+
+  let pageNav = '';
+  if (totalPages > 1) {
+    const parts = [];
+    if (pg.page > 1) parts.push(`<button class="btn btn-ghost btn-sm" onclick="_inboundEmailPage(${pg.page - 1})">&laquo;</button>`);
+    let s = Math.max(1, pg.page - 2);
+    let e = Math.min(totalPages, s + 4);
+    s = Math.max(1, e - 4);
+    if (s > 1) parts.push(`<button class="btn btn-ghost btn-sm" onclick="_inboundEmailPage(1)">1</button>`);
+    if (s > 2) parts.push('<span class="pagination-ellipsis">&hellip;</span>');
+    for (let i = s; i <= e; i++) {
+      parts.push(`<button class="btn btn-sm ${i === pg.page ? 'btn-primary' : 'btn-ghost'}" onclick="_inboundEmailPage(${i})">${i}</button>`);
+    }
+    if (e < totalPages - 1) parts.push('<span class="pagination-ellipsis">&hellip;</span>');
+    if (e < totalPages) parts.push(`<button class="btn btn-ghost btn-sm" onclick="_inboundEmailPage(${totalPages})">${totalPages}</button>`);
+    if (pg.page < totalPages) parts.push(`<button class="btn btn-ghost btn-sm" onclick="_inboundEmailPage(${pg.page + 1})">&raquo;</button>`);
+    pageNav = `<div class="pagination" style="margin-top:12px;display:flex;gap:4px;align-items:center;justify-content:center">${parts.join('')}</div>`;
+  }
+
   const html = `
-    <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-      <p class="text-sm text-muted">${emails.length} email(s) in queue</p>
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      ${filterTabs}
+      <span style="margin-left:auto" class="text-sm text-muted">${showStart}–${showEnd} of ${total}</span>
       <button class="btn btn-sm btn-secondary" onclick="loadInboundEmails()">Refresh</button>
     </div>
     ${emails.length === 0
-      ? '<p class="empty-state">No emails in queue. Use "Poll Now" in settings to check for new emails.</p>'
+      ? '<p class="empty-state">No emails found' + (_inboundEmailFilter ? ' with this status' : '') + '.</p>'
       : `<div class="table-wrap"><table class="data-table">
           <thead><tr><th>Date</th><th>From</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`
-    }`;
+    }
+    ${pageNav}`;
 
   modal.open('Inbound Email Queue', html);
-  // Hide submit button since this is display-only
   const submitBtn = document.getElementById('modal-submit-btn');
   if (submitBtn) submitBtn.style.display = 'none';
+}
+
+function _setInboundEmailFilter(status) {
+  _inboundEmailFilter = status;
+  _pagination.inboundEmails.page = 1;
+  loadInboundEmails();
+}
+
+function _inboundEmailPage(page) {
+  _pagination.inboundEmails.page = page;
+  loadInboundEmails();
 }
 
 async function viewInboundEmailDetail(id) {
@@ -142,6 +190,7 @@ async function viewInboundEmailDetail(id) {
     if (email.Status === 'order_created' && email._orderMissing) {
       btns.push(`<button class="btn btn-sm btn-ghost" onclick="skipInboundEmail('${esc(email.ID)}')">Skip</button>`);
     }
+    btns.push(`<button class="btn btn-sm btn-ghost" onclick="loadInboundEmails()">Back to Queue</button>`);
     if (btns.length > 0) {
       detailActions = `<div style="margin-top:16px;display:flex;gap:8px">${btns.join('')}</div>`;
     }
