@@ -284,7 +284,7 @@ const BASE_PATH = window.location.pathname.replace(/\/+$/, '').replace(/\/login$
 
 const api = {
   async req(method, path, body) {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    const opts = { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } };
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(BASE_PATH + path, opts);
     const data = await res.json();

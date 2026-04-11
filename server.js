@@ -18,7 +18,7 @@ if (!process.env.SESSION_SECRET) {
 const authRoutes = require('./routes/auth');
 const requireAuth = require('./middleware/requireAuth');
 
-const { initializeDatabase, migrateInventoryToProducts, migrateProductFormatsToInventory } = require('./db');
+const { getDb, initializeDatabase, migrateInventoryToProducts, migrateProductFormatsToInventory } = require('./db');
 const productsRoutes  = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
 const accountsRoutes  = require('./routes/accounts');
@@ -80,7 +80,13 @@ app.use('/webhooks/qbo', express.json({
 app.use(express.json());
 
 // ── Session ───────────────────────────────────────────────────────────────
+const SqliteStore = require('better-sqlite3-session-store')(session);
+
 app.use(session({
+  store: new SqliteStore({
+    client: getDb(),
+    expired: { clear: true, intervalMs: 15 * 60 * 1000 }, // Clean up expired sessions every 15 min
+  }),
   secret:            process.env.SESSION_SECRET,
   name:              BASE_PATH ? `sid.${BASE_PATH.slice(1)}` : 'connect.sid',
   resave:            false,
@@ -115,6 +121,23 @@ app.get('/privacy', (req, res) => {
 });
 app.get('/terms', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+});
+
+// ── CSRF protection ──────────────────────────────────────────────────────
+// Require X-Requested-With header on state-changing API requests.
+// Browsers block cross-origin requests from setting custom headers,
+// so this prevents CSRF even if SameSite cookies are bypassed.
+app.use('/api', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  // API key auth is exempt (not session-based, not vulnerable to CSRF).
+  // Check for API key header directly since requireAuth hasn't run yet.
+  const authHeader = req.headers['authorization'] || '';
+  const hasApiKey = authHeader.startsWith('Bearer ') || !!req.headers['x-api-key'];
+  if (hasApiKey) return next();
+  if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+    return res.status(403).json({ error: 'Forbidden — missing CSRF header' });
+  }
+  next();
 });
 
 // ── Protected API routes ──────────────────────────────────────────────────

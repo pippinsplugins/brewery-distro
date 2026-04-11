@@ -1927,7 +1927,7 @@ async function processImportFiles() {
     </div>`;
 
   try {
-    const res = await fetch(BASE_PATH + '/api/orders/import', { method: 'POST', body: formData });
+    const res = await fetch(BASE_PATH + '/api/orders/import', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Upload failed');

@@ -1,6 +1,7 @@
 'use strict';
 
 const { google } = require('googleapis');
+const { getRow } = require('./db');
 require('dotenv').config();
 
 const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '';
@@ -11,6 +12,15 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
  */
 function isEmailConfigured() {
   return !!(CLIENT_ID && CLIENT_SECRET);
+}
+
+/**
+ * Look up the stored Google refresh token for a user from the Settings table.
+ */
+function getRefreshToken(userId) {
+  if (!userId) return '';
+  const row = getRow('SETTINGS', `google_refresh_token:${userId}`);
+  return (row && row.Value) || '';
 }
 
 /**
@@ -46,7 +56,7 @@ function buildRawMessage({ from, to, cc, bcc, replyTo, subject, body }) {
  * Send a single email using the authenticated user's Gmail via the Gmail API.
  *
  * @param {object} opts
- * @param {object} opts.user         - req.user (must include email, accessToken, refreshToken)
+ * @param {object} opts.user         - req.user (must include id, email)
  * @param {string} [opts.to]         - Single recipient (individual send)
  * @param {string[]} [opts.bcc]      - BCC recipients (bulk send)
  * @param {string} opts.subject
@@ -57,15 +67,17 @@ async function sendEmail({ user, to, cc, bcc, replyTo, subject, body }) {
   if (!isEmailConfigured()) {
     throw new Error('Email is not configured. Google OAuth credentials are missing.');
   }
-  if (!user || !user.accessToken) {
-    throw new Error('No OAuth tokens available. Please log out and log back in.');
+  if (!user || !user.id) {
+    throw new Error('No authenticated user. Please log out and log back in.');
+  }
+
+  const refreshToken = getRefreshToken(user.id);
+  if (!refreshToken) {
+    throw new Error('No OAuth refresh token found. Please log out and log back in with Google.');
   }
 
   const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
-  oauth2Client.setCredentials({
-    access_token:  user.accessToken,
-    refresh_token: user.refreshToken,
-  });
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
@@ -91,4 +103,4 @@ async function sendEmail({ user, to, cc, bcc, replyTo, subject, body }) {
   return result.data;
 }
 
-module.exports = { isEmailConfigured, sendEmail };
+module.exports = { isEmailConfigured, getRefreshToken, sendEmail };

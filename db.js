@@ -359,4 +359,4 @@ function migrateProductFormatsToInventory() {
   }
 }
 
-module.exports = { initializeDatabase, migrateInventoryToProducts, migrateProductFormatsToInventory, getAllRows, getRow, addRow, updateRow, deleteRow, TABLES, HEADERS };
+module.exports = { getDb, initializeDatabase, migrateInventoryToProducts, migrateProductFormatsToInventory, getAllRows, getRow, addRow, updateRow, deleteRow, TABLES, HEADERS };
