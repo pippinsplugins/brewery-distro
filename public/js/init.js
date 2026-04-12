@@ -13,6 +13,7 @@ const VIEW_LOADERS = {
   staff:         loadStaff,
   reports:       loadReports,
   gallonage:     loadGallonage,
+  'sales-export': loadSalesExport,
   settings:      loadSettings,
   map:           loadMap,
 };
@@ -25,6 +26,7 @@ const SUBMENU_VIEWS = {
   map:       'accounts',
   reports:   'reports',
   gallonage: 'reports',
+  'sales-export': 'reports',
 };
 
 function navigate(view, filters = {}, preservePage = false) {

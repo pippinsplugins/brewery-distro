@@ -603,6 +603,19 @@ body {
 
 .filter-bar input[type="search"] { min-width: 200px; }
 
+.dropdown-multi { position: relative; }
+.dropdown-multi-menu {
+  position: absolute; top: 100%; left: 0; z-index: 50;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0,0,0,.12); min-width: 200px; padding: 6px 0;
+  margin-top: 4px;
+}
+.dropdown-multi-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; cursor: pointer; font-size: 13px;
+}
+.dropdown-multi-item:hover { background: var(--bg-hover, #f5f5f5); }
+
 /* ── Table ────────────────────────────────────────────── */
 
 .table-wrap {
