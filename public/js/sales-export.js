@@ -200,25 +200,21 @@ function _seExportCsv() {
   const d = _seData;
   const lines = [];
 
-  lines.push(`ABC-73 Sales Export — ${_seStart} to ${_seEnd}`);
-  lines.push('');
-  lines.push('Date,Invoice #,Customer,ABC License,Address,City,State,Zip,Subtotal,Tax,Total');
+  lines.push('Invoice Date,Invoice ID,Customer Name,ABC License #,Address,Subtotal,Tax,Total');
   for (const o of d.orders) {
+    const addr = [o.address, o.city, o.state, o.zip].filter(Boolean).join(', ');
     lines.push([
       o.orderDate,
       `"${o.invoiceNumber}"`,
       `"${o.accountName}"`,
       `"${o.abcLicense}"`,
-      `"${o.address}"`,
-      `"${o.city}"`,
-      `"${o.state}"`,
-      `"${o.zip}"`,
+      `"${addr}"`,
       o.subtotal.toFixed(2),
       o.tax.toFixed(2),
       o.total.toFixed(2),
     ].join(','));
   }
-  lines.push(`,,,,,,,,${d.totals.subtotal.toFixed(2)},${d.totals.tax.toFixed(2)},${d.totals.total.toFixed(2)}`);
+  lines.push(`,,,,,${d.totals.subtotal.toFixed(2)},${d.totals.tax.toFixed(2)},${d.totals.total.toFixed(2)}`);
 
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
