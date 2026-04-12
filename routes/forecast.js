@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
     const { start, end, location } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'start and end query params required' });
 
-    let [orders, orderItems, products] = await Promise.all([
+    let [orders, orderItems, productRows] = await Promise.all([
       getAllRows('ORDERS'),
       getAllRows('ORDER_ITEMS'),
       getAllRows('PRODUCTS'),
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
     });
 
     const salesOrderIds = new Set(salesOrders.map(o => o.ID));
-    const productNames = new Set(products.map(p => p.Name));
+    const productNames = new Set(productRows.map(p => p.Name));
     const salesItems = orderItems.filter(i => salesOrderIds.has(i.OrderID) && productNames.has(i.ProductName));
 
     // Compute weeks and months in the period
