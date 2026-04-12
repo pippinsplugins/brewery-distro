@@ -7,6 +7,7 @@ let _seStart = '';
 let _seEnd = '';
 let _seData = null;
 let _seSort = { col: 'orderDate', dir: 'asc' };
+let _seExcludeTypes = [];
 
 async function loadSalesExport() {
   if (_sePreset !== 'custom') {
@@ -22,6 +23,7 @@ async function loadSalesExport() {
 
   const params = new URLSearchParams({ start: _seStart, end: _seEnd });
   if (state.location) params.set('location', state.location);
+  if (_seExcludeTypes.length) params.set('excludeTypes', _seExcludeTypes.join(','));
 
   showLoading();
 
@@ -84,6 +86,17 @@ function renderSalesExport() {
         ${presetOptions.map(([v, l]) => `<option value="${v}" ${v === _sePreset ? 'selected' : ''}>${l}</option>`).join('')}
       </select>
       ${customInputs}
+      <div class="dropdown-multi" id="se-type-filter">
+        <button class="btn btn-secondary btn-sm" onclick="_seToggleTypeDropdown()" type="button">
+          Account Types${_seExcludeTypes.length ? ` (${_seExcludeTypes.length} excluded)` : ''}
+        </button>
+        <div class="dropdown-multi-menu" id="se-type-menu" style="display:none">
+          ${(data.meta && data.meta.availableTypes || []).map(t => `<label class="dropdown-multi-item">
+            <input type="checkbox" value="${esc(t)}" ${_seExcludeTypes.includes(t) ? 'checked' : ''} onchange="_seToggleExcludeType(this.value, this.checked)">
+            <span>Exclude ${esc(t)}</span>
+          </label>`).join('')}
+        </div>
+      </div>
     </div>
 
     <div class="stats-grid">
@@ -148,6 +161,17 @@ function renderSalesExport() {
       ${paginationControls('salesExport', pg, 'renderSalesExport')}
     </div>
   `);
+
+  // Close dropdown on outside click
+  document.addEventListener('click', _seCloseDropdown);
+}
+
+function _seCloseDropdown(e) {
+  const filter = document.getElementById('se-type-filter');
+  const menu = document.getElementById('se-type-menu');
+  if (menu && filter && !filter.contains(e.target)) {
+    menu.style.display = 'none';
+  }
 }
 
 // ── Sorting ──────────────────────────────────────────────────────
@@ -191,6 +215,22 @@ function _seCustomDate() {
     _seEnd = e;
     loadSalesExport();
   }
+}
+
+// ── Account type filter ──────────────────────────────────────────
+
+function _seToggleTypeDropdown() {
+  const menu = document.getElementById('se-type-menu');
+  if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function _seToggleExcludeType(type, checked) {
+  if (checked && !_seExcludeTypes.includes(type)) {
+    _seExcludeTypes.push(type);
+  } else if (!checked) {
+    _seExcludeTypes = _seExcludeTypes.filter(t => t !== type);
+  }
+  loadSalesExport();
 }
 
 // ── CSV Export ────────────────────────────────────────────────────

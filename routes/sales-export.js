@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { start, end, location } = req.query;
+    const { start, end, location, excludeTypes } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'start and end query params required' });
 
     let [orders, accounts] = await Promise.all([
@@ -28,6 +28,18 @@ router.get('/', async (req, res) => {
 
     // Build account lookup
     const accountMap = Object.fromEntries(accounts.map(a => [a.ID, a]));
+
+    // Exclude account types
+    if (excludeTypes) {
+      const excluded = new Set(excludeTypes.split(',').map(s => s.trim()).filter(Boolean));
+      orders = orders.filter(o => {
+        const acct = accountMap[o.AccountID];
+        return !acct || !excluded.has(acct.Type);
+      });
+    }
+
+    // Available account types for filter UI
+    const availableTypes = [...new Set(accounts.map(a => a.Type).filter(Boolean))].sort();
 
     // Build order rows with account info
     const rows = orders.map(o => {
@@ -60,7 +72,7 @@ router.get('/', async (req, res) => {
       return t;
     }, { subtotal: 0, tax: 0, total: 0 });
 
-    res.json({ orders: rows, totals, count: rows.length });
+    res.json({ orders: rows, totals, count: rows.length, meta: { availableTypes } });
   } catch (err) {
     console.error(`[sales-export] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
