@@ -14,6 +14,7 @@ const VIEW_LOADERS = {
   reports:       loadReports,
   gallonage:     loadGallonage,
   'sales-export': loadSalesExport,
+  forecast:       loadForecast,
   settings:      loadSettings,
   map:           loadMap,
 };
@@ -27,6 +28,7 @@ const SUBMENU_VIEWS = {
   reports:   'reports',
   gallonage: 'reports',
   'sales-export': 'reports',
+  forecast: 'reports',
 };
 
 function navigate(view, filters = {}, preservePage = false) {
