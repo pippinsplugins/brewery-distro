@@ -13,6 +13,15 @@ let _profileOrderFooter = '';
 let _profileKegsCache = [];
 let _profileKegsContext = {};
 
+const FORMAT_CATEGORIES = {
+  'Kegs':    fmt => (fmt || '').toLowerCase().includes('keg'),
+  'Cans':    fmt => (fmt || '').toLowerCase().includes('can'),
+  'Bottles': fmt => (fmt || '').toLowerCase().includes('bottle'),
+};
+let _emailInventoryCache = null;
+let _emailInventoryCategory = 'All';
+let _emailInventoryShowQty = true;
+
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
   return JSON.stringify(Array.from(checkboxes).map(cb => cb.value));
@@ -1180,6 +1189,136 @@ async function deleteAccount(id, name) {
   );
 }
 
+// ── Email Inventory Helper ──────────────────────────────────────
+
+function formatItemLine(item, showQty) {
+  const parts = [item.Name];
+  const meta = [item.Style, item.ABV ? item.ABV + '%' : ''].filter(Boolean);
+  if (meta.length) parts[0] += ` (${meta.join(', ')})`;
+  if (item.Format) parts.push(item.Format);
+  if (item.PricePerUnit) parts.push('$' + parseFloat(item.PricePerUnit).toFixed(2));
+  if (showQty) parts.push((item.Available || item.Units || '0') + ' available');
+  return parts.join(' - ');
+}
+
+function buildInventoryOfferingText(items, category, showQty) {
+  const inStock = items.filter(i => parseInt(i.Available || i.Units || '0') > 0);
+  if (inStock.length === 0) return 'No in-stock inventory found.';
+
+  const fmt = item => formatItemLine(item, showQty);
+
+  if (category !== 'All') {
+    const matcher = FORMAT_CATEGORIES[category];
+    if (!matcher) return '';
+    const filtered = inStock.filter(i => matcher(i.Format));
+    if (filtered.length === 0) return `No in-stock ${category.toLowerCase()} found.`;
+    let text = `Available Inventory - ${category}\n` + '-'.repeat(26 + category.length) + '\n';
+    text += filtered.map(fmt).join('\n');
+    return text;
+  }
+
+  // "All" — group by category
+  const sections = [];
+  const categorized = new Set();
+
+  for (const [label, matcher] of Object.entries(FORMAT_CATEGORIES)) {
+    const matched = inStock.filter(i => matcher(i.Format));
+    if (matched.length > 0) {
+      sections.push(`-- ${label} --\n` + matched.map(fmt).join('\n'));
+      matched.forEach(i => categorized.add(i.ID));
+    }
+  }
+
+  const other = inStock.filter(i => !categorized.has(i.ID));
+  if (other.length > 0) {
+    sections.push('-- Other --\n' + other.map(fmt).join('\n'));
+  }
+
+  return 'Available Inventory\n===================\n\n' + sections.join('\n\n');
+}
+
+function inventoryHelperHtml() {
+  return `
+    <div class="form-group">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleInventoryHelper()">Insert Available Inventory</button>
+      <div id="inventory-helper-panel" style="display:none;margin-top:8px;padding:10px 12px;background:var(--bg-secondary);border-radius:6px;border:1px solid var(--border)">
+        <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm btn-primary" data-inv-cat="All" onclick="selectInventoryCategory('All')">All</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-inv-cat="Kegs" onclick="selectInventoryCategory('Kegs')">Kegs</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-inv-cat="Cans" onclick="selectInventoryCategory('Cans')">Cans</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-inv-cat="Bottles" onclick="selectInventoryCategory('Bottles')">Bottles</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="inv-show-qty" checked onchange="toggleInventoryQty(this.checked)" /> Show available quantities
+        </label>
+        <pre id="inventory-preview" style="max-height:160px;overflow-y:auto;white-space:pre-wrap;font-size:12px;margin:0 0 8px 0;padding:8px;background:var(--bg-primary);border-radius:4px;border:1px solid var(--border)">Loading...</pre>
+        <button type="button" class="btn btn-sm btn-primary" onclick="insertInventoryText()">Insert into Message</button>
+      </div>
+    </div>`;
+}
+
+async function toggleInventoryHelper() {
+  const panel = document.getElementById('inventory-helper-panel');
+  if (!panel) return;
+  const isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'block' : 'none';
+  if (isHidden && !_emailInventoryCache) {
+    const preview = document.getElementById('inventory-preview');
+    if (preview) preview.textContent = 'Loading...';
+    try {
+      const loc = state.location || '';
+      _emailInventoryCache = await api.get('/api/inventory' + (loc ? '?location=' + encodeURIComponent(loc) : ''));
+      updateInventoryPreview();
+    } catch (err) {
+      if (preview) preview.textContent = 'Failed to load inventory.';
+    }
+  }
+}
+
+function selectInventoryCategory(cat) {
+  _emailInventoryCategory = cat;
+  document.querySelectorAll('[data-inv-cat]').forEach(btn => {
+    btn.className = btn.dataset.invCat === cat ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-secondary';
+  });
+  updateInventoryPreview();
+}
+
+function toggleInventoryQty(checked) {
+  _emailInventoryShowQty = checked;
+  updateInventoryPreview();
+}
+
+function updateInventoryPreview() {
+  const preview = document.getElementById('inventory-preview');
+  if (!preview || !_emailInventoryCache) return;
+  preview.textContent = buildInventoryOfferingText(_emailInventoryCache, _emailInventoryCategory, _emailInventoryShowQty);
+}
+
+function insertInventoryText() {
+  const textarea = document.getElementById('f-email-body');
+  const preview = document.getElementById('inventory-preview');
+  if (!textarea || !preview) return;
+  const text = preview.textContent;
+  if (!text || text === 'Loading...') return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const current = textarea.value;
+
+  if (start !== end || start > 0) {
+    // Insert at cursor
+    const before = current.substring(0, start);
+    const after = current.substring(end);
+    const sep = before && !before.endsWith('\n') ? '\n\n' : '';
+    textarea.value = before + sep + text + after;
+  } else if (current) {
+    textarea.value = current + '\n\n' + text;
+  } else {
+    textarea.value = text;
+  }
+  textarea.focus();
+}
+
 // ── Email Functions ──────────────────────────────────────────────
 
 function toggleAllAccounts(masterCheckbox) {
@@ -1200,6 +1339,9 @@ function updateBulkEmailBar() {
 function openEmailCompose(accountId) {
   const acct = state.accounts.find(a => a.ID === accountId);
   if (!acct) return;
+  _emailInventoryCache = null;
+  _emailInventoryCategory = 'All';
+  _emailInventoryShowQty = true;
 
   const additionalEmails = parseAdditionalEmails(acct);
   const allEmails = getAllAccountEmails(acct);
@@ -1226,6 +1368,7 @@ function openEmailCompose(accountId) {
       <label>Subject <span class="required">*</span></label>
       <input class="form-control" id="f-email-subject" placeholder="Email subject..." />
     </div>
+    ${inventoryHelperHtml()}
     <div class="form-group">
       <label>Message <span class="required">*</span></label>
       <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message..."></textarea>
@@ -1261,6 +1404,9 @@ function openBulkEmail() {
     toast('Select at least one account first', 'error');
     return;
   }
+  _emailInventoryCache = null;
+  _emailInventoryCategory = 'All';
+  _emailInventoryShowQty = true;
 
   const selectedIds = Array.from(checked).map(cb => cb.dataset.accountId);
   const selectedAccounts = selectedIds.map(id => state.accounts.find(a => a.ID === id)).filter(Boolean);
@@ -1303,6 +1449,7 @@ function openBulkEmail() {
       <label>Subject <span class="required">*</span></label>
       <input class="form-control" id="f-email-subject" placeholder="Email subject..." />
     </div>
+    ${inventoryHelperHtml()}
     <div class="form-group">
       <label>Message <span class="required">*</span></label>
       <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message..."></textarea>
