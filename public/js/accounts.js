@@ -1336,6 +1336,16 @@ function updateBulkEmailBar() {
   }
 }
 
+function fromEmailHtml() {
+  if (state.userEmails && state.userEmails.length > 1) {
+    const opts = state.userEmails.map(e =>
+      `<option value="${esc(e)}"${e === state.userEmail ? ' selected' : ''}>${esc(e)}</option>`
+    ).join('');
+    return `<select class="form-control" id="f-email-from">${opts}</select>`;
+  }
+  return `<input class="form-control" id="f-email-from" value="${esc(state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />`;
+}
+
 function openEmailCompose(accountId) {
   const acct = state.accounts.find(a => a.ID === accountId);
   if (!acct) return;
@@ -1362,7 +1372,7 @@ function openEmailCompose(accountId) {
     </div>
     <div class="form-group">
       <label>From</label>
-      <input class="form-control" value="${esc(state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
+      ${fromEmailHtml()}
     </div>
     <div class="form-group">
       <label>Subject <span class="required">*</span></label>
@@ -1375,8 +1385,9 @@ function openEmailCompose(accountId) {
     </div>`;
 
   modal.open('Send Email', formHtml, async () => {
-    const subject = val('f-email-subject');
-    const body    = val('f-email-body');
+    const subject   = val('f-email-subject');
+    const body      = val('f-email-body');
+    const fromEmail = val('f-email-from');
     if (!subject) { toast('Subject is required', 'error'); return; }
     if (!body)    { toast('Message is required', 'error'); return; }
 
@@ -1386,6 +1397,7 @@ function openEmailCompose(accountId) {
         cc:          ccEmails.length > 0 ? ccEmails : undefined,
         subject,
         body,
+        fromEmail,
         accountId:   acct.ID,
         accountName: acct.Name,
       });
@@ -1443,7 +1455,7 @@ function openBulkEmail() {
     </div>
     <div class="form-group">
       <label>From</label>
-      <input class="form-control" value="${esc(state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />
+      ${fromEmailHtml()}
     </div>
     <div class="form-group">
       <label>Subject <span class="required">*</span></label>
@@ -1456,8 +1468,9 @@ function openBulkEmail() {
     </div>`;
 
   modal.open('Send Bulk Email', formHtml, async () => {
-    const subject = val('f-email-subject');
-    const body    = val('f-email-body');
+    const subject   = val('f-email-subject');
+    const body      = val('f-email-body');
+    const fromEmail = val('f-email-from');
     if (!subject) { toast('Subject is required', 'error'); return; }
     if (!body)    { toast('Message is required', 'error'); return; }
 
@@ -1469,7 +1482,7 @@ function openBulkEmail() {
     }));
 
     try {
-      const result = await api.post('/api/email/bulk', { recipients, subject, body });
+      const result = await api.post('/api/email/bulk', { recipients, subject, body, fromEmail });
       modal.close();
       toast(`Email sent to ${result.sent} address${result.sent !== 1 ? 'es' : ''}`);
       document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
