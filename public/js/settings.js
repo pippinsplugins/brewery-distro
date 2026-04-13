@@ -39,6 +39,12 @@ function renderSettings() {
       </div>
     </div>
 
+    <div class="settings-tabs">
+      <button class="settings-tab active" data-tab="general" onclick="switchSettingsTab('general')">General</button>
+      <button class="settings-tab" data-tab="integrations" onclick="switchSettingsTab('integrations')">Integrations</button>
+    </div>
+
+    <div class="settings-tab-content active" data-tab="general">
     <div class="settings-grid">
       <div class="card">
         <div class="card-header"><h3>Company</h3></div>
@@ -167,7 +173,11 @@ function renderSettings() {
           <button class="btn btn-primary" onclick="saveTaxRate()">Save</button>
         </div>
       </div>
+    </div>
+    </div>
 
+    <div class="settings-tab-content" data-tab="integrations">
+    <div class="settings-grid">
       <div class="card" id="api-keys-card">
         <div class="card-header">
           <h3>API Keys</h3>
@@ -231,11 +241,17 @@ function renderSettings() {
           <p class="text-sm text-muted">Loading QuickBooks status...</p>
         </div>
       </div>
+    </div>
     </div>`);
 
   // Load API keys and QBO status asynchronously
   loadApiKeys();
   loadQboStatus();
+}
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll('.settings-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.settings-tab-content').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
 }
 
 function saveCompanyName() {
