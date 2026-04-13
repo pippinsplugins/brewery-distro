@@ -131,6 +131,9 @@ function applySettings(settings) {
   if (Array.isArray(settings.accountTags) && settings.accountTags.length > 0) {
     ACCOUNT_TAGS = settings.accountTags;
   }
+  if (Array.isArray(settings.styles) && settings.styles.length > 0) {
+    STYLES = settings.styles;
+  }
   if (settings.companyName) {
     const el = document.getElementById('brand-title');
     if (el) el.textContent = settings.companyName;
