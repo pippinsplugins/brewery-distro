@@ -27,6 +27,7 @@ function renderSettings() {
   const companyName = s.companyName || '';
   const locations = Array.isArray(s.locations) ? s.locations : [...LOCATIONS];
   const accountTags = Array.isArray(s.accountTags) ? s.accountTags : [];
+  const styles = Array.isArray(s.styles) ? s.styles : [...STYLES];
   const kegDeposits = getKegDeposits();
   const kegFormats = ['1/6 Keg', '1/4 Keg', '1/2 Keg'];
 
@@ -93,6 +94,31 @@ function renderSettings() {
                     <div class="settings-location-actions">
                       <button class="btn btn-ghost btn-sm" onclick="openRenameAccountTag(${i}, '${esc(t)}')">Rename</button>
                       <button class="btn btn-ghost btn-sm text-danger" onclick="removeAccountTag(${i}, '${esc(t)}')">Remove</button>
+                    </div>
+                  </li>`).join('')}
+              </ul>`
+          }
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Beer Styles</h3>
+          <button class="btn btn-ghost btn-sm" onclick="openAddStyle()">+ Add Style</button>
+        </div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Manage beer style options. These appear in the product form style dropdown.
+          </p>
+          ${styles.length === 0
+            ? '<p class="empty-state">No styles configured.</p>'
+            : `<ul class="settings-location-list">
+                ${styles.map((st, i) => `
+                  <li class="settings-location-item">
+                    <span class="settings-location-name">${esc(st)}</span>
+                    <div class="settings-location-actions">
+                      <button class="btn btn-ghost btn-sm" onclick="openRenameStyle(${i}, '${esc(st)}')">Rename</button>
+                      <button class="btn btn-ghost btn-sm text-danger" onclick="removeStyle(${i}, '${esc(st)}')">Remove</button>
                     </div>
                   </li>`).join('')}
               </ul>`
@@ -372,6 +398,65 @@ function removeAccountTag(index, name) {
     applySettings(updated);
     modal.close();
     toast('Tag removed');
+    renderSettings();
+  });
+}
+
+// ── Beer Styles ──────────────────────────────────────────────────
+
+function openAddStyle() {
+  modal.open('Add Beer Style', `
+    <div class="form-group">
+      <label>Style Name <span class="required">*</span></label>
+      <input class="form-control" id="f-style-name" placeholder="e.g. Hazy IPA, Witbier" />
+    </div>
+  `, async () => {
+    const name = val('f-style-name');
+    if (!name) { toast('Style name is required', 'error'); return; }
+    const current = Array.isArray(state.settings.styles) ? [...state.settings.styles] : [...STYLES];
+    if (current.includes(name)) { toast('Style already exists', 'error'); return; }
+    current.push(name);
+    const updated = await api.put('/api/settings', { styles: current });
+    state.settings = updated;
+    applySettings(updated);
+    modal.close();
+    toast('Style added');
+    renderSettings();
+  });
+}
+
+function openRenameStyle(index, oldName) {
+  modal.open('Rename Beer Style', `
+    <div class="form-group">
+      <label>New Name <span class="required">*</span></label>
+      <input class="form-control" id="f-style-name" value="${esc(oldName)}" />
+    </div>
+    <p class="text-sm text-muted" style="margin-top:8px">All products and inventory with this style will be updated.</p>
+  `, async () => {
+    const newName = val('f-style-name');
+    if (!newName) { toast('Style name is required', 'error'); return; }
+    const current = Array.isArray(state.settings.styles) ? [...state.settings.styles] : [...STYLES];
+    if (current.includes(newName) && newName !== oldName) { toast('Style already exists', 'error'); return; }
+    current[index] = newName;
+    const updated = await api.put('/api/settings/rename-style', { oldName, newName, styles: current });
+    state.settings = updated;
+    applySettings(updated);
+    modal.close();
+    const info = updated._renamed || {};
+    toast(`Style renamed — ${info.productsUpdated || 0} product(s) and ${info.inventoryUpdated || 0} inventory item(s) updated`);
+    renderSettings();
+  });
+}
+
+function removeStyle(index, name) {
+  const current = Array.isArray(state.settings.styles) ? [...state.settings.styles] : [...STYLES];
+  modal.confirm('Remove Style', `Remove "${name}"? Existing products with this style will not be affected.`, async () => {
+    current.splice(index, 1);
+    const updated = await api.put('/api/settings', { styles: current });
+    state.settings = updated;
+    applySettings(updated);
+    modal.close();
+    toast('Style removed');
     renderSettings();
   });
 }

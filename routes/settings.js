@@ -38,6 +38,10 @@ function sanitizeSettings(settings) {
     try { settings.accountTags = JSON.parse(settings.accountTags); }
     catch (e) { settings.accountTags = []; }
   }
+  if (settings.styles) {
+    try { settings.styles = JSON.parse(settings.styles); }
+    catch (e) { settings.styles = []; }
+  }
   if (settings.kegDeposits) {
     try { settings.kegDeposits = JSON.parse(settings.kegDeposits); }
     catch (e) { settings.kegDeposits = {}; }
@@ -64,7 +68,7 @@ router.get('/', async (req, res) => {
 // Secrets (qboTokens, apiKeys, google_refresh_token:*, inboundEmailWebhookToken)
 // are managed through dedicated endpoints and cannot be overwritten here.
 const ALLOWED_SETTINGS_KEYS = new Set([
-  'locations', 'accountTags', 'kegDeposits', 'companyName',
+  'locations', 'accountTags', 'styles', 'kegDeposits', 'companyName',
   'inboundEmail', 'geminiApiKey', 'qboTaxCodeId',
 ]);
 
@@ -190,6 +194,57 @@ router.put('/rename-account-tag', async (req, res) => {
     for (const row of updated) result[row.Key] = row.Value;
     const safe = sanitizeSettings(result);
     safe._renamed = { accountsUpdated };
+    res.json(safe);
+  } catch (err) {
+    console.error(`[settings] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/settings/rename-style — renames a style and updates all associated products and inventory
+router.put('/rename-style', async (req, res) => {
+  try {
+    const { oldName, newName, styles } = req.body;
+    if (!oldName || !newName) return res.status(400).json({ error: 'oldName and newName are required' });
+
+    // Update the styles list in settings
+    const settingsRows = await getAllRows('SETTINGS');
+    const existingByKey = {};
+    for (const row of settingsRows) existingByKey[row.Key] = row;
+    const stylesValue = JSON.stringify(styles);
+    const now = new Date().toISOString().split('T')[0];
+    if (existingByKey.styles) {
+      await updateRow('SETTINGS', existingByKey.styles.ID, { Value: stylesValue, UpdatedAt: now });
+    } else {
+      await addRow('SETTINGS', { ID: uuidv4(), Key: 'styles', Value: stylesValue, UpdatedAt: now });
+    }
+
+    // Update all product records with the old style
+    const products = await getAllRows('PRODUCTS');
+    let productsUpdated = 0;
+    for (const p of products) {
+      if (p.Style === oldName) {
+        await updateRow('PRODUCTS', p.ID, { Style: newName });
+        productsUpdated++;
+      }
+    }
+
+    // Update all inventory records with the old style
+    const inventory = await getAllRows('INVENTORY');
+    let inventoryUpdated = 0;
+    for (const item of inventory) {
+      if (item.Style === oldName) {
+        await updateRow('INVENTORY', item.ID, { Style: newName });
+        inventoryUpdated++;
+      }
+    }
+
+    // Return updated settings
+    const updated = await getAllRows('SETTINGS');
+    const result = {};
+    for (const row of updated) result[row.Key] = row.Value;
+    const safe = sanitizeSettings(result);
+    safe._renamed = { productsUpdated, inventoryUpdated };
     res.json(safe);
   } catch (err) {
     console.error(`[settings] ${err.message}`);
