@@ -20,6 +20,7 @@ const FORMAT_CATEGORIES = {
 };
 let _emailInventoryCache = null;
 let _emailInventoryCategory = 'All';
+let _emailInventoryShowQty = true;
 
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
@@ -1190,19 +1191,21 @@ async function deleteAccount(id, name) {
 
 // ── Email Inventory Helper ──────────────────────────────────────
 
-function formatItemLine(item) {
+function formatItemLine(item, showQty) {
   const parts = [item.Name];
   const meta = [item.Style, item.ABV ? item.ABV + '%' : ''].filter(Boolean);
   if (meta.length) parts[0] += ` (${meta.join(', ')})`;
   if (item.Format) parts.push(item.Format);
   if (item.PricePerUnit) parts.push('$' + parseFloat(item.PricePerUnit).toFixed(2));
-  parts.push((item.Available || item.Units || '0') + ' available');
+  if (showQty) parts.push((item.Available || item.Units || '0') + ' available');
   return parts.join(' - ');
 }
 
-function buildInventoryOfferingText(items, category) {
+function buildInventoryOfferingText(items, category, showQty) {
   const inStock = items.filter(i => parseInt(i.Available || i.Units || '0') > 0);
   if (inStock.length === 0) return 'No in-stock inventory found.';
+
+  const fmt = item => formatItemLine(item, showQty);
 
   if (category !== 'All') {
     const matcher = FORMAT_CATEGORIES[category];
@@ -1210,7 +1213,7 @@ function buildInventoryOfferingText(items, category) {
     const filtered = inStock.filter(i => matcher(i.Format));
     if (filtered.length === 0) return `No in-stock ${category.toLowerCase()} found.`;
     let text = `Available Inventory - ${category}\n` + '-'.repeat(26 + category.length) + '\n';
-    text += filtered.map(formatItemLine).join('\n');
+    text += filtered.map(fmt).join('\n');
     return text;
   }
 
@@ -1221,14 +1224,14 @@ function buildInventoryOfferingText(items, category) {
   for (const [label, matcher] of Object.entries(FORMAT_CATEGORIES)) {
     const matched = inStock.filter(i => matcher(i.Format));
     if (matched.length > 0) {
-      sections.push(`-- ${label} --\n` + matched.map(formatItemLine).join('\n'));
+      sections.push(`-- ${label} --\n` + matched.map(fmt).join('\n'));
       matched.forEach(i => categorized.add(i.ID));
     }
   }
 
   const other = inStock.filter(i => !categorized.has(i.ID));
   if (other.length > 0) {
-    sections.push('-- Other --\n' + other.map(formatItemLine).join('\n'));
+    sections.push('-- Other --\n' + other.map(fmt).join('\n'));
   }
 
   return 'Available Inventory\n===================\n\n' + sections.join('\n\n');
@@ -1245,6 +1248,9 @@ function inventoryHelperHtml() {
           <button type="button" class="btn btn-sm btn-secondary" data-inv-cat="Cans" onclick="selectInventoryCategory('Cans')">Cans</button>
           <button type="button" class="btn btn-sm btn-secondary" data-inv-cat="Bottles" onclick="selectInventoryCategory('Bottles')">Bottles</button>
         </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="inv-show-qty" checked onchange="toggleInventoryQty(this.checked)" /> Show available quantities
+        </label>
         <pre id="inventory-preview" style="max-height:160px;overflow-y:auto;white-space:pre-wrap;font-size:12px;margin:0 0 8px 0;padding:8px;background:var(--bg-primary);border-radius:4px;border:1px solid var(--border)">Loading...</pre>
         <button type="button" class="btn btn-sm btn-primary" onclick="insertInventoryText()">Insert into Message</button>
       </div>
@@ -1277,10 +1283,15 @@ function selectInventoryCategory(cat) {
   updateInventoryPreview();
 }
 
+function toggleInventoryQty(checked) {
+  _emailInventoryShowQty = checked;
+  updateInventoryPreview();
+}
+
 function updateInventoryPreview() {
   const preview = document.getElementById('inventory-preview');
   if (!preview || !_emailInventoryCache) return;
-  preview.textContent = buildInventoryOfferingText(_emailInventoryCache, _emailInventoryCategory);
+  preview.textContent = buildInventoryOfferingText(_emailInventoryCache, _emailInventoryCategory, _emailInventoryShowQty);
 }
 
 function insertInventoryText() {
@@ -1330,6 +1341,7 @@ function openEmailCompose(accountId) {
   if (!acct) return;
   _emailInventoryCache = null;
   _emailInventoryCategory = 'All';
+  _emailInventoryShowQty = true;
 
   const additionalEmails = parseAdditionalEmails(acct);
   const allEmails = getAllAccountEmails(acct);
@@ -1394,6 +1406,7 @@ function openBulkEmail() {
   }
   _emailInventoryCache = null;
   _emailInventoryCategory = 'All';
+  _emailInventoryShowQty = true;
 
   const selectedIds = Array.from(checked).map(cb => cb.dataset.accountId);
   const selectedAccounts = selectedIds.map(id => state.accounts.find(a => a.ID === id)).filter(Boolean);
