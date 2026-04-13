@@ -147,8 +147,9 @@ async function init() {
   try {
     const { user } = await api.get('/auth/me');
     if (user) {
-      state.userEmail = user.email || '';
-      state.userName  = user.name  || '';
+      state.userEmail  = user.email || '';
+      state.userName   = user.name  || '';
+      state.userEmails = user.staffEmails || [user.email];
       const panel = document.getElementById('sidebar-user');
       if (panel) {
         document.getElementById('sidebar-user-name').textContent  = user.name  || '';

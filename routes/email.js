@@ -20,6 +20,28 @@ function getReplyToAddress(user) {
 }
 
 /**
+ * Validate that a requested fromEmail belongs to the user's STAFF record.
+ * Falls back to the OAuth email if missing or invalid.
+ */
+function validateFromEmail(oauthEmail, fromEmail) {
+  if (!fromEmail) return oauthEmail;
+  const requested = fromEmail.trim().toLowerCase();
+  if (requested === oauthEmail.toLowerCase()) return fromEmail.trim();
+
+  const staffRows = getAllRows('STAFF');
+  const oauthLower = oauthEmail.toLowerCase();
+  for (const s of staffRows) {
+    if (!s.Email) continue;
+    const emails = s.Email.split(',').map(e => e.trim()).filter(Boolean);
+    if (emails.some(e => e.toLowerCase() === oauthLower) &&
+        emails.some(e => e.toLowerCase() === requested)) {
+      return fromEmail.trim();
+    }
+  }
+  return oauthEmail;
+}
+
+/**
  * Create an Outreach log entry for an emailed account and update LastContacted.
  */
 async function logOutreach(accountId, accountName, subject) {
@@ -56,21 +78,23 @@ router.post('/send', async (req, res) => {
       return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
     }
 
-    const { to, cc, subject, body, accountId, accountName } = req.body;
+    const { to, cc, subject, body, accountId, accountName, fromEmail } = req.body;
 
     if (!to)      return res.status(400).json({ error: 'Recipient email is required' });
     if (!subject) return res.status(400).json({ error: 'Subject is required' });
     if (!body)    return res.status(400).json({ error: 'Message body is required' });
 
+    // Validate fromEmail belongs to this user's staff record
+    const validatedFrom = validateFromEmail(req.user.email, fromEmail);
     const senderName  = req.user.name  || 'Brewery Team';
-    const senderEmail = req.user.email || '';
+    const senderEmail = validatedFrom;
     const ccEmails = Array.isArray(cc) ? cc.filter(Boolean) : [];
 
     let status = 'sent';
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, replyTo: getReplyToAddress(req.user), subject, body });
+      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, replyTo: getReplyToAddress(req.user), subject, body, fromEmail: validatedFrom });
     } catch (err) {
       status = 'failed';
       error  = err.message;
@@ -116,7 +140,7 @@ router.post('/bulk', async (req, res) => {
       return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
     }
 
-    const { recipients, subject, body } = req.body;
+    const { recipients, subject, body, fromEmail } = req.body;
     // recipients: [{ email, additionalEmails, accountId, accountName }, ...]
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
@@ -124,6 +148,9 @@ router.post('/bulk', async (req, res) => {
     }
     if (!subject) return res.status(400).json({ error: 'Subject is required' });
     if (!body)    return res.status(400).json({ error: 'Message body is required' });
+
+    // Validate fromEmail belongs to this user's staff record
+    const validatedFrom = validateFromEmail(req.user.email, fromEmail);
 
     const bccEmails = [];
     for (const r of recipients) {
@@ -139,13 +166,13 @@ router.post('/bulk', async (req, res) => {
     }
 
     const senderName  = req.user.name  || 'Brewery Team';
-    const senderEmail = req.user.email || '';
+    const senderEmail = validatedFrom;
 
     let status = 'sent';
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, bcc: bccEmails, replyTo: getReplyToAddress(req.user), subject, body });
+      await sendEmail({ user: req.user, bcc: bccEmails, replyTo: getReplyToAddress(req.user), subject, body, fromEmail: validatedFrom });
     } catch (err) {
       status = 'failed';
       error  = err.message;

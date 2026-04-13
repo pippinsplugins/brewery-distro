@@ -63,7 +63,7 @@ function buildRawMessage({ from, to, cc, bcc, replyTo, subject, body }) {
  * @param {string} opts.body         - Plain-text body
  * @returns {Promise<object>}        - Gmail API response
  */
-async function sendEmail({ user, to, cc, bcc, replyTo, subject, body }) {
+async function sendEmail({ user, to, cc, bcc, replyTo, subject, body, fromEmail }) {
   if (!isEmailConfigured()) {
     throw new Error('Email is not configured. Google OAuth credentials are missing.');
   }
@@ -86,7 +86,7 @@ async function sendEmail({ user, to, cc, bcc, replyTo, subject, body }) {
   const bccAddress = bcc && bcc.length > 0 ? bcc.join(', ') : undefined;
 
   const raw = buildRawMessage({
-    from:    user.email,
+    from:    fromEmail || user.email,
     to:      toAddress,
     cc:      ccAddress,
     bcc:     bccAddress,

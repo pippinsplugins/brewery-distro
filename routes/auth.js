@@ -133,7 +133,24 @@ router.get('/google/callback',
 router.get('/me', (req, res) => {
   if (req.isAuthenticated && req.isAuthenticated()) {
     const { id, name, email, photo } = req.user;
-    return res.json({ user: { id, name, email, photo } });
+
+    // Look up the STAFF row whose comma-separated Email field contains
+    // the authenticated user's email so we can expose all their addresses.
+    let staffEmails = [email];
+    const userLower = (email || '').toLowerCase();
+    if (userLower) {
+      const staffRows = getAllRows('STAFF');
+      for (const s of staffRows) {
+        if (!s.Email) continue;
+        const parsed = s.Email.split(',').map(e => e.trim()).filter(Boolean);
+        if (parsed.some(e => e.toLowerCase() === userLower)) {
+          staffEmails = parsed;
+          break;
+        }
+      }
+    }
+
+    return res.json({ user: { id, name, email, photo, staffEmails } });
   }
   res.status(401).json({ user: null });
 });
