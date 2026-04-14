@@ -123,6 +123,13 @@ router.get('/google/callback',
     failWithError: false,
   }),
   (req, res) => {
+    // If no refresh token is stored, re-authenticate with consent to obtain one.
+    // This happens when sessions are reset or a user logs in for the first time
+    // after the session store was migrated.
+    const stored = getRow('SETTINGS', `google_refresh_token:${req.user.id}`);
+    if (!stored || !stored.Value) {
+      return res.redirect(basePath + '/auth/google?prompt=consent');
+    }
     // Successful authentication – go to the app.
     res.redirect(basePath + '/');
   },
