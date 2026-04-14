@@ -105,6 +105,108 @@ Rules:
   }
 }
 
+// ── Local fallback parser ───────────────────────────────────────────
+
+function parseEmailLocally(emailBody, subject, accounts, productList) {
+  const text = `${subject || ''}\n${emailBody || ''}`;
+  const lines = text.split(/\r?\n/);
+
+  // Extract account name from From field or subject — caller handles actual matching
+  const accountName = '';
+  const contactName = '';
+
+  // Match products by scanning for known product names
+  const items = [];
+  const matched = new Set();
+
+  for (const product of productList) {
+    if (!product.Name) continue;
+    const prodLower = product.Name.toLowerCase();
+
+    for (const line of lines) {
+      const lineLower = line.toLowerCase();
+      if (!lineLower.includes(prodLower)) continue;
+      if (matched.has(prodLower + '|' + line)) continue;
+      matched.add(prodLower + '|' + line);
+
+      // Extract quantity: look for patterns like "2x", "x2", or a leading/trailing number
+      let quantity = 1;
+      const qtyPatterns = [
+        /(\d+)\s*x\b/i,           // "2x", "2 x"
+        /\bx\s*(\d+)/i,           // "x2", "x 2"
+        /\b(\d+)\s+(?:cs|case|keg|can|pack|barrel|bbl)/i, // "2 cases"
+        /^\s*(\d+)\s+/,           // leading number on line
+        /\b(\d+)\s*$/,            // trailing number on line
+      ];
+      for (const pat of qtyPatterns) {
+        const m = line.match(pat);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > 0 && n < 10000) { quantity = n; break; }
+        }
+      }
+
+      // Detect format if the line mentions a known format for this product
+      let format = '';
+      if (product.formats && product.formats.length > 0) {
+        for (const fmt of product.formats) {
+          if (lineLower.includes(fmt.toLowerCase())) {
+            format = fmt;
+            break;
+          }
+        }
+      }
+
+      items.push({
+        productName: product.Name,
+        format: format,
+        quantity: quantity,
+      });
+    }
+  }
+
+  // Try to extract delivery date
+  let deliveryDate = '';
+  const currentYear = new Date().getFullYear();
+
+  for (const line of lines) {
+    // MM/DD/YYYY or MM/DD
+    const slashDate = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+    if (slashDate) {
+      const month = parseInt(slashDate[1], 10);
+      const day = parseInt(slashDate[2], 10);
+      const year = slashDate[3] ? (slashDate[3].length === 2 ? 2000 + parseInt(slashDate[3], 10) : parseInt(slashDate[3], 10)) : currentYear;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        deliveryDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        break;
+      }
+    }
+
+    // "Month DDth" or "Month DD"
+    const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const monthMatch = line.match(new RegExp(`\\b(${monthNames.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'));
+    if (monthMatch) {
+      const month = monthNames.indexOf(monthMatch[1].toLowerCase()) + 1;
+      const day = parseInt(monthMatch[2], 10);
+      if (day >= 1 && day <= 31) {
+        deliveryDate = `${currentYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        break;
+      }
+    }
+  }
+
+  const confidence = items.length > 0 ? 'medium' : 'low';
+
+  return {
+    accountName,
+    contactName,
+    deliveryDate,
+    notes: items.length > 0 ? '[Parsed locally — Gemini unavailable]' : '',
+    items,
+    confidence,
+  };
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function buildEmailOrderNotes(parsedData, emailRow) {
@@ -355,7 +457,44 @@ async function processInboundEmail(emailRow) {
       return { status: 'parsed', reason: 'account_not_matched' };
     }
   } catch (err) {
-    console.error(`[inbound-email] Error parsing email ${emailRow.ID}:`, err.message);
+    console.error(`[inbound-email] Gemini failed for email ${emailRow.ID}:`, err.message);
+
+    // Fallback: try local text-based parsing
+    try {
+      const parsed = parseEmailLocally(emailRow.Body, emailRow.Subject, accounts, productList);
+      const senderEmail = extractEmailAddress(emailRow.From);
+
+      // Fill in from email metadata
+      const accountMatch = matchAccount(parsed.accountName, accounts, senderEmail);
+      if (accountMatch) parsed.accountName = accountMatch.Name;
+      if (!parsed.contactName && emailRow.FromName) parsed.contactName = emailRow.FromName;
+
+      if (parsed.items.length > 0) {
+        console.log(`[inbound-email] Local fallback parsed ${parsed.items.length} item(s) from email ${emailRow.ID}`);
+
+        updateRow('INBOUND_EMAILS', emailRow.ID, {
+          Status: 'parsed',
+          ParsedData: JSON.stringify(parsed),
+          Error: `Gemini failed: ${err.message} (used local parser)`,
+        });
+
+        if (parsed.confidence === 'low') {
+          updateRow('INBOUND_EMAILS', emailRow.ID, { Status: 'skipped' });
+          return { status: 'skipped', reason: 'low_confidence' };
+        } else if (accountMatch) {
+          await createDraftOrder(parsed, emailRow.ID, senderEmail, emailRow);
+          console.log(`[inbound-email] Draft order created via local fallback for email ${emailRow.ID} (account: ${accountMatch.Name})`);
+          return { status: 'order_created', fallback: true };
+        } else {
+          console.log(`[inbound-email] Local fallback: account not matched — email ${emailRow.ID} left for manual review`);
+          return { status: 'parsed', reason: 'account_not_matched', fallback: true };
+        }
+      }
+    } catch (localErr) {
+      console.error(`[inbound-email] Local fallback also failed for email ${emailRow.ID}:`, localErr.message);
+    }
+
+    // No items found locally or local parse failed — mark as error (original behavior)
     updateRow('INBOUND_EMAILS', emailRow.ID, {
       Status: 'error',
       Error: err.message,
@@ -391,6 +530,7 @@ module.exports = {
   fixEmailOrderLocations,
   createDraftOrder,
   parseEmailWithGemini,
+  parseEmailLocally,
   matchAccount,
   matchAccountByEmail,
   extractEmailAddress,
