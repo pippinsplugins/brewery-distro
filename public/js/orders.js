@@ -360,9 +360,18 @@ function recalcTaxFromAmount() {
   if (!checked) { recalcOrderTotal(); return; }
   const rate = getTaxRate();
   if (rate <= 0) { recalcOrderTotal(); return; }
-  const amount = parseFloat(val('f-amount')) || 0;
+  // Use taxable total from line items if available
+  let taxableAmount = 0;
+  const lineItems = getOrderLineItems();
+  if (lineItems.length > 0) {
+    for (const { qty, unitPrice, taxable } of lineItems) {
+      if (taxable) taxableAmount += qty * (parseFloat(unitPrice) || 0);
+    }
+  } else {
+    taxableAmount = parseFloat(val('f-amount')) || 0;
+  }
   const taxEl = document.getElementById('f-tax');
-  if (taxEl) taxEl.value = amount > 0 ? (amount * rate / 100).toFixed(2) : '';
+  if (taxEl) taxEl.value = taxableAmount > 0 ? (taxableAmount * rate / 100).toFixed(2) : '';
   recalcOrderTotal();
 }
 
@@ -701,12 +710,13 @@ function addUnmatchedLineItem(item) {
   recalcOrderAmount();
 }
 
-function addCustomLineItem(description, unitPrice, qty) {
+function addCustomLineItem(description, unitPrice, qty, taxable) {
   const wrap = document.getElementById('order-line-items');
   if (!wrap) return;
   const price = parseFloat(unitPrice || 0);
   const lineQty = parseInt(qty) || 1;
   const lineTotal = price * lineQty;
+  const isTaxable = taxable === true || taxable === 'true';
 
   const div = document.createElement('div');
   div.className = 'order-line-item';
@@ -716,11 +726,14 @@ function addCustomLineItem(description, unitPrice, qty) {
   div.setAttribute('data-price-tier', '');
   div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
   div.innerHTML = `
-    <input class="form-control custom-item-desc" type="text" value="${esc(description || '')}" placeholder="e.g. T-shirt, service charge" style="flex:2;min-width:120px"  />
+    <input class="form-control custom-item-desc" type="text" value="${esc(description || '')}" placeholder="e.g. T-shirt, service charge" style="flex:2;min-width:120px" />
     <input class="form-control custom-item-price" type="number" step="0.01" min="0" value="${price ? price.toFixed(2) : ''}" placeholder="Price" style="width:80px"
       onchange="onCustomItemPriceChange(this)" oninput="onCustomItemPriceChange(this)" />
     <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
       onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
+    <label class="custom-item-tax-label" style="display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap;cursor:pointer">
+      <input type="checkbox" class="custom-item-taxable" ${isTaxable ? 'checked' : ''} onchange="recalcOrderAmount()" /> Tax
+    </label>
     <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
     <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
   wrap.appendChild(div);
@@ -806,8 +819,10 @@ function getOrderLineItems() {
     const qty = parseInt(qtyEl?.value) || 0;
     const unitPrice = row.getAttribute('data-unit-price') || '';
     const priceTier = row.getAttribute('data-price-tier') || '';
+    const isCustom = row.getAttribute('data-custom') === 'true';
+    const taxable = isCustom ? (row.querySelector('.custom-item-taxable')?.checked || false) : true;
     if (qty > 0) {
-      items.push({ inventoryId: invId, qty, unitPrice, priceTier });
+      items.push({ inventoryId: invId, qty, unitPrice, priceTier, taxable });
     }
   });
   return items;
@@ -866,7 +881,7 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
       addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
     } else if (!item.InventoryID && item.ProductName && item.ProductName !== 'Account Credit') {
       // Custom item (no InventoryID, not a credit)
-      addCustomLineItem(item.ProductName, item.UnitPrice, item.Quantity);
+      addCustomLineItem(item.ProductName, item.UnitPrice, item.Quantity, item.Taxable);
     } else if (item.ProductName) {
       // Try to match by product name + format against current inventory
       const resolved = resolveInventoryMatch(item.ProductName, item.Format);
@@ -910,17 +925,20 @@ function orderItemsReadOnlyHtml(orderItems) {
 
 function recalcOrderAmount() {
   let total = 0;
+  let taxableTotal = 0;
   let depositTotal = 0;
   let hasProducts = false;
   let hasKegs = false;
   const chargeDeposits = document.getElementById('f-charge-deposits')?.checked;
-  for (const { inventoryId, qty, unitPrice } of getOrderLineItems()) {
+  for (const { inventoryId, qty, unitPrice, taxable } of getOrderLineItems()) {
     if (qty > 0) {
       const item = inventoryId ? _orderFormInventory.find(i => i.ID === inventoryId) : null;
       const price = unitPrice ? parseFloat(unitPrice) : (item ? parseFloat(item.PricePerUnit || 0) : 0);
       if (!item && price <= 0) continue;
       hasProducts = true;
-      total += qty * price;
+      const lineAmount = qty * price;
+      total += lineAmount;
+      if (taxable) taxableTotal += lineAmount;
       if (item) {
         if ((item.Format || '').toLowerCase().includes('keg')) hasKegs = true;
         if (chargeDeposits) {
@@ -950,13 +968,12 @@ function recalcOrderAmount() {
   }
   const depEl = document.getElementById('f-deposit-amount');
   if (depEl) depEl.value = chargeDeposits && depositTotal > 0 ? depositTotal.toFixed(2) : '';
-  // Auto-calculate tax if charge-tax is checked
+  // Auto-calculate tax if charge-tax is checked (only on taxable items)
   const chargeTax = document.getElementById('f-charge-tax')?.checked;
   const taxRate = getTaxRate();
   if (chargeTax && taxRate > 0) {
-    const orderAmount = parseFloat(val('f-amount')) || 0;
     const taxEl = document.getElementById('f-tax');
-    if (taxEl) taxEl.value = orderAmount > 0 ? (orderAmount * taxRate / 100).toFixed(2) : '';
+    if (taxEl) taxEl.value = taxableTotal > 0 ? (taxableTotal * taxRate / 100).toFixed(2) : '';
   }
   recalcOrderTotal();
 }
@@ -1018,6 +1035,8 @@ function collectOrderItems() {
     const priceTier = row.getAttribute('data-price-tier') || '';
     const item = invId ? _orderFormInventory.find(i => i.ID === invId) : null;
     const price = unitPrice ? parseFloat(unitPrice) : (item ? parseFloat(item.PricePerUnit || 0) : 0);
+    const isCustom = row.getAttribute('data-custom') === 'true';
+    const taxable = isCustom ? (row.querySelector('.custom-item-taxable')?.checked ? 'true' : '') : 'true';
     if (item) {
       items.push({
         InventoryID: item.ID,
@@ -1027,11 +1046,11 @@ function collectOrderItems() {
         Quantity: qty,
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
+        Taxable: taxable,
       });
     } else {
       // Custom or unmatched item
       let productName = '', format = '';
-      const isCustom = row.getAttribute('data-custom') === 'true';
       if (isCustom) {
         const descInput = row.querySelector('.custom-item-desc');
         productName = descInput ? descInput.value.trim() : '';
@@ -1049,6 +1068,7 @@ function collectOrderItems() {
         Quantity: qty,
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
+        Taxable: taxable,
       });
     }
   });

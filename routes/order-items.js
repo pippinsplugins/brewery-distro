@@ -83,6 +83,7 @@ router.post('/bulk', async (req, res) => {
         Quantity: String(raw.Quantity || '0'),
         UnitPrice: String(raw.UnitPrice || '0'),
         LineTotal: String(raw.LineTotal || '0'),
+        Taxable: raw.Taxable || '',
         CreatedAt: new Date().toISOString(),
       };
       await addRow('ORDER_ITEMS', item);

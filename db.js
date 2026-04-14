@@ -44,7 +44,7 @@ const HEADERS = {
   KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DepositPerUnit', 'DepositTotal', 'DepositRefunded', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
-  ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'PriceTier', 'Quantity', 'UnitPrice', 'LineTotal', 'CreatedAt'],
+  ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'PriceTier', 'Quantity', 'UnitPrice', 'LineTotal', 'Taxable', 'CreatedAt'],
   NOTIFICATIONS:   ['ID', 'Type', 'Channel', 'RecipientStaffID', 'RecipientName', 'RecipientEmail', 'SenderName', 'SenderEmail', 'EntityType', 'EntityID', 'EntityName', 'Message', 'Status', 'Error', 'CreatedAt'],
   ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],
   WEBHOOK_LOG:     ['ID', 'ApiKeyName', 'Action', 'Payload', 'Status', 'Error', 'CreatedAt'],
