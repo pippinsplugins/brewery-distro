@@ -37,6 +37,12 @@ function productForm(product = {}) {
     <div class="form-group">
       <label>Notes</label>
       <textarea class="form-control" id="f-notes" rows="2">${esc(product.Notes)}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-exclude-email" ${product.ExcludeFromEmailOfferings === 'true' ? 'checked' : ''} />
+        Exclude from email offerings
+      </label>
     </div>`;
 }
 
@@ -295,6 +301,7 @@ function openAddProduct() {
       Style: val('f-style'),
       ABV: val('f-abv'),
       Notes: val('f-notes'),
+      ExcludeFromEmailOfferings: document.getElementById('f-exclude-email').checked ? 'true' : '',
       variations,
     });
     modal.close();
@@ -327,6 +334,7 @@ async function openEditProduct(id) {
       Style: val('f-style'),
       ABV: val('f-abv'),
       Notes: val('f-notes'),
+      ExcludeFromEmailOfferings: document.getElementById('f-exclude-email').checked ? 'true' : '',
     });
 
     // Diff variations: add new ones, remove deleted ones

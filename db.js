@@ -32,7 +32,7 @@ const TABLES = {
 // HEADERS defines every column each table should have.
 // On startup, any missing columns are automatically added (migration-safe).
 const HEADERS = {
-  PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'CreatedAt'],
+  PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'ExcludeFromEmailOfferings', 'CreatedAt'],
   INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'Prices', 'LowStockThreshold', 'Notes', 'LastUpdated', 'ProductID', 'ProductName'],
   ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'BillingContactName', 'BillingEmail', 'BillingPhone', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'ChargeDeposits', 'Taxable', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'ServicedBy', 'QboCustomerId', 'CreatedAt', 'CheckInFrequency'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],

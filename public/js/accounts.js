@@ -1202,7 +1202,7 @@ function formatItemLine(item, showQty) {
 }
 
 function buildInventoryOfferingText(items, category, showQty) {
-  const inStock = items.filter(i => parseInt(i.Available || i.Units || '0') > 0);
+  const inStock = items.filter(i => parseInt(i.Available || i.Units || '0') > 0 && i.ExcludeFromEmailOfferings !== 'true');
   if (inStock.length === 0) return 'No in-stock inventory found.';
 
   const fmt = item => formatItemLine(item, showQty);

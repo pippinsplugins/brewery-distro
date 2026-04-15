@@ -22,6 +22,7 @@ async function enrichInventory(items) {
       Format: inv.Format || product.Format || '',
       PricePerUnit: inv.PricePerUnit || product.PricePerUnit || '',
       Prices: inv.Prices || '',
+      ExcludeFromEmailOfferings: product.ExcludeFromEmailOfferings || '',
     };
   });
 }
