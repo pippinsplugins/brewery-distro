@@ -184,12 +184,18 @@ async function init() {
     renderLocationSwitcher();
   }
 
-  // Check email configuration
+  // Check email and SMS configuration
   try {
     const emailStatus = await api.get('/api/email/status');
     state.emailConfigured = emailStatus.configured;
   } catch (e) {
     state.emailConfigured = false;
+  }
+  try {
+    const smsStatus = await api.get('/api/sms/status');
+    state.smsConfigured = smsStatus.configured;
+  } catch (e) {
+    state.smsConfigured = false;
   }
 
   // Mobile sidebar toggle

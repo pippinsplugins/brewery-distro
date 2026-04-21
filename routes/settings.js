@@ -14,12 +14,15 @@ function sanitizeSettings(settings) {
   // Flag presence of secrets before removing them
   const hasGeminiKey = !!settings.geminiApiKey;
   const hasWebhookToken = !!settings.inboundEmailWebhookToken;
+  const twilioConfigured = !!(settings.twilioAccountSid && settings.twilioAuthToken && settings.twilioFromNumber);
 
   // Remove known secret keys
   delete settings.qboTokens;
   delete settings.apiKeys;
   delete settings.geminiApiKey;
   delete settings.inboundEmailWebhookToken;
+  delete settings.twilioAccountSid;
+  delete settings.twilioAuthToken;
 
   // Remove Google refresh tokens (stored as google_refresh_token:<profileId>)
   for (const key of Object.keys(settings)) {
@@ -28,6 +31,7 @@ function sanitizeSettings(settings) {
 
   if (hasGeminiKey) settings.geminiApiKeySet = true;
   if (hasWebhookToken) settings.inboundEmailWebhookTokenSet = true;
+  if (twilioConfigured) settings.twilioConfigured = true;
 
   // Parse JSON values
   if (settings.locations) {
@@ -70,6 +74,7 @@ router.get('/', async (req, res) => {
 const ALLOWED_SETTINGS_KEYS = new Set([
   'locations', 'accountTags', 'styles', 'kegDeposits', 'companyName',
   'inboundEmail', 'geminiApiKey', 'qboTaxCodeId',
+  'twilioAccountSid', 'twilioAuthToken', 'twilioFromNumber',
 ]);
 
 // PUT /api/settings — accepts a key-value map, upserts each key
