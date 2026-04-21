@@ -250,6 +250,7 @@ function renderAccounts() {
   const typeFilter     = (document.getElementById('acct-type')     || {}).value ?? nav.type     ?? '';
   const statusFilter   = (document.getElementById('acct-status')   || {}).value ?? nav.status   ?? '';
   const tagFilter      = (document.getElementById('acct-tag')      || {}).value ?? nav.tag      ?? '';
+  const methodFilter   = (document.getElementById('acct-method')   || {}).value ?? nav.method   ?? '';
   const locationFilter = (document.getElementById('acct-location') || {}).value ?? (state.location || '');
   const search         = (document.getElementById('acct-search')   || {}).value ?? nav.search   ?? '';
 
@@ -269,6 +270,9 @@ function renderAccounts() {
       try { tags = JSON.parse(a.Tags || '[]'); } catch (e) { tags = []; }
       return tags.includes(tagFilter);
     });
+  }
+  if (methodFilter) {
+    filtered = filtered.filter(a => a.PreferredMethod === methodFilter);
   }
   if (search) {
     const q = search.toLowerCase();
@@ -323,6 +327,10 @@ function renderAccounts() {
         <option value="">All Tags</option>
         ${ACCOUNT_TAGS.map(t => '<option value="' + esc(t) + '"' + (tagFilter === t ? ' selected' : '') + '>' + esc(t) + '</option>').join('')}
       </select>` : ''}
+      <select id="acct-method" onchange="_paginationReset('accounts'); renderAccounts()">
+        <option value="">All Methods</option>
+        ${CONTACT_METHODS.map(m => `<option value="${m}" ${methodFilter === m ? 'selected' : ''}>${m}</option>`).join('')}
+      </select>
       ${LOCATIONS.length > 1 ? `<select id="acct-location" onchange="_paginationReset('accounts'); renderAccounts()">
         <option value="">All Locations</option>
         ${LOCATIONS.map(l => '<option value="' + esc(l) + '"' + (locationFilter === l ? ' selected' : '') + '>' + esc(l) + '</option>').join('')}
