@@ -492,9 +492,15 @@ async function loadAccountProfile(accountId) {
   // Outreach, todo, and order rows rendered by their respective render functions after setContent
   _profileOrderFooter = acctOrders.length > 1
     ? `<tfoot><tr class="table-totals">
-        <td colspan="5" class="text-muted text-sm">${acctOrders.length} orders</td>
+        <td class="text-muted text-sm">${acctOrders.length} orders</td>
+        <td class="mobile-hide"></td>
+        <td class="mobile-hide"></td>
+        <td class="mobile-hide"></td>
+        <td class="mobile-hide"></td>
         <td class="fw-600">${fmtMoney(totalRevenue)}</td>
-        <td colspan="3"></td>
+        <td></td>
+        <td class="mobile-hide"></td>
+        <td></td>
       </tr></tfoot>`
     : '';
 
@@ -508,9 +514,9 @@ async function loadAccountProfile(accountId) {
         const outstanding = Math.max(0, qty - collected);
         const fullyCollected = outstanding === 0;
         return `<tr class="${fullyCollected ? 'row-completed' : ''}">
-          <td class="text-sm">${formatDate(h.DeployedDate)}</td>
+          <td class="mobile-hide text-sm">${formatDate(h.DeployedDate)}</td>
           <td class="text-center">${qty}</td>
-          <td class="text-center">${collected}</td>
+          <td class="mobile-hide text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
             <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
@@ -597,7 +603,7 @@ async function loadAccountProfile(accountId) {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Reason</th><th>Order</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th class="mobile-hide">Reason</th><th class="mobile-hide">Order</th><th>Actions</th></tr></thead>
           <tbody>${sortedCredits.length === 0
             ? '<tr><td colspan="6" class="empty-state">No credits recorded.</td></tr>'
             : sortedCredits.map(c => {
@@ -612,8 +618,8 @@ async function loadAccountProfile(accountId) {
                   <td class="text-sm">${formatDate(c.CreatedAt)}</td>
                   <td>${typeBadgeHtml}</td>
                   <td class="fw-600" style="color:${isCredit ? '#2e7d32' : '#e65100'}">${isCredit ? '+' : '-'}${fmtMoney(c.Amount)}</td>
-                  <td class="text-sm">${esc(c.Reason) || '—'}</td>
-                  <td class="text-sm">${c.OrderID ? `<span class="td-link" onclick="profileEditOrder('${esc(c.OrderID)}')">View Order</span>` : '—'}</td>
+                  <td class="mobile-hide text-sm">${esc(c.Reason) || '—'}</td>
+                  <td class="mobile-hide text-sm">${c.OrderID ? `<span class="td-link" onclick="profileEditOrder('${esc(c.OrderID)}')">View Order</span>` : '—'}</td>
                   <td class="td-actions">
                     <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                     <div class="mobile-actions-menu">
@@ -642,7 +648,7 @@ async function loadAccountProfile(accountId) {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Deployed</th><th class="text-center">Qty</th><th class="text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="mobile-hide">Deployed</th><th class="text-center">Qty</th><th class="mobile-hide text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th></tr></thead>
           <tbody>${tapHandleRows}</tbody>
         </table>
       </div>
@@ -667,8 +673,8 @@ function renderProfileOutreach() {
     : pg.rows.map(o => `<tr>
         <td class="text-sm">${formatDate(o.Date)}</td>
         <td>${methodBadge(o.Method)}</td>
-        <td class="text-sm note-cell">${truncateNote(o.Notes)}</td>
-        <td class="text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
+        <td class="mobile-hide text-sm note-cell">${truncateNote(o.Notes)}</td>
+        <td class="mobile-hide text-sm">${o.FollowUpDate ? formatDate(o.FollowUpDate) : '—'}</td>
         <td class="td-actions">
           <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
           <div class="mobile-actions-menu">
@@ -680,7 +686,7 @@ function renderProfileOutreach() {
   container.innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Method</th><th>Notes</th><th>Follow-up</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Date</th><th>Method</th><th class="mobile-hide">Notes</th><th class="mobile-hide">Follow-up</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -695,10 +701,10 @@ function renderProfileTodos() {
     ? `<tr><td colspan="6" class="empty-state">No todos for this account.</td></tr>`
     : pg.rows.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
         <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
-        <td>${typeBadge(t.Type) || '—'}</td>
+        <td class="mobile-hide">${typeBadge(t.Type) || '—'}</td>
         <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
-        <td>${priorityBadge(t.Priority)}</td>
-        <td class="text-sm text-muted">${esc(t.Notes) || '—'}</td>
+        <td class="mobile-hide">${priorityBadge(t.Priority)}</td>
+        <td class="mobile-hide text-sm text-muted">${esc(t.Notes) || '—'}</td>
         <td class="td-actions">
           <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
           <div class="mobile-actions-menu">
@@ -713,7 +719,7 @@ function renderProfileTodos() {
   container.innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Title</th><th>Type</th><th>Due</th><th>Priority</th><th>Notes</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Title</th><th class="mobile-hide">Type</th><th>Due</th><th class="mobile-hide">Priority</th><th class="mobile-hide">Notes</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -731,13 +737,13 @@ function renderProfileOrders() {
         const isPreSale = s.Status === 'Pre-Sale';
         return `<tr>
           <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
-          <td class="text-sm">${esc(s.InvoiceNumber) || '—'}</td>
-          <td class="text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
-          <td>${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
-          <td>${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
+          <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}</td>
+          <td class="mobile-hide text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
+          <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
+          <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
           <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
           <td>${orderStatusBadge(s.Status)}</td>
-          <td class="text-center">${isPreSale ? '—'
+          <td class="mobile-hide text-center">${isPreSale ? '—'
             : s.Delivered === 'true'
             ? '<input type="checkbox" checked disabled />'
             : `<input type="checkbox" onchange="profileToggleDelivered('${esc(s.ID)}')" />`}</td>
@@ -755,7 +761,7 @@ function renderProfileOrders() {
   container.innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Order Date</th><th>Invoice #</th><th>Delivery Date</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th><th>Delivered</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Order Date</th><th class="mobile-hide">Invoice #</th><th class="mobile-hide">Delivery Date</th><th class="mobile-hide">Amount</th><th class="mobile-hide">Tax</th><th>Total</th><th>Status</th><th class="mobile-hide">Delivered</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
         ${_profileOrderFooter}
       </table>
@@ -779,14 +785,14 @@ function renderProfileKegs() {
         const depRefunded = parseFloat(k.DepositRefunded) || 0;
         const depOutstanding = depTotal - depRefunded;
         return `<tr class="${fullyReturned ? 'row-completed' : ''}">
-          <td class="text-sm">${formatDate(k.DeliveredDate)}</td>
+          <td class="mobile-hide text-sm">${formatDate(k.DeliveredDate)}</td>
           <td class="fw-600">${esc(k.ProductName)}</td>
-          <td class="text-sm">${esc(k.Format)}</td>
+          <td class="mobile-hide text-sm">${esc(k.Format)}</td>
           <td class="text-center">${qty}</td>
-          <td class="text-center">${returned}</td>
+          <td class="mobile-hide text-center">${returned}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
-          <td class="text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
-          <td class="text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
+          <td class="mobile-hide text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
+          <td class="mobile-hide text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
           <td class="td-actions">
             <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
             <div class="mobile-actions-menu">
@@ -800,7 +806,7 @@ function renderProfileKegs() {
   container.innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Delivered</th><th>Product</th><th>Format</th><th class="text-center">Qty</th><th class="text-center">Returned</th><th class="text-center">Outstanding</th><th>Deposit</th><th>Refund Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th class="mobile-hide">Delivered</th><th>Product</th><th class="mobile-hide">Format</th><th class="text-center">Qty</th><th class="mobile-hide text-center">Returned</th><th class="text-center">Outstanding</th><th class="mobile-hide">Deposit</th><th class="mobile-hide">Refund Status</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>

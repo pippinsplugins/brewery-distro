@@ -240,10 +240,10 @@ function renderProducts() {
 
   const pg = paginate(filtered, 'products');
 
-  const th = (label, colKey) => {
+  const th = (label, colKey, extraClass = '') => {
     const active = _prodSort.col === colKey;
     const arrow = active ? (_prodSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return `<th class="sortable-th${active ? ' sorted' : ''}" onclick="sortProducts('${colKey}')">${label}${arrow}</th>`;
+    return `<th class="sortable-th${active ? ' sorted' : ''}${extraClass ? ' ' + extraClass : ''}" onclick="sortProducts('${colKey}')">${label}${arrow}</th>`;
   };
 
   setContent(`
@@ -263,15 +263,15 @@ function renderProducts() {
       <table>
         <thead>
           <tr>
-            ${th('Name', 'Name')}${th('Style', 'Style')}${th('ABV', 'ABV')}${th('Formats', 'Formats')}<th>Actions</th>
+            ${th('Name', 'Name')}${th('Style', 'Style', 'mobile-hide')}${th('ABV', 'ABV', 'mobile-hide')}${th('Formats', 'Formats')}<th>Actions</th>
           </tr>
         </thead>
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="5" class="empty-state">No products found. Add your first product!</td></tr>` :
             pg.rows.map(p => `<tr>
               <td class="fw-600"><span class="td-link" onclick="openEditProduct('${esc(p.ID)}')">${esc(p.Name)}</span></td>
-              <td>${esc(p.Style) || '—'}</td>
-              <td>${p.ABV ? esc(p.ABV) + '%' : '—'}</td>
+              <td class="mobile-hide">${esc(p.Style) || '—'}</td>
+              <td class="mobile-hide">${p.ABV ? esc(p.ABV) + '%' : '—'}</td>
               <td>${formatBadges(p.ID)}</td>
               <td class="td-actions">
                 <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>

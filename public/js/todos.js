@@ -137,8 +137,8 @@ function renderTodos() {
       <table>
         <thead>
           <tr>
-            <th>Due</th><th class="mobile-hide">Status</th><th>Title</th><th>Account</th>
-            <th>Type</th><th class="mobile-hide">Assigned To</th><th class="mobile-hide">Priority</th><th>Actions</th>
+            <th>Due</th><th class="mobile-hide">Status</th><th>Title</th><th class="mobile-hide">Account</th>
+            <th class="mobile-hide">Type</th><th class="mobile-hide">Assigned To</th><th class="mobile-hide">Priority</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -147,8 +147,8 @@ function renderTodos() {
               <td>${formatDate(r.DueDate)}</td>
               <td class="mobile-hide">${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
-              <td class="text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
-              <td class="text-sm">${typeBadge(r.Type)}</td>
+              <td class="mobile-hide text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
+              <td class="mobile-hide text-sm">${typeBadge(r.Type)}</td>
               <td class="mobile-hide text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td class="mobile-hide">${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
