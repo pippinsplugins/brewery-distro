@@ -109,10 +109,12 @@ async function loadDashboard() {
       <ul class="dash-list">
         ${allOverdue.map(r => `
           <li class="clickable" onclick="${r.AccountID ? `loadAccountProfile('${esc(r.AccountID)}')` : `navigate('todos')`}">
-            ${urgencyBadge(r.DueDate, r.Completed)}
-            ${typeBadge(r.Type)}
-            <span class="dash-label">${esc(r.Title)}</span>
-            ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
+            <div>
+              ${urgencyBadge(r.DueDate, r.Completed)}
+              ${typeBadge(r.Type)}
+              <span class="dash-label">${esc(r.Title)}</span>
+              ${r.AccountName ? `<span class="text-muted text-sm"> &mdash; ${esc(r.AccountName)}</span>` : ''}
+            </div>
             ${r._type !== 'delivery' ? `<button class="btn btn-ghost btn-sm text-success" onclick="event.stopPropagation();completeTodo('${esc(r.ID)}')">Done</button>` : ''}
           </li>`).join('')}
       </ul>
