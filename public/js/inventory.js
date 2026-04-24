@@ -61,10 +61,10 @@ function renderInventory() {
 
   const pg = paginate(filtered, 'inventory');
 
-  const th = (label, colKey) => {
+  const th = (label, colKey, extraClass = '') => {
     const active = _invSort.col === colKey;
     const arrow = active ? (_invSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return `<th class="sortable-th${active ? ' sorted' : ''}" onclick="sortInventory('${colKey}')">${label}${arrow}</th>`;
+    return `<th class="sortable-th${active ? ' sorted' : ''}${extraClass ? ' ' + extraClass : ''}" onclick="sortInventory('${colKey}')">${label}${arrow}</th>`;
   };
 
   setContent(`
@@ -92,8 +92,8 @@ function renderInventory() {
       <table>
         <thead>
           <tr>
-            ${th('Name', 'Name')}${th('Style', 'Style')}${th('ABV', 'ABV')}${th('Format', 'Format')}
-            ${th('Units', 'Units')}${th('Allocated', 'Allocated')}${th('Available', 'Available')}${th('Price/Unit', 'Price')}${th('Stock', 'Stock')}<th>Actions</th>
+            ${th('Name', 'Name')}${th('Style', 'Style', 'mobile-hide')}${th('ABV', 'ABV', 'mobile-hide')}${th('Format', 'Format')}
+            ${th('Units', 'Units', 'mobile-hide')}${th('Allocated', 'Allocated', 'mobile-hide')}${th('Available', 'Available')}${th('Price', 'Price', 'mobile-hide')}${th('Stock', 'Stock')}<th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -104,13 +104,13 @@ function renderInventory() {
               const out = available <= 0;
               return `<tr>
                 <td class="fw-600">${esc(item.Name)}</td>
-                <td>${esc(item.Style)}</td>
-                <td>${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
+                <td class="mobile-hide">${esc(item.Style)}</td>
+                <td class="mobile-hide">${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
                 <td>${esc(item.Format) || '—'}</td>
-                <td>${esc(item.Units)}</td>
-                <td>${esc(item.Allocated || '0')}</td>
+                <td class="mobile-hide">${esc(item.Units)}</td>
+                <td class="mobile-hide">${esc(item.Allocated || '0')}</td>
                 <td>${esc(item.Available || item.Units || '0')}</td>
-                <td>${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
+                <td class="mobile-hide">${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
                   <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>

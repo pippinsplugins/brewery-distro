@@ -94,7 +94,7 @@ function renderStaff() {
       <table>
         <thead>
           <tr>
-            <th>Name</th><th class="mobile-hide">Role</th><th>Email</th><th class="mobile-hide">Phone</th>
+            <th>Name</th><th class="mobile-hide">Role</th><th class="mobile-hide">Email</th><th class="mobile-hide">Phone</th>
             <th class="mobile-hide">Accounts</th>${LOCATIONS.length > 1 ? '<th class="mobile-hide">Locations</th>' : ''}<th class="mobile-hide">Status</th><th class="mobile-hide">Notes</th><th>Actions</th>
           </tr>
         </thead>
@@ -103,7 +103,7 @@ function renderStaff() {
             pg.rows.map(s => `<tr>
               <td class="fw-600"><span class="td-link" onclick="openEditStaff('${esc(s.ID)}')">${esc(s.Name)}</span></td>
               <td class="mobile-hide">${esc(s.Role) || '—'}</td>
-              <td class="text-sm">${esc(s.Email) || '—'}</td>
+              <td class="mobile-hide text-sm">${esc(s.Email) || '—'}</td>
               <td class="mobile-hide text-sm">${s.Phone ? esc(formatPhone(s.Phone)) : '—'}</td>
               <td class="mobile-hide"><span class="badge badge-prospect">${acctCounts[s.ID] || 0} account${(acctCounts[s.ID] || 0) !== 1 ? 's' : ''}</span></td>
               ${LOCATIONS.length > 1 ? `<td class="mobile-hide">${(() => { try { return JSON.parse(s.Locations || '[]').map(l => `<span class="badge">${esc(l)}</span>`).join(' '); } catch { return ''; } })() || '—'}</td>` : ''}

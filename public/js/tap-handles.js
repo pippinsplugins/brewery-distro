@@ -60,9 +60,9 @@ function renderTapHandles() {
         const fullyCollected = outstanding === 0;
         return `<tr class="${fullyCollected ? 'row-completed' : ''}">
           <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(h.AccountID)}')">${esc(h.AccountName)}</span></td>
-          <td class="text-sm">${formatDate(h.DeployedDate)}</td>
+          <td class="mobile-hide text-sm">${formatDate(h.DeployedDate)}</td>
           <td class="text-center">${qty}</td>
-          <td class="text-center">${collected}</td>
+          <td class="mobile-hide text-center">${collected}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="td-actions">
             <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
@@ -99,8 +99,8 @@ function renderTapHandles() {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Account</th><th>Deployed</th>
-          <th class="text-center">Qty</th><th class="text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th>
+          <th>Account</th><th class="mobile-hide">Deployed</th>
+          <th class="text-center">Qty</th><th class="mobile-hide text-center">Collected</th><th class="text-center">Outstanding</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>

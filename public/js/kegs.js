@@ -65,8 +65,8 @@ function renderKegs() {
         const depOutstanding = depTotal - depRefunded;
         return `<tr class="${fullyReturned ? 'row-completed' : ''}">
           <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(k.AccountID)}')">${esc(k.AccountName)}</span></td>
-          <td>${esc(k.ProductName)}</td>
-          <td class="text-sm">${esc(k.Format)}</td>
+          <td class="mobile-hide">${esc(k.ProductName)}</td>
+          <td class="mobile-hide text-sm">${esc(k.Format)}</td>
           <td class="mobile-hide text-sm">${formatDate(k.DeliveredDate)}</td>
           <td class="text-center">${qty}</td>
           <td class="mobile-hide text-center">${returned}</td>
@@ -107,7 +107,7 @@ function renderKegs() {
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Account</th><th>Product</th><th>Format</th><th class="mobile-hide">Delivered</th>
+          <th>Account</th><th class="mobile-hide">Product</th><th class="mobile-hide">Format</th><th class="mobile-hide">Delivered</th>
           <th class="text-center">Qty</th><th class="mobile-hide text-center">Returned</th><th class="text-center">Outstanding</th><th class="mobile-hide">Deposit</th><th class="mobile-hide">Refunded</th><th>Actions</th>
         </tr></thead>
         <tbody>${rows}</tbody>

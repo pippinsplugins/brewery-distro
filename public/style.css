@@ -1416,6 +1416,8 @@ th input[type="checkbox"] {
 
 /* ── Responsive ───────────────────────────────────────── */
 
+/* ── Tablet: < 900px ─────────────────────────────────── */
+
 @media (max-width: 900px) {
   :root { --sidebar-width: 190px; }
   .content-area { padding: 18px 16px; }
@@ -1429,7 +1431,10 @@ th input[type="checkbox"] {
   .form-row-3 .form-group:has(.checkbox-label) { margin-bottom: 4px; }
 }
 
+/* ── Mobile: < 640px ─────────────────────────────────── */
+
 @media (max-width: 640px) {
+
   /* ── Prevent content from widening the viewport ── */
   html, body {
     overflow-x: hidden;
@@ -1443,6 +1448,8 @@ th input[type="checkbox"] {
   /* ── Show hamburger button ── */
   .mobile-menu-btn {
     display: flex;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   /* ── Sidebar: off-screen by default, slide in when .open ── */
@@ -1455,6 +1462,17 @@ th input[type="checkbox"] {
     transform: translateX(0);
   }
 
+  /* ── Nav items: touch-friendly sizing ── */
+  .nav-item {
+    min-height: 44px;
+  }
+
+  .nav-subitem {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+  }
+
   /* ── Main content: remove sidebar offset ── */
   .main-content {
     margin-left: 0;
@@ -1462,6 +1480,8 @@ th input[type="checkbox"] {
 
   .setup-banner-inner {
     margin-left: 0;
+    padding: 10px 12px;
+    font-size: 12px;
   }
 
   /* ── Content area: tighter padding for phones ── */
@@ -1487,9 +1507,23 @@ th input[type="checkbox"] {
     gap: 10px;
   }
 
+  /* ── Profile stat cards: compact on mobile ── */
+  .profile-stat {
+    padding: 12px 10px;
+  }
+
+  .profile-stat .stat-value {
+    font-size: 20px;
+  }
+
+  .profile-stat .stat-label {
+    font-size: 10.5px;
+  }
+
   /* ── Profile info: single column ── */
   .profile-info {
     grid-template-columns: 1fr;
+    padding: 14px;
   }
 
   /* ── Filter bar: inputs adapt to available width ── */
@@ -1503,19 +1537,51 @@ th input[type="checkbox"] {
     min-width: 0;
   }
 
-  /* ── Table: constrain to viewport and tighter cell padding ── */
+  /* ── Table: constrain to viewport, prevent overflow ── */
   .table-wrap {
     max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    width: 100%;
   }
 
   thead th {
-    padding: 8px 10px;
-    font-size: 11px;
+    padding: 8px 6px;
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   tbody td {
-    padding: 7px 10px;
-    font-size: 12.5px;
+    padding: 7px 6px;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+
+  /* ── Table cell content: prevent long text from pushing width ── */
+  .note-cell {
+    max-width: 120px;
+  }
+
+  .td-link {
+    word-break: break-word;
+  }
+
+  /* ── Tag badges inside table cells: wrap tightly ── */
+  td .tag-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  td .badge-tag {
+    font-size: 9px;
+    padding: 1px 4px;
   }
 
   /* ── Stat cards: smaller text on mobile ── */
@@ -1557,8 +1623,73 @@ th input[type="checkbox"] {
     padding: 14px 16px 12px;
   }
 
+  /* ── Modal close button: touch-friendly ── */
+  .modal-close {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
   .modal-footer {
     padding: 12px 16px;
+  }
+
+  /* ── Modal footer buttons: touch-friendly ── */
+  .modal-footer .btn {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  /* ── Modal-wide (import invoices): constrain on mobile ── */
+  .modal-wide {
+    max-width: 100%;
+  }
+
+  /* ── Import invoice: compact on mobile ── */
+  .import-invoice-section {
+    padding: 10px;
+  }
+
+  .import-invoice-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .import-line-items table {
+    font-size: 11px;
+  }
+
+  .import-line-items thead th {
+    padding: 4px 4px;
+    font-size: 9px;
+  }
+
+  .import-line-items tbody td {
+    padding: 4px 4px;
+  }
+
+  /* ── Order total summary: full width on mobile ── */
+  .order-total-summary {
+    max-width: 100%;
+    margin-left: 0;
+  }
+
+  /* ── Order line items: stack on mobile ── */
+  .order-line-item {
+    flex-wrap: wrap !important;
+  }
+
+  .order-line-item select.form-control {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  .order-line-item .line-item-qty {
+    width: 70px !important;
   }
 
   /* ── Toast: fit to phone width ── */
@@ -1580,6 +1711,21 @@ th input[type="checkbox"] {
     grid-template-columns: 1fr;
   }
 
+  /* ── Dashboard list items: better wrapping ── */
+  .dash-list li {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .dash-list .dash-label {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .dash-list .dash-meta {
+    flex-shrink: 0;
+  }
+
   /* ── Pagination: stack vertically ── */
   .pagination-bar {
     flex-direction: column;
@@ -1591,25 +1737,43 @@ th input[type="checkbox"] {
   .pagination-per-page,
   .pagination-nav {
     justify-content: center;
+    flex-wrap: wrap;
   }
 
-  /* ── Buttons: slightly smaller for mobile density ── */
+  /* ── Pagination buttons: touch-friendly ── */
+  .pagination-nav .btn {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .pagination-per-page select {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  /* ── Buttons: touch-friendly minimum sizes ── */
   .btn {
-    padding: 6px 12px;
-    font-size: 12.5px;
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 13px;
   }
 
   .btn-sm {
-    padding: 4px 8px;
-    font-size: 11.5px;
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
   /* ── Hide non-essential table columns ── */
   .mobile-hide { display: none !important; }
 
-  /* ── Action buttons: wrap instead of overflow ── */
+  /* ── Action buttons: collapse into ... menu ── */
   .td-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
   }
 
   /* ── Filter bar: stack vertically ── */
@@ -1620,6 +1784,8 @@ th input[type="checkbox"] {
   .filter-bar input,
   .filter-bar select {
     width: 100%;
+    min-height: 40px;
+    font-size: 14px;
   }
 
   /* ── Form touch targets ── */
@@ -1627,12 +1793,58 @@ th input[type="checkbox"] {
   select,
   textarea {
     min-height: 40px;
+    font-size: 14px;
+  }
+
+  /* iOS zoom prevention: inputs must be at least 16px */
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  .form-control {
+    font-size: 16px;
+  }
+
+  /* ── Checkboxes: touch-friendly sizing ── */
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+  }
+
+  .checkbox-label {
+    min-height: 40px;
+    gap: 8px;
+    font-size: 14px;
+    align-items: center;
+  }
+
+  .checkbox-group {
+    gap: 8px 16px;
+  }
+
+  /* ── Bulk actions bar: wrap on mobile ── */
+  .bulk-actions-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .acct-select,
+  th input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
   }
 
   /* ── Profile section header: allow wrapping ── */
   .profile-section-header {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .profile-section-header .section-actions,
+  .profile-section-header > div {
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   /* ── View header actions: wrap with smaller gap ── */
@@ -1643,7 +1855,14 @@ th input[type="checkbox"] {
 
   /* ── Mobile actions menu (... toggle) ── */
   .td-actions > .btn { display: none; }
-  .td-actions .mobile-actions-toggle { display: inline-flex; }
+  .td-actions .mobile-actions-toggle {
+    display: inline-flex;
+    min-width: 36px;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
 
   /* ── Profile header: keep actions top-right, collapse into ... menu ── */
   .view-header:has(.profile-header-actions) {
@@ -1667,7 +1886,7 @@ th input[type="checkbox"] {
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
     z-index: 1000;
-    min-width: 120px;
+    min-width: 140px;
     padding: 4px 0;
   }
 
@@ -1679,13 +1898,141 @@ th input[type="checkbox"] {
     width: 100%;
     text-align: left;
     border-radius: 0;
-    padding: 8px 14px;
+    padding: 12px 16px;
+    font-size: 14px;
+    white-space: nowrap;
+    min-height: 44px;
+  }
+
+  /* ── Settings: full width, touch-friendly items ── */
+  .settings-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-tab {
+    min-height: 44px;
+    padding: 10px 14px;
     font-size: 13px;
     white-space: nowrap;
   }
+
+  .settings-grid {
+    max-width: 100%;
+  }
+
+  .settings-location-item {
+    min-height: 44px;
+    padding: 12px 0;
+    gap: 8px;
+  }
+
+  .settings-location-name {
+    word-break: break-word;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .settings-location-actions {
+    flex-shrink: 0;
+    gap: 4px;
+  }
+
+  .settings-location-actions .btn {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  /* ── Card: tighter padding on mobile ── */
+  .card {
+    padding: 14px;
+  }
+
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── Dropdown multi: constrain to viewport ── */
+  .dropdown-multi-menu {
+    max-width: calc(100vw - 24px);
+    min-width: 0;
+    width: auto;
+  }
+
+  .dropdown-multi-item {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+
+  /* ── Mention dropdown: constrain to viewport ── */
+  .mention-dropdown {
+    max-width: calc(100vw - 24px);
+  }
+
+  .mention-item {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* ── Badge: slightly larger for readability ── */
+  .badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  /* ── Table totals: smaller footer ── */
+  .table-totals td {
+    padding: 10px 6px;
+    font-size: 12px;
+  }
+
+  /* ── Profile section: tighter margins ── */
+  .profile-section {
+    margin-bottom: 20px;
+  }
+
+  /* ── Info banner (email drafts etc): wrap ── */
+  .info-banner {
+    flex-wrap: wrap !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+  }
 }
 
+/* ── Landscape mode fix for modals ──────────────────── */
+@media (max-width: 900px) and (max-height: 500px) {
+  .modal-overlay {
+    padding: 4px;
+    align-items: flex-start;
+  }
+
+  .modal-body {
+    max-height: calc(100vh - 120px);
+  }
+
+  .modal {
+    margin: 0;
+    max-height: calc(100vh - 8px);
+    overflow-y: auto;
+  }
+}
+
+/* ── Small phones: < 400px ───────────────────────────── */
+
 @media (max-width: 400px) {
+
+  /* ── Profile stats: single column at very small sizes ── */
+  .profile-stats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
   .profile-stat .stat-value {
     font-size: 18px;
   }
@@ -1697,6 +2044,57 @@ th input[type="checkbox"] {
   .content-area {
     padding: 12px 8px;
     padding-top: 56px;
+  }
+
+  /* ── Even tighter table cells ── */
+  thead th {
+    padding: 6px 4px;
+    font-size: 9px;
+  }
+
+  tbody td {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+
+  /* ── Stats grid: single column ── */
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  /* ── View header actions: full width buttons ── */
+  .view-header-actions {
+    flex-direction: column;
+  }
+
+  .view-header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ── Filter bar selects: stack 2 per row at very small sizes ── */
+  .filter-bar {
+    gap: 6px;
+  }
+
+  /* ── Card header: wrap ── */
+  .card-header h3 {
+    font-size: 14px;
+  }
+
+  /* ── Badge: compact ── */
+  .badge {
+    font-size: 9px;
+    padding: 2px 5px;
   }
 }
 

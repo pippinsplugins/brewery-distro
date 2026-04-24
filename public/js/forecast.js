@@ -143,9 +143,9 @@ function renderForecast() {
           <thead>
             <tr>
               <th class="sortable" onclick="_fcSortBy('productName')" style="cursor:pointer">Product${sortIcon('productName')}</th>
-              <th class="sortable" onclick="_fcSortBy('format')" style="cursor:pointer">Format${sortIcon('format')}</th>
+              <th class="sortable mobile-hide" onclick="_fcSortBy('format')" style="cursor:pointer">Format${sortIcon('format')}</th>
               <th class="sortable" onclick="_fcSortBy('totalQty')" style="cursor:pointer">Total Units${sortIcon('totalQty')}</th>
-              <th class="sortable" onclick="_fcSortBy('avgPerWeek')" style="cursor:pointer">Avg / Week${sortIcon('avgPerWeek')}</th>
+              <th class="sortable mobile-hide" onclick="_fcSortBy('avgPerWeek')" style="cursor:pointer">Avg / Week${sortIcon('avgPerWeek')}</th>
               <th class="sortable" onclick="_fcSortBy('avgPerMonth')" style="cursor:pointer">Avg / Month${sortIcon('avgPerMonth')}</th>
             </tr>
           </thead>
@@ -154,9 +154,9 @@ function renderForecast() {
               ? '<tr><td colspan="5" class="empty-state">No products found</td></tr>'
               : pg.rows.map(p => `<tr>
                 <td>${esc(p.productName)}</td>
-                <td>${esc(p.format)}</td>
+                <td class="mobile-hide">${esc(p.format)}</td>
                 <td>${p.totalQty}</td>
-                <td>${p.avgPerWeek}</td>
+                <td class="mobile-hide">${p.avgPerWeek}</td>
                 <td>${p.avgPerMonth}</td>
               </tr>`).join('')}
           </tbody>
