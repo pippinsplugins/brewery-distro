@@ -346,8 +346,8 @@ const modal = {
     };
     document.getElementById('modal-overlay').addEventListener('keydown', modal._enterSubmit);
 
-    // Focus first input
-    const first = document.querySelector('#modal-body input:not([type="hidden"]), #modal-body select, #modal-body textarea');
+    // Focus first input (skip selects — on iOS, focusing a <select> opens the native picker)
+    const first = document.querySelector('#modal-body input:not([type="hidden"]), #modal-body textarea');
     if (first) first.focus();
   },
 
