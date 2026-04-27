@@ -20,8 +20,16 @@ const upload = multer({
 
 const router = express.Router();
 
-// Append current time to a date-only string so same-day orders sort by creation time.
-// "2026-02-23" → "2026-02-23T14:30:05.123Z"; already-timestamped values pass through.
+/**
+ * Append the current time to a date-only string so same-day orders sort
+ * correctly by creation time in the UI.
+ *
+ * @param {string} dateStr - Date string, either 'YYYY-MM-DD' or already ISO 8601
+ * @returns {string} ISO 8601 timestamp (e.g. "2026-02-23T14:30:05.123Z")
+ * @example
+ * withTimestamp("2026-02-23")   // "2026-02-23T14:30:05.123Z"
+ * withTimestamp("2026-02-23T00:00:00Z") // unchanged
+ */
 function withTimestamp(dateStr) {
   if (!dateStr) return dateStr;
   if (dateStr.includes('T')) return dateStr; // already has time
@@ -146,7 +154,20 @@ router.delete('/:id', async (req, res) => {
 
 // ── Import endpoints ────────────────────────────────────────────────
 
-// POST /import — upload PDF(s), extract + parse, return preview data
+/**
+ * POST /api/orders/import
+ * Upload one or more PDF invoices (multipart/form-data, field name: "invoices",
+ * max 50 files, 10MB each). Each PDF is parsed by Gemini AI to extract
+ * invoice number, order date, account match, line items, amounts, and account
+ * details (ABC license, contact name, phone, email).
+ *
+ * Returns a preview array — one entry per file — for the user to review before
+ * confirming. Each entry includes:
+ *   - filename, parsed (extracted data), confidence ('high'|'low'|'error'),
+ *     duplicate (boolean), duplicateOrderId
+ *
+ * Use POST /api/orders/import/confirm to create the actual orders.
+ */
 router.post('/import', upload.array('invoices', 50), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -204,7 +225,17 @@ router.post('/import', upload.array('invoices', 50), async (req, res) => {
   }
 });
 
-// POST /import/confirm — bulk create orders + line items + optional new inventory
+/**
+ * POST /api/orders/import/confirm
+ * Bulk-create orders from the previewed import data.
+ *
+ * Each order definition may include:
+ *   - newAccountName / newProducts: create new accounts / products on the fly
+ *   - abcLicense, contactName, phone, email: back-fill empty fields on matched accounts
+ *   - lineItems: array of { inventoryId?, productName, format, quantity, unitPrice, lineTotal }
+ *
+ * Returns: { created: [...orders], errors: [...], newProductsCreated, newAccountsCreated }
+ */
 router.post('/import/confirm', async (req, res) => {
   try {
     const { orders: orderDefs } = req.body;

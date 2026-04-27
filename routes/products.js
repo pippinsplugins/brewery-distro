@@ -29,7 +29,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/products — create product + auto-create inventory rows at every location
+/**
+ * POST /api/products
+ * Create a product and auto-create inventory rows at every configured location.
+ *
+ * Format and PricePerUnit live on inventory rows, not the product row.
+ * Pass `variations` array for multi-format products:
+ *   [{ format, pricePerUnit, prices: [{ label, price }, ...] }]
+ * Falls back to a single variation from legacy `Format`/`PricePerUnit` fields.
+ * Multi-tier pricing is stored as JSON in the inventory `Prices` column;
+ * `PricePerUnit` is set to the first tier price.
+ */
 router.post('/', async (req, res) => {
   try {
     const { Name, Style, ABV, Format, PricePerUnit, Notes, variations } = req.body;
@@ -97,7 +107,12 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/products/:id — update product fields (not Format/PricePerUnit); cascade Name changes
+/**
+ * PUT /api/products/:id
+ * Update product fields. Format and PricePerUnit are stripped from updates —
+ * they are managed on inventory rows via the /variations endpoints.
+ * If Name changes, ProductName is cascaded to all linked inventory rows.
+ */
 router.put('/:id', async (req, res) => {
   try {
     const updates = { ...req.body };
@@ -130,7 +145,15 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// GET /api/products/:id/variations — deduplicated formats from inventory
+/**
+ * GET /api/products/:id/variations
+ * Returns format variations for a product, deduplicated by Format value.
+ * Each variation includes:
+ *   - format: the format string
+ *   - pricePerUnit: primary price
+ *   - prices: multi-tier pricing array (parsed from Prices JSON)
+ *   - locations: array of { location, inventoryId, units } for each location
+ */
 router.get('/:id/variations', async (req, res) => {
   try {
     const inventory = await getAllRows('INVENTORY');
@@ -216,7 +239,13 @@ router.post('/:id/variations', async (req, res) => {
   }
 });
 
-// DELETE /api/products/:id/variations/:format — remove a format variation
+/**
+ * DELETE /api/products/:id/variations/:format
+ * Remove a format variation. Deletes all inventory rows for this product
+ * at every location with the given format.
+ * Refused with 400 if any of those rows have stock > 0.
+ * The format value must be URL-encoded (e.g. "1%2F6+Keg" for "1/6 Keg").
+ */
 router.delete('/:id/variations/:format', async (req, res) => {
   try {
     const format = decodeURIComponent(req.params.format);
@@ -243,7 +272,12 @@ router.delete('/:id/variations/:format', async (req, res) => {
   }
 });
 
-// DELETE /api/products/:id — refuse if stock > 0 anywhere; delete inventory rows + product
+/**
+ * DELETE /api/products/:id
+ * Delete a product and all its inventory rows.
+ * Refused with 400 if any inventory row has stock > 0.
+ * Use stock movements to zero out stock before deleting.
+ */
 router.delete('/:id', async (req, res) => {
   try {
     const inventory = await getAllRows('INVENTORY');

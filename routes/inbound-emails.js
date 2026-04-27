@@ -7,7 +7,18 @@ const { matchAccount } = inboundService;
 
 const router = express.Router();
 
-// GET /api/inbound-emails — list emails (optional ?status= filter, paginated)
+/**
+ * GET /api/inbound-emails
+ * List inbound email records, newest first. Supports:
+ *   - ?status= filter (pending|parsed|order_created|error|skipped)
+ *   - ?page= and ?perPage= for pagination (default: page 1, 25 per page)
+ *
+ * Body text is truncated to 200 chars. Each item includes computed flags:
+ *   - _accountMatched: whether the parsed account name matched an existing account
+ *   - _orderMissing: true if the linked order was deleted after email processing
+ *
+ * @returns {{ items: Array, total: number, page: number, perPage: number }}
+ */
 router.get('/', (req, res) => {
   try {
     let emails = getAllRows('INBOUND_EMAILS');
@@ -87,7 +98,12 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// POST /api/inbound-emails/:id/retry — re-parse and auto-create order
+/**
+ * POST /api/inbound-emails/:id/retry
+ * Re-parse a previously failed or errored email. Resets status to 'pending'
+ * and runs the full processing pipeline again (Gemini parse + order creation).
+ * Useful after fixing a Gemini API key or account mismatch.
+ */
 router.post('/:id/retry', async (req, res) => {
   try {
     const email = getRow('INBOUND_EMAILS', req.params.id);
@@ -107,7 +123,14 @@ router.post('/:id/retry', async (req, res) => {
   }
 });
 
-// POST /api/inbound-emails/:id/create-order — manually create draft from parsed data
+/**
+ * POST /api/inbound-emails/:id/create-order
+ * Manually create a Draft order from already-parsed email data.
+ * Used when auto-creation failed (e.g. no account match) and the user
+ * has since created the account and wants to create the order without
+ * re-parsing.
+ * Returns 400 if the email already has an OrderID or has no ParsedData.
+ */
 router.post('/:id/create-order', async (req, res) => {
   try {
     const email = getRow('INBOUND_EMAILS', req.params.id);

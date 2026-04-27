@@ -9,7 +9,17 @@ const router = express.Router();
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Strip sensitive keys and parse JSON values before returning settings to the client. */
+/**
+ * Strip sensitive keys from a settings key-value map before returning it to
+ * the client. Replaces secrets with boolean presence flags:
+ *   - geminiApiKey → geminiApiKeySet: true
+ *   - inboundEmailWebhookToken → inboundEmailWebhookTokenSet: true
+ * Also removes: qboTokens, apiKeys, google_refresh_token:* keys.
+ * Parses JSON values for: locations, accountTags, styles, kegDeposits.
+ *
+ * @param {object} settings - Raw key-value map from the Settings table
+ * @returns {object} Sanitized settings safe for client consumption
+ */
 function sanitizeSettings(settings) {
   // Flag presence of secrets before removing them
   const hasGeminiKey = !!settings.geminiApiKey;
