@@ -269,7 +269,7 @@ function renderAccounts() {
     filtered = filtered.filter(a => {
       let tags = [];
       try { tags = JSON.parse(a.Tags || '[]'); } catch (e) { tags = []; }
-      return tagFilter.some(t => tags.includes(t));
+      return tagFilter.every(t => tags.includes(t));
     });
   }
   if (methodFilter) {
