@@ -87,6 +87,7 @@ router.get('/', async (req, res) => {
       prospectAccounts: prospectAccounts.length,
       totalActiveReminders: activeReminders.length,
       overdueCount: overdueReminders.length,
+      activeReminders,
       upcomingReminders,
       overdueReminders: overdueReminders.sort((a, b) => a.DueDate.localeCompare(b.DueDate)),
       lowStockItems,

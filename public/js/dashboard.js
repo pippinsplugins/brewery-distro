@@ -60,11 +60,19 @@ async function loadDashboard() {
   const allOverdue = [...(dash.overdueReminders || []), ...overdueDeliveries]
     .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
 
-  // Build "My Todos" — overdue + upcoming assigned to current staff, including pending deliveries
-  const myOverdue = currentStaffId ? allOverdue.filter(r => r.StaffID === currentStaffId) : [];
-  const myUpcoming = currentStaffId ? allUpcoming.filter(r => r.StaffID === currentStaffId) : [];
-  const myTodos = [...myOverdue, ...myUpcoming]
-    .sort((a, b) => (a.DueDate || '').localeCompare(b.DueDate || ''));
+  // Build "My Todos" — ALL active reminders + pending deliveries assigned to current staff
+  const allMyItems = currentStaffId
+    ? [...(dash.activeReminders || []), ...pendingDeliveries].filter(r => r.StaffID === currentStaffId)
+    : [];
+  const myOverdue = allMyItems.filter(r => r.DueDate && daysFromToday(r.DueDate) !== null && daysFromToday(r.DueDate) < 0);
+  const myTodos = allMyItems
+    .sort((a, b) => {
+      // Items with no due date sort to the end
+      if (!a.DueDate && !b.DueDate) return 0;
+      if (!a.DueDate) return 1;
+      if (!b.DueDate) return -1;
+      return a.DueDate.localeCompare(b.DueDate);
+    });
 
   const lowStockHtml = dash.lowStockItems.length === 0
     ? '<li class="empty-state" style="padding:12px 0">All products are well stocked.</li>'
