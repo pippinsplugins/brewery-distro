@@ -21,6 +21,7 @@ const FORMAT_CATEGORIES = {
 let _emailInventoryCache = null;
 let _emailInventoryCategory = 'All';
 let _emailInventoryShowQty = true;
+let _acctTagFilters = [];
 
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
@@ -249,7 +250,7 @@ function renderAccounts() {
   state.navFilters = {};
   const typeFilter     = (document.getElementById('acct-type')     || {}).value ?? nav.type     ?? '';
   const statusFilter   = (document.getElementById('acct-status')   || {}).value ?? nav.status   ?? '';
-  const tagFilter      = (document.getElementById('acct-tag')      || {}).value ?? nav.tag      ?? '';
+  const tagFilter      = _acctTagFilters.length > 0 ? _acctTagFilters : [];
   const methodFilter   = (document.getElementById('acct-method')   || {}).value ?? nav.method   ?? '';
   const locationFilter = (document.getElementById('acct-location') || {}).value ?? (state.location || '');
   const search         = (document.getElementById('acct-search')   || {}).value ?? nav.search   ?? '';
@@ -264,11 +265,11 @@ function renderAccounts() {
   } else {
     filtered = filtered.filter(a => a.Status !== 'Inactive');
   }
-  if (tagFilter) {
+  if (tagFilter.length > 0) {
     filtered = filtered.filter(a => {
       let tags = [];
       try { tags = JSON.parse(a.Tags || '[]'); } catch (e) { tags = []; }
-      return tags.includes(tagFilter);
+      return tagFilter.some(t => tags.includes(t));
     });
   }
   if (methodFilter) {
@@ -323,10 +324,19 @@ function renderAccounts() {
         <option value="">All (excl. Inactive)</option>
         ${ACCOUNT_STATUSES.map(s => `<option value="${s}" ${statusFilter === s ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
-      ${ACCOUNT_TAGS.length > 0 ? `<select id="acct-tag" onchange="_paginationReset('accounts'); renderAccounts()">
-        <option value="">All Tags</option>
-        ${ACCOUNT_TAGS.map(t => '<option value="' + esc(t) + '"' + (tagFilter === t ? ' selected' : '') + '>' + esc(t) + '</option>').join('')}
-      </select>` : ''}
+      ${ACCOUNT_TAGS.length > 0 ? `<div class="dropdown-multi" id="tag-filter-dropdown">
+        <button type="button" class="btn btn-secondary btn-filter-multi" onclick="toggleTagFilterMenu()">
+          ${tagFilter.length === 0 ? 'All Tags' : tagFilter.length === 1 ? esc(tagFilter[0]) : tagFilter.length + ' Tags'}
+          <span style="margin-left:4px;font-size:10px">&#9662;</span>
+        </button>
+        <div class="dropdown-multi-menu" id="tag-filter-menu" style="display:none">
+          ${ACCOUNT_TAGS.map(t => `<label class="dropdown-multi-item" onclick="event.stopPropagation()">
+            <input type="checkbox" value="${esc(t)}" ${tagFilter.includes(t) ? 'checked' : ''} onchange="applyTagFilter()" />
+            ${esc(t)}
+          </label>`).join('')}
+          ${tagFilter.length > 0 ? '<div style="border-top:1px solid var(--border);margin:4px 0"></div><div class="dropdown-multi-item" style="color:var(--text-muted);cursor:pointer" onclick="clearTagFilter()">Clear all</div>' : ''}
+        </div>
+      </div>` : ''}
       <select id="acct-method" onchange="_paginationReset('accounts'); renderAccounts()">
         <option value="">All Methods</option>
         ${CONTACT_METHODS.map(m => `<option value="${m}" ${methodFilter === m ? 'selected' : ''}>${m}</option>`).join('')}
@@ -1331,6 +1341,40 @@ function insertInventoryText() {
     textarea.value = text;
   }
   textarea.focus();
+}
+
+// ── Tag Filter ───────────────────────────────────────────────────
+
+function toggleTagFilterMenu() {
+  const menu = document.getElementById('tag-filter-menu');
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Close on outside click
+    setTimeout(() => {
+      const handler = (e) => {
+        if (!document.getElementById('tag-filter-dropdown')?.contains(e.target)) {
+          menu.style.display = 'none';
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    });
+  }
+}
+
+function applyTagFilter() {
+  const checkboxes = document.querySelectorAll('#tag-filter-menu input[type="checkbox"]');
+  _acctTagFilters = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+  _paginationReset('accounts');
+  renderAccounts();
+}
+
+function clearTagFilter() {
+  _acctTagFilters = [];
+  _paginationReset('accounts');
+  renderAccounts();
 }
 
 // ── Email Functions ──────────────────────────────────────────────
