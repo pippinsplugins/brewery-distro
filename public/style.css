@@ -616,6 +616,18 @@ body {
 }
 .dropdown-multi-item:hover { background: var(--bg-hover, #f5f5f5); }
 
+.btn-filter-multi {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text);
+}
+
+.btn-filter-multi:hover { background: var(--border-light); }
+
 /* ── Table ────────────────────────────────────────────── */
 
 .table-wrap {
