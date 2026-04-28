@@ -187,6 +187,24 @@ router.get('/:id/merge-preview', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/accounts/:id/merge
+ * Merge a source account into this (target) account. All related records
+ * (outreach, reminders, orders, kegs, tap handles, credits, email log entries)
+ * are re-assigned from sourceAccountId to the target account.
+ *
+ * Metadata merging strategy:
+ *   - Fill empty fields on target from source (ContactName, Email, Address, etc.)
+ *   - Tags: union of both tag arrays
+ *   - AdditionalEmails: union; source's primary Email appended if different
+ *   - Notes: appended with a separator
+ *   - LastContacted: most recent date wins
+ *
+ * The source account is deleted after merging.
+ *
+ * @body {{ sourceAccountId: string }}
+ * @returns {{ success: true, merged: { outreach, reminders, orders, kegs, tapHandles, emails, credits } }}
+ */
 router.post('/:id/merge', async (req, res) => {
   try {
     const targetId = req.params.id;

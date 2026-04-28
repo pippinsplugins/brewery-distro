@@ -6,7 +6,7 @@ const { getAllRows, addRow, updateRow, deleteRow } = require('../db');
 
 const router = express.Router();
 
-// GET /api/credits — list credits, optionally filtered by accountId
+// GET /api/credits — list all credit records, optionally filtered by ?accountId=
 router.get('/', async (req, res) => {
   try {
     const rows = await getAllRows('ACCOUNT_CREDITS');
@@ -20,7 +20,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/credits/balance/:accountId — computed balance
+/**
+ * GET /api/credits/balance/:accountId
+ * Returns the computed credit balance for an account.
+ * Balance = sum of 'credit' type amounts minus sum of 'applied' type amounts.
+ * Never returns a negative balance (floor at 0).
+ *
+ * @returns {{ balance: number }}
+ */
 router.get('/balance/:accountId', async (req, res) => {
   try {
     const rows = await getAllRows('ACCOUNT_CREDITS');
@@ -36,7 +43,13 @@ router.get('/balance/:accountId', async (req, res) => {
   }
 });
 
-// POST /api/credits — create a credit record
+/**
+ * POST /api/credits
+ * Create a credit record. Use type 'credit' to issue a new credit,
+ * and type 'applied' when a credit is used on an order.
+ *
+ * @body {{ accountId, accountName, type: 'credit'|'applied', amount, orderId?, reason?, notes? }}
+ */
 router.post('/', async (req, res) => {
   try {
     const { accountId, accountName, type, amount, orderId, reason, notes } = req.body;

@@ -55,6 +55,14 @@ const HEADERS = {
 
 let _db;
 
+/**
+ * Returns the singleton better-sqlite3 Database instance, creating it on first call.
+ * WAL journal mode is enabled for better concurrent read performance.
+ * Foreign keys are intentionally disabled — all cascade deletes are handled
+ * in application code.
+ *
+ * @returns {import('better-sqlite3').Database}
+ */
 function getDb() {
   if (!_db) {
     const dir = path.dirname(DB_PATH);
@@ -70,6 +78,13 @@ function getDb() {
 
 // ── Initialization ────────────────────────────────────────────────────
 
+/**
+ * Create all tables defined in HEADERS (if they don't exist) and add any
+ * missing columns to existing tables. Safe to call on every startup —
+ * existing data is never modified.
+ *
+ * All columns are TEXT with DEFAULT ''. ID columns are TEXT PRIMARY KEY.
+ */
 function initializeDatabase() {
   const db = getDb();
 
@@ -98,6 +113,13 @@ function initializeDatabase() {
 
 // ── CRUD operations ───────────────────────────────────────────────────
 
+/**
+ * Fetch all rows from a table. All column values are coerced to strings
+ * for consistent API response shapes.
+ *
+ * @param {keyof typeof TABLES} tableKey - Key from the TABLES map (e.g. 'PRODUCTS')
+ * @returns {Array<object>} Array of row objects with string values
+ */
 function getAllRows(tableKey) {
   const db = getDb();
   const tableName = TABLES[tableKey];
@@ -115,6 +137,14 @@ function getAllRows(tableKey) {
   });
 }
 
+/**
+ * Insert a new row. Only columns defined in HEADERS for this table are written.
+ * All values are coerced to strings.
+ *
+ * @param {keyof typeof TABLES} tableKey - Key from the TABLES map
+ * @param {object} data - Column/value map. Must include `ID`.
+ * @returns {object} The same `data` object passed in
+ */
 function addRow(tableKey, data) {
   const db = getDb();
   const tableName = TABLES[tableKey];
@@ -130,6 +160,20 @@ function addRow(tableKey, data) {
   return data;
 }
 
+/**
+ * Merge `updates` into an existing row and persist. Fetches the current row
+ * first so unspecified columns retain their existing values. Throws if the
+ * row does not exist.
+ *
+ * Only keys present in HEADERS for this table are written; unknown keys are
+ * silently ignored.
+ *
+ * @param {keyof typeof TABLES} tableKey - Key from the TABLES map
+ * @param {string} id - Row ID
+ * @param {object} updates - Partial column/value map to merge
+ * @returns {object} The full merged row after update
+ * @throws {Error} If the row is not found
+ */
 function updateRow(tableKey, id, updates) {
   const db = getDb();
   const tableName = TABLES[tableKey];
@@ -160,6 +204,14 @@ function updateRow(tableKey, id, updates) {
   return merged;
 }
 
+/**
+ * Fetch a single row by ID. Returns null if not found.
+ * All column values are coerced to strings.
+ *
+ * @param {keyof typeof TABLES} tableKey - Key from the TABLES map
+ * @param {string} id - Row ID
+ * @returns {object|null} Row object with string values, or null
+ */
 function getRow(tableKey, id) {
   const db = getDb();
   const tableName = TABLES[tableKey];
@@ -173,6 +225,16 @@ function getRow(tableKey, id) {
   return obj;
 }
 
+/**
+ * Delete a row by ID. Throws if the row does not exist.
+ * NOTE: Cascade deletes (e.g. removing related outreach when deleting an account)
+ * are the caller's responsibility — this function deletes only the specified row.
+ *
+ * @param {keyof typeof TABLES} tableKey - Key from the TABLES map
+ * @param {string} id - Row ID
+ * @returns {true}
+ * @throws {Error} If the row is not found
+ */
 function deleteRow(tableKey, id) {
   const db = getDb();
   const tableName = TABLES[tableKey];
@@ -186,6 +248,13 @@ function deleteRow(tableKey, id) {
 
 // ── Inventory → Products migration (one-time, idempotent) ─────────────
 
+/**
+ * One-time migration: creates Product rows from legacy Inventory rows that
+ * have a Name but no ProductID, then back-fills ProductID on those inventory
+ * rows to link them to the newly created products.
+ *
+ * Safe to call on every startup — exits immediately if no rows need migration.
+ */
 function migrateInventoryToProducts() {
   const { v4: uuidv4 } = require('uuid');
   const inventoryRows = getAllRows('INVENTORY');
@@ -240,12 +309,23 @@ function migrateInventoryToProducts() {
 }
 
 // ── Product Formats → Inventory migration (one-time, idempotent) ──────
-// 1. Copies Format and PricePerUnit from each Product to its linked Inventory
-//    rows (where the inventory row's own values are empty).
-// 2. Merges products that share the same Name+Style+ABV into a single product,
-//    re-pointing inventory rows from duplicates to the surviving product and
-//    preserving each format as a variation on inventory rows.
 
+/**
+ * Two-phase migration to support the Format-on-Inventory model:
+ *
+ * Phase 1 — Copy down: For each inventory row that has a ProductID but no
+ *   Format, copy Format and PricePerUnit from the linked Product row. This
+ *   handles data created before the format-variation feature was introduced.
+ *
+ * Phase 2 — Merge duplicates: If multiple Product rows share the same Name
+ *   (case-insensitive), merge them into one. The survivor is the row with the
+ *   most filled-in fields (Style, ABV); ties are broken by CreatedAt (oldest
+ *   wins). Inventory rows from duplicate products are re-pointed to the
+ *   survivor or merged (units summed) if the survivor already has a row at
+ *   that location+format. Duplicate product rows are deleted.
+ *
+ * Safe to call on every startup — exits immediately if no migration is needed.
+ */
 function migrateProductFormatsToInventory() {
   const products = getAllRows('PRODUCTS');
   const inventory = getAllRows('INVENTORY');

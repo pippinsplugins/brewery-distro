@@ -5,6 +5,23 @@ const { getAllRows } = require('../db');
 
 const router = express.Router();
 
+/**
+ * GET /api/dashboard
+ * Returns aggregated KPI data for the dashboard. Supports optional location
+ * filtering via `?location=Name`.
+ *
+ * Location filtering:
+ *   - inventory and orders: direct Location match
+ *   - staff: included if their Locations array contains the location (or is empty)
+ *   - reminders: included if unassigned or assigned to a staff member at this location
+ *   - accounts: included if ServicedBy matches the location (or is empty)
+ *   - outreach: filtered to only accounts in the visible account set
+ *
+ * Returns: { totalProducts, totalAccounts, activeAccounts, prospectAccounts,
+ *   totalActiveReminders, overdueCount, activeReminders, upcomingReminders,
+ *   overdueReminders, lowStockItems, recentOutreach, monthlyOrdersTotal,
+ *   monthlyOrdersCount, pendingDeliveries }
+ */
 router.get('/', async (req, res) => {
   try {
     const { location } = req.query;

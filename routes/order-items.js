@@ -63,7 +63,21 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/order-items/bulk — create multiple items at once
+/**
+ * POST /api/order-items/bulk
+ * Create multiple order line items in a single request. Used by the order
+ * delivery confirmation flow to replace all items atomically.
+ *
+ * Each item may include:
+ *   OrderID, InventoryID, ProductName, Format, PriceTier, Quantity,
+ *   UnitPrice, LineTotal, Taxable
+ *
+ * NOTE: Typically preceded by DELETE /api/order-items?orderId= to replace
+ * the full set of items for an order.
+ *
+ * @body {{ items: Array<object> }}
+ * @returns {Array<object>} Created item records
+ */
 router.post('/bulk', async (req, res) => {
   try {
     const { items } = req.body;

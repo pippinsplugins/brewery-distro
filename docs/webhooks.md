@@ -259,16 +259,122 @@ Returns the last 100 incoming webhook requests (newest first). Each entry includ
 
 All standard REST endpoints also accept API key authentication. Useful endpoints for integrations:
 
+### Products
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/products` | List all products |
 | `GET` | `/api/products/:id` | Get a single product |
-| `GET` | `/api/products/:id/variations` | Get format variations for a product |
-| `GET` | `/api/inventory` | List all inventory (supports `?location=Name` filter) |
-| `GET` | `/api/inventory/:id` | Get a single inventory item (enriched with product data) |
-| `GET` | `/api/orders` | List all orders |
+| `POST` | `/api/products` | Create a product (auto-creates inventory rows at every location) |
+| `PUT` | `/api/products/:id` | Update product fields (cascades Name changes to inventory) |
+| `DELETE` | `/api/products/:id` | Delete product (refused if any stock > 0) |
+| `GET` | `/api/products/:id/variations` | List format variations (deduplicated from inventory rows) |
+| `POST` | `/api/products/:id/variations` | Add a new format variation |
+| `DELETE` | `/api/products/:id/variations/:format` | Remove a format variation (refused if stock > 0) |
+
+### Inventory
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/inventory` | List all inventory, enriched with product data. Supports `?location=Name` filter. Includes computed `Allocated` and `Available` fields. |
+| `GET` | `/api/inventory/:id` | Get a single inventory item (enriched) |
+| `PUT` | `/api/inventory/:id` | Update inventory metadata (Units are managed via stock-movements only) |
+| `DELETE` | `/api/inventory/:id` | Delete an inventory row |
+
+### Orders
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/orders` | List all orders. Supports `?accountId=`, `?staffId=`, `?location=` filters. |
+| `POST` | `/api/orders` | Create an order |
+| `PUT` | `/api/orders/:id` | Update an order (cannot un-deliver a delivered order) |
+| `DELETE` | `/api/orders/:id` | Delete an order (voids linked QBO invoice if present) |
+| `POST` | `/api/orders/import` | Upload PDF invoice(s) for AI parsing, returns preview data |
+| `POST` | `/api/orders/import/confirm` | Bulk-create orders from parsed invoice data |
+
+### Order Items
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/order-items` | List line items. Supports `?orderId=` filter. |
+| `GET` | `/api/order-items/counts` | Map of `{ orderId: itemCount }` for all orders (badge display) |
+| `POST` | `/api/order-items` | Create a single line item |
+| `POST` | `/api/order-items/bulk` | Create multiple line items at once |
+| `DELETE` | `/api/order-items` | Delete all line items for an order (requires `?orderId=`) |
+
+### Accounts
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | `GET` | `/api/accounts` | List all accounts |
-| `GET` | `/api/stock-movements` | List stock movements (supports `?inventoryId=ID` filter) |
+| `POST` | `/api/accounts` | Create an account |
+| `PUT` | `/api/accounts/:id` | Update an account |
+| `DELETE` | `/api/accounts/:id` | Delete account (cascades to outreach, reminders, orders, kegs, tap handles, credits) |
+| `GET` | `/api/accounts/:id/merge-preview` | Preview what would be moved from a source account. Requires `?sourceId=`. |
+| `POST` | `/api/accounts/:id/merge` | Merge source account into this account, reassigning all related records |
+
+### Credits
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/credits` | List all credit records. Supports `?accountId=` filter. |
+| `GET` | `/api/credits/balance/:accountId` | Computed credit balance for an account |
+| `POST` | `/api/credits` | Create a credit (`type`: `"credit"` or `"applied"`) |
+| `PUT` | `/api/credits/:id` | Update amount, reason, or notes |
+| `DELETE` | `/api/credits/:id` | Delete a credit record |
+
+### Stock Movements
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/stock-movements` | List stock movements. Supports `?inventoryId=` filter. |
+| `POST` | `/api/stock-movements` | Create a stock movement (updates inventory Units) |
+| `DELETE` | `/api/stock-movements/:id` | Delete a stock movement (reverses the unit change) |
+
+### Outreach
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/outreach` | List outreach entries. Supports `?accountId=` filter. |
+| `POST` | `/api/outreach` | Create an outreach entry (updates account LastContacted) |
+| `PUT` | `/api/outreach/:id` | Update an outreach entry |
+| `DELETE` | `/api/outreach/:id` | Delete an outreach entry |
+
+### Reminders / Todos
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/reminders` | List reminders. Supports `?status=active\|completed\|all`. |
+| `POST` | `/api/reminders` | Create a reminder |
+| `PUT` | `/api/reminders/:id` | Update a reminder. Completing a recurring reminder spawns the next occurrence. |
+| `DELETE` | `/api/reminders/:id` | Delete a reminder |
+
+### Reports & Analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/dashboard` | Dashboard KPIs. Supports `?location=` filter. |
+| `GET` | `/api/reports` | Full sales report. Requires `?start=YYYY-MM-DD&end=YYYY-MM-DD`. Supports `?location=`. |
+| `GET` | `/api/gallonage` | Volume report by format and account. Requires `?start=&end=`. Supports `?location=`, `?accountType=`, `?tag=`, `?accountIds=`. |
+| `GET` | `/api/sales-export` | Order rows with account details for state reporting. Requires `?start=&end=`. Supports `?location=`, `?excludeTypes=`. |
+| `GET` | `/api/forecast` | Velocity/forecast report. Requires `?start=&end=`. Supports `?location=`. |
+
+### Settings & Staff
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/settings` | Get all settings as a key-value map (secrets omitted) |
+| `PUT` | `/api/settings` | Update settings (allowed keys: `locations`, `accountTags`, `styles`, `kegDeposits`, `companyName`, `inboundEmail`, `geminiApiKey`, `qboTaxCodeId`) |
+| `PUT` | `/api/settings/rename-location` | Rename a location and cascade to inventory + orders |
+| `PUT` | `/api/settings/rename-account-tag` | Rename a tag and cascade to all accounts |
+| `PUT` | `/api/settings/rename-style` | Rename a style and cascade to products + inventory |
+| `GET` | `/api/settings/api-keys` | List API keys (name, prefix, createdAt — no hash) |
+| `POST` | `/api/settings/api-keys` | Generate a new API key (raw key returned once only) |
+| `DELETE` | `/api/settings/api-keys/:id` | Revoke an API key |
+| `GET` | `/api/staff` | List staff |
+| `POST` | `/api/staff` | Create a staff member |
+| `PUT` | `/api/staff/:id` | Update a staff member |
+| `DELETE` | `/api/staff/:id` | Delete a staff member |
 
 ---
 

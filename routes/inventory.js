@@ -6,9 +6,18 @@ const { getAllRows, getRow, addRow, updateRow, deleteRow } = require('../db');
 
 const router = express.Router();
 
-// Helper: enrich inventory rows with product data so the response shape
-// matches what all existing consumers (orders product picker, delivery
-// confirmation, dashboard) expect.
+/**
+ * Enrich inventory rows with product-level data. Merges Style, ABV,
+ * Format, PricePerUnit, and ExcludeFromEmailOfferings from the linked
+ * Product row, with inventory values taking precedence over product values
+ * (inv.Format || product.Format) so per-variation overrides work correctly.
+ *
+ * This ensures a consistent response shape for all consumers: the order
+ * product picker, delivery confirmation, dashboard, and the REST API.
+ *
+ * @param {Array<object>} items - Raw inventory rows from getAllRows('INVENTORY')
+ * @returns {Promise<Array<object>>} Enriched inventory rows
+ */
 async function enrichInventory(items) {
   const products = await getAllRows('PRODUCTS');
   const productMap = Object.fromEntries(products.map(p => [p.ID, p]));

@@ -5,6 +5,11 @@ const { getAllRows } = require('../db');
 
 const router = express.Router();
 
+/**
+ * Gallons per unit for each package format.
+ * Used to convert sold quantities into gallons and barrels (1 bbl = 31 gal).
+ * Formats not present in this map contribute 0 gallons.
+ */
 const GALLON_MAP = {
   '1/6 Keg': 5.167,
   '1/4 Keg': 7.75,
