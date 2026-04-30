@@ -278,6 +278,7 @@ All standard REST endpoints also accept API key authentication. Useful endpoints
 |--------|----------|-------------|
 | `GET` | `/api/inventory` | List all inventory, enriched with product data. Supports `?location=Name` filter. Includes computed `Allocated` and `Available` fields. |
 | `GET` | `/api/inventory/:id` | Get a single inventory item (enriched) |
+| `GET` | `/api/inventory/:id/allocations` | List active orders allocating this inventory item. Each entry includes `OrderID`, `AccountID`, `AccountName`, `OrderDate`, `DeliveryDate`, `Status`, `InvoiceNumber`, `Quantity`. Sorted by delivery date. Returns 404 if the item doesn't exist. |
 | `PUT` | `/api/inventory/:id` | Update inventory metadata (Units are managed via stock-movements only) |
 | `DELETE` | `/api/inventory/:id` | Delete an inventory row |
 
