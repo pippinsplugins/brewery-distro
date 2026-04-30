@@ -71,6 +71,51 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/inventory/:id/allocations — orders allocating this inventory item
+// Returns orders that contribute to the Allocated count: non-cancelled,
+// undelivered orders with at least one line item referencing this inventory.
+router.get('/:id/allocations', async (req, res) => {
+  try {
+    const item = await getRow('INVENTORY', req.params.id);
+    if (!item) return res.status(404).json({ error: 'Inventory item not found' });
+
+    const [orders, orderItems] = await Promise.all([
+      getAllRows('ORDERS'),
+      getAllRows('ORDER_ITEMS'),
+    ]);
+    const orderMap = Object.fromEntries(orders.map(o => [o.ID, o]));
+
+    const qtyByOrder = {};
+    for (const oi of orderItems) {
+      if (oi.InventoryID !== req.params.id) continue;
+      const order = orderMap[oi.OrderID];
+      if (!order) continue;
+      if (order.Status === 'Cancelled') continue;
+      if (order.Delivered === 'true') continue;
+      qtyByOrder[order.ID] = (qtyByOrder[order.ID] || 0) + parseInt(oi.Quantity || '0');
+    }
+
+    const allocations = Object.entries(qtyByOrder).map(([orderId, quantity]) => {
+      const order = orderMap[orderId];
+      return {
+        OrderID: orderId,
+        AccountID: order.AccountID || '',
+        AccountName: order.AccountName || '',
+        OrderDate: order.OrderDate || '',
+        DeliveryDate: order.DeliveryDate || '',
+        Status: order.Status || '',
+        InvoiceNumber: order.InvoiceNumber || '',
+        Quantity: String(quantity),
+      };
+    });
+    allocations.sort((a, b) => (a.DeliveryDate || a.OrderDate || '').localeCompare(b.DeliveryDate || b.OrderDate || ''));
+    res.json(allocations);
+  } catch (err) {
+    console.error(`[inventory] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/inventory/:id — single inventory item (enriched)
 router.get('/:id', async (req, res) => {
   try {
