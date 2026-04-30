@@ -108,7 +108,9 @@ function renderInventory() {
                 <td class="mobile-hide">${item.ABV ? esc(item.ABV) + '%' : '—'}</td>
                 <td>${esc(item.Format) || '—'}</td>
                 <td class="mobile-hide">${esc(item.Units)}</td>
-                <td class="mobile-hide">${esc(item.Allocated || '0')}</td>
+                <td class="mobile-hide">${parseInt(item.Allocated || '0') > 0
+                  ? `<a href="#" class="action-link" onclick="event.preventDefault(); openInventoryAllocations('${esc(item.ID)}')">${esc(item.Allocated)}</a>`
+                  : esc(item.Allocated || '0')}</td>
                 <td>${esc(item.Available || item.Units || '0')}</td>
                 <td class="mobile-hide">${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
@@ -118,6 +120,7 @@ function renderInventory() {
                   <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${esc(item.ID)}')">Threshold</button>
                   <button class="btn btn-ghost btn-sm" onclick="openAdjustInventory('${esc(item.ID)}')">Adjust</button>
                   <button class="btn btn-ghost btn-sm" onclick="openInventoryHistory('${esc(item.ID)}')">History</button>
+                  <button class="btn btn-ghost btn-sm" onclick="openInventoryAllocations('${esc(item.ID)}')">Allocations</button>
                   <button class="btn btn-ghost btn-sm text-danger" data-name="${esc(item.Name)}" onclick="deleteInventory('${esc(item.ID)}', this.dataset.name)">Remove</button>
                   </div>
                 </td>
@@ -383,6 +386,36 @@ async function openInventoryHistory(id) {
     <div class="table-wrap">
       <table>
         <thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Source</th><th>Notes</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`, () => { modal.close(); }, 'Close');
+}
+
+async function openInventoryAllocations(id) {
+  const item = (state.inventory || []).find(i => i.ID === id);
+  const label = item ? (item.Format ? `${item.Name} — ${item.Format}` : item.Name) : 'Stock';
+  const allocations = await api.get(`/api/inventory/${encodeURIComponent(id)}/allocations`);
+  const total = allocations.reduce((sum, a) => sum + parseInt(a.Quantity || '0'), 0);
+  const rows = allocations.length === 0
+    ? `<tr><td colspan="5" class="empty-state">No active orders are allocating this stock.</td></tr>`
+    : allocations.map(a => `<tr>
+        <td class="text-sm">${formatDate(a.DeliveryDate || a.OrderDate)}</td>
+        <td>${a.AccountID
+          ? `<a href="#" class="action-link" onclick="event.preventDefault(); modal.close(); loadAccountProfile('${esc(a.AccountID)}')">${esc(a.AccountName) || '—'}</a>`
+          : esc(a.AccountName) || '—'}</td>
+        <td class="text-sm">${esc(a.InvoiceNumber) || '—'}</td>
+        <td class="text-sm">${esc(a.Status) || '—'}</td>
+        <td class="fw-600">${esc(a.Quantity)}</td>
+      </tr>`).join('');
+  modal.open(`Allocated Stock — ${esc(label)}`, `
+    <p class="text-muted text-sm" style="margin-bottom:16px">
+      ${allocations.length === 0
+        ? 'This item has no allocated stock.'
+        : `<strong>${total}</strong> unit${total !== 1 ? 's' : ''} allocated across ${allocations.length} order${allocations.length !== 1 ? 's' : ''}.`}
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Account</th><th>Invoice</th><th>Status</th><th>Qty</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`, () => { modal.close(); }, 'Close');
