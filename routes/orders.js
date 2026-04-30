@@ -42,7 +42,23 @@ router.get('/', async (req, res) => {
     let orders = await getAllRows('ORDERS');
     if (accountId) orders = orders.filter(s => s.AccountID === accountId);
     if (staffId)   orders = orders.filter(s => s.StaffID === staffId);
-    if (location)  orders = orders.filter(s => s.Location === location);
+    if (location) {
+      // Surface orphaned orders (empty Location, or a Location no longer
+      // configured) in every location's list so they remain editable.
+      // Without this, orders with no/invalid Location are hidden from the
+      // orders view but still appear in allocations and pending deliveries.
+      const settings = await getAllRows('SETTINGS');
+      const locRow = settings.find(s => s.Key === 'locations');
+      let validLocations = new Set();
+      if (locRow) {
+        try { validLocations = new Set(JSON.parse(locRow.Value)); } catch { /* ignore */ }
+      }
+      orders = orders.filter(s =>
+        s.Location === location ||
+        !s.Location ||
+        (validLocations.size > 0 && !validLocations.has(s.Location))
+      );
+    }
     // Sort newest first by OrderDate, then by CreatedAt as tiebreaker
     orders.sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || '') || (b.CreatedAt || '').localeCompare(a.CreatedAt || ''));
     res.json(orders);
