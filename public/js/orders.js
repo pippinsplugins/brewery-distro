@@ -622,10 +622,15 @@ function _orderAccountIsIndirect() {
 
 // Inline HTML for the optional per-line "Delivers to (end customer)" picker.
 // Hidden by default; refreshLineItemDeliversTo() toggles visibility based on
-// the selected account's DeliversIndirectly flag.
+// the selected account's DeliversIndirectly flag. The default option is
+// labeled with the distributor's own account name so it's clear that leaving
+// it blank means the line stays with that account (no pass-through).
 function _endCustomerPickerHtml(selectedId) {
   const indirect = _orderAccountIsIndirect();
-  const opts = `<option value="">— Distributor —</option>${accountOptions(selectedId || '')}`;
+  const acctId = document.getElementById('f-account-hidden')?.value || val('f-account');
+  const acctName = acctId ? ((state.accounts || []).find(a => a.ID === acctId) || {}).Name : '';
+  const defaultLabel = acctName ? `Stays with ${acctName}` : 'No pass-through (stays with this account)';
+  const opts = `<option value="">${esc(defaultLabel)}</option>${accountOptions(selectedId || '')}`;
   return `<div class="line-item-delivers-to" style="display:${indirect ? 'flex' : 'none'};gap:6px;align-items:center;margin-top:4px;padding-left:8px">
     <span class="text-sm text-muted" style="white-space:nowrap">→ Delivers to:</span>
     <select class="form-control line-item-end-customer" style="flex:1;font-size:13px;padding:4px 8px;height:auto">${opts}</select>
@@ -635,13 +640,21 @@ function _endCustomerPickerHtml(selectedId) {
 // Toggle visibility of all per-line "Delivers to" pickers when the order's
 // account changes. Clears the selection when hiding so saved end-customer
 // data isn't smuggled along after switching to a non-indirect account.
+// Also refreshes the default option label so it tracks the new account name.
 function refreshLineItemDeliversTo() {
   const indirect = _orderAccountIsIndirect();
+  const acctId = document.getElementById('f-account-hidden')?.value || val('f-account');
+  const acctName = acctId ? ((state.accounts || []).find(a => a.ID === acctId) || {}).Name : '';
+  const defaultLabel = acctName ? `Stays with ${acctName}` : 'No pass-through (stays with this account)';
   document.querySelectorAll('.line-item-delivers-to').forEach(el => {
     el.style.display = indirect ? 'flex' : 'none';
+    const sel = el.querySelector('.line-item-end-customer');
+    if (!sel) return;
     if (!indirect) {
-      const sel = el.querySelector('.line-item-end-customer');
-      if (sel) sel.value = '';
+      sel.value = '';
+    } else {
+      const blank = sel.querySelector('option[value=""]');
+      if (blank) blank.textContent = defaultLabel;
     }
   });
 }
