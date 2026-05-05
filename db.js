@@ -34,7 +34,7 @@ const TABLES = {
 const HEADERS = {
   PRODUCTS:  ['ID', 'Name', 'Style', 'ABV', 'Format', 'PricePerUnit', 'Notes', 'ExcludeFromEmailOfferings', 'CreatedAt'],
   INVENTORY: ['ID', 'Name', 'Location', 'Style', 'ABV', 'Format', 'Units', 'PricePerUnit', 'Prices', 'LowStockThreshold', 'Notes', 'LastUpdated', 'ProductID', 'ProductName'],
-  ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'BillingContactName', 'BillingEmail', 'BillingPhone', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'ChargeDeposits', 'Taxable', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'ServicedBy', 'QboCustomerId', 'CreatedAt', 'CheckInFrequency'],
+  ACCOUNTS:  ['ID', 'Name', 'Type', 'Tags', 'ContactName', 'Email', 'AdditionalEmails', 'Phone', 'PreferredMethod', 'BillingContactName', 'BillingEmail', 'BillingPhone', 'Address', 'City', 'State', 'Zip', 'ABCLicense', 'ChargeDeposits', 'Taxable', 'Status', 'Notes', 'LastContacted', 'StaffID', 'StaffName', 'ServicedBy', 'QboCustomerId', 'CreatedAt', 'CheckInFrequency', 'DeliversIndirectly'],
   OUTREACH:  ['ID', 'AccountID', 'AccountName', 'Date', 'Method', 'Notes', 'FollowUpDate', 'FollowUpStatus', 'CreatedAt'],
   REMINDERS: ['ID', 'Type', 'AccountID', 'AccountName', 'Title', 'DueDate', 'Priority', 'Notes', 'Completed', 'StaffID', 'StaffName', 'Recurrence', 'RecurrenceParentID', 'CreatedAt'],
   STAFF:     ['ID', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Notes', 'CreatedAt', 'Locations'],
@@ -44,7 +44,7 @@ const HEADERS = {
   KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DepositPerUnit', 'DepositTotal', 'DepositRefunded', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
-  ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'PriceTier', 'Quantity', 'UnitPrice', 'LineTotal', 'Taxable', 'CreatedAt'],
+  ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'PriceTier', 'Quantity', 'UnitPrice', 'LineTotal', 'Taxable', 'EndCustomerAccountID', 'EndCustomerName', 'CreatedAt'],
   NOTIFICATIONS:   ['ID', 'Type', 'Channel', 'RecipientStaffID', 'RecipientName', 'RecipientEmail', 'SenderName', 'SenderEmail', 'EntityType', 'EntityID', 'EntityName', 'Message', 'Status', 'Error', 'CreatedAt'],
   ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],
   WEBHOOK_LOG:     ['ID', 'ApiKeyName', 'Action', 'Payload', 'Status', 'Error', 'CreatedAt'],

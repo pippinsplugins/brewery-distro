@@ -19,17 +19,23 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/order-items/counts — get item counts per order (for badges)
+// GET /api/order-items/counts — line-item count and end-customer summary per
+// order, used by the orders list for the items badge and the indirect-delivery
+// "→ Venue" annotation. Shape: { [orderId]: { count: N, endCustomers: [...] } }.
 router.get('/counts', async (req, res) => {
   try {
     const items = await getAllRows('ORDER_ITEMS');
-    const counts = {};
+    const summary = {};
     for (const item of items) {
-      if (item.OrderID) {
-        counts[item.OrderID] = (counts[item.OrderID] || 0) + 1;
+      if (!item.OrderID) continue;
+      if (!summary[item.OrderID]) summary[item.OrderID] = { count: 0, endCustomers: [] };
+      summary[item.OrderID].count++;
+      const name = item.EndCustomerName || '';
+      if (name && !summary[item.OrderID].endCustomers.includes(name)) {
+        summary[item.OrderID].endCustomers.push(name);
       }
     }
-    res.json(counts);
+    res.json(summary);
   } catch (err) {
     console.error(`[order-items] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
@@ -39,7 +45,7 @@ router.get('/counts', async (req, res) => {
 // POST /api/order-items — create a single item
 router.post('/', async (req, res) => {
   try {
-    const { OrderID, InventoryID, ProductName, Format, PriceTier, Quantity, UnitPrice, LineTotal } = req.body;
+    const { OrderID, InventoryID, ProductName, Format, PriceTier, Quantity, UnitPrice, LineTotal, EndCustomerAccountID, EndCustomerName } = req.body;
     if (!OrderID) return res.status(400).json({ error: 'OrderID is required' });
 
     const item = {
@@ -52,6 +58,8 @@ router.post('/', async (req, res) => {
       Quantity: Quantity || '0',
       UnitPrice: UnitPrice || '0',
       LineTotal: LineTotal || '0',
+      EndCustomerAccountID: EndCustomerAccountID || '',
+      EndCustomerName: EndCustomerName || '',
       CreatedAt: new Date().toISOString(),
     };
 
@@ -98,6 +106,8 @@ router.post('/bulk', async (req, res) => {
         UnitPrice: String(raw.UnitPrice || '0'),
         LineTotal: String(raw.LineTotal || '0'),
         Taxable: raw.Taxable || '',
+        EndCustomerAccountID: raw.EndCustomerAccountID || '',
+        EndCustomerName: raw.EndCustomerName || '',
         CreatedAt: new Date().toISOString(),
       };
       await addRow('ORDER_ITEMS', item);

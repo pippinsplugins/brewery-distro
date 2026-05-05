@@ -121,7 +121,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Account <span class="required">*</span></label>
-        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox()">
+        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox(); refreshLineItemDeliversTo()">
           <option value="">-- Select Account --</option>
           ${accountOptions(selAcctId, order.Location || state.location)}
         </select>
@@ -299,7 +299,7 @@ let _ordersDateFrom = '';
 let _ordersDateTo = '';
 let _orderFormInventory = [];
 let _ordersSort = { col: 'OrderDate', dir: 'desc' };
-let _orderItemCounts = {}; // { orderId: count } for item count badges
+let _orderItemSummary = {}; // { orderId: { count, endCustomers: [] } }
 
 function togglePaymentFields() {
   const status = val('f-status');
@@ -476,6 +476,15 @@ function sortOrders(col) {
   renderOrders();
 }
 
+// Render the "→ Venue" indirect-delivery hint under an order's account name.
+// Pulls from _orderItemSummary built by /api/order-items/counts.
+function formatEndCustomers(orderId) {
+  const ec = _orderItemSummary[orderId]?.endCustomers || [];
+  if (ec.length === 0) return '';
+  const label = ec.length === 1 ? `→ ${ec[0]}` : `→ ${ec.length} venues`;
+  return `<br><span class="text-muted text-sm" title="${esc(ec.join(', '))}" style="cursor:default">${esc(label)}</span>`;
+}
+
 function formatProductsSummary(products) {
   if (!products) return '';
   const items = products.split(',').map(s => s.trim()).filter(Boolean);
@@ -601,6 +610,55 @@ function _parsePrices(item) {
   return [];
 }
 
+// True if the currently-selected order account is flagged as a pass-through
+// distributor — used to decide whether to show per-line "Delivers to" pickers.
+function _orderAccountIsIndirect() {
+  const presetId = document.getElementById('f-account-hidden')?.value || '';
+  const acctId = presetId || val('f-account');
+  if (!acctId) return false;
+  const acct = (state.accounts || []).find(a => a.ID === acctId);
+  return acct && acct.DeliversIndirectly === 'true';
+}
+
+// Inline HTML for the optional per-line "Delivers to (end customer)" picker.
+// Hidden by default; refreshLineItemDeliversTo() toggles visibility based on
+// the selected account's DeliversIndirectly flag. The default option is
+// labeled with the distributor's own account name so it's clear that leaving
+// it blank means the line stays with that account (no pass-through).
+function _endCustomerPickerHtml(selectedId) {
+  const indirect = _orderAccountIsIndirect();
+  const acctId = document.getElementById('f-account-hidden')?.value || val('f-account');
+  const acctName = acctId ? ((state.accounts || []).find(a => a.ID === acctId) || {}).Name : '';
+  const defaultLabel = acctName ? `Stays with ${acctName}` : 'No pass-through (stays with this account)';
+  const opts = `<option value="">${esc(defaultLabel)}</option>${accountOptions(selectedId || '')}`;
+  return `<div class="line-item-delivers-to" style="display:${indirect ? 'flex' : 'none'};gap:6px;align-items:center;margin-top:4px;padding-left:8px">
+    <span class="text-sm text-muted" style="white-space:nowrap">→ Delivers to:</span>
+    <select class="form-control line-item-end-customer" style="flex:1;font-size:13px;padding:4px 8px;height:auto">${opts}</select>
+  </div>`;
+}
+
+// Toggle visibility of all per-line "Delivers to" pickers when the order's
+// account changes. Clears the selection when hiding so saved end-customer
+// data isn't smuggled along after switching to a non-indirect account.
+// Also refreshes the default option label so it tracks the new account name.
+function refreshLineItemDeliversTo() {
+  const indirect = _orderAccountIsIndirect();
+  const acctId = document.getElementById('f-account-hidden')?.value || val('f-account');
+  const acctName = acctId ? ((state.accounts || []).find(a => a.ID === acctId) || {}).Name : '';
+  const defaultLabel = acctName ? `Stays with ${acctName}` : 'No pass-through (stays with this account)';
+  document.querySelectorAll('.line-item-delivers-to').forEach(el => {
+    el.style.display = indirect ? 'flex' : 'none';
+    const sel = el.querySelector('.line-item-end-customer');
+    if (!sel) return;
+    if (!indirect) {
+      sel.value = '';
+    } else {
+      const blank = sel.querySelector('option[value=""]');
+      if (blank) blank.textContent = defaultLabel;
+    }
+  });
+}
+
 function _buildTierDropdown(prices, selectedTier) {
   if (prices.length <= 1) return '';
   return `<select class="form-control line-item-tier" onchange="onLineItemTierChange(this)" style="flex:1;min-width:100px;max-width:140px">
@@ -612,7 +670,7 @@ function _buildTierDropdown(prices, selectedTier) {
   </select>`;
 }
 
-function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice) {
+function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice, endCustomerId) {
   const wrap = document.getElementById('order-line-items');
   if (!wrap) return;
 
@@ -640,20 +698,23 @@ function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice) {
   div.setAttribute('data-inventory-id', inventoryId || '');
   div.setAttribute('data-unit-price', selectedPrice.toFixed(2));
   div.setAttribute('data-price-tier', selectedTierLabel);
-  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  div.style.cssText = 'margin-bottom:6px';
 
   const tierHtml = prices.length > 1 ? _buildTierDropdown(prices, selectedTierLabel) : '';
 
   div.innerHTML = `
-    <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:120px">
-      ${_buildProductOptions(inventoryId || '')}
-    </select>
-    ${tierHtml}
-    <span class="line-item-price text-sm" style="min-width:55px">${selectedPrice ? '$' + selectedPrice.toFixed(2) : '—'}</span>
-    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
-      onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
-    <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
+    <div style="display:flex;gap:8px;align-items:center">
+      <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:120px">
+        ${_buildProductOptions(inventoryId || '')}
+      </select>
+      ${tierHtml}
+      <span class="line-item-price text-sm" style="min-width:55px">${selectedPrice ? '$' + selectedPrice.toFixed(2) : '—'}</span>
+      <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
+        onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
+      <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
+      <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>
+    </div>
+    ${_endCustomerPickerHtml(endCustomerId)}`;
   wrap.appendChild(div);
   recalcOrderAmount();
 }
@@ -698,19 +759,22 @@ function addUnmatchedLineItem(item) {
   div.setAttribute('data-inventory-id', item.InventoryID || '');
   div.setAttribute('data-unit-price', price.toFixed(2));
   div.setAttribute('data-price-tier', item.PriceTier || '');
-  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  div.style.cssText = 'margin-bottom:6px';
   div.innerHTML = `
-    <span style="flex:2;min-width:120px;font-size:13px" title="Not in current location inventory">${esc(item.ProductName)}${item.Format ? ' — ' + esc(item.Format) : ''}</span>
-    <span class="line-item-price text-sm" style="min-width:55px">${price ? '$' + price.toFixed(2) : '—'}</span>
-    <input class="form-control line-item-qty" type="number" min="0" value="${qty}" style="width:60px"
-      onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
-    <span class="line-item-total text-sm fw-600" style="min-width:55px">${total ? '$' + total.toFixed(2) : ''}</span>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="flex:2;min-width:120px;font-size:13px" title="Not in current location inventory">${esc(item.ProductName)}${item.Format ? ' — ' + esc(item.Format) : ''}</span>
+      <span class="line-item-price text-sm" style="min-width:55px">${price ? '$' + price.toFixed(2) : '—'}</span>
+      <input class="form-control line-item-qty" type="number" min="0" value="${qty}" style="width:60px"
+        onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
+      <span class="line-item-total text-sm fw-600" style="min-width:55px">${total ? '$' + total.toFixed(2) : ''}</span>
+      <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>
+    </div>
+    ${_endCustomerPickerHtml(item.EndCustomerAccountID || '')}`;
   wrap.appendChild(div);
   recalcOrderAmount();
 }
 
-function addCustomLineItem(description, unitPrice, qty, taxable) {
+function addCustomLineItem(description, unitPrice, qty, taxable, endCustomerId) {
   const wrap = document.getElementById('order-line-items');
   if (!wrap) return;
   const price = parseFloat(unitPrice || 0);
@@ -724,18 +788,21 @@ function addCustomLineItem(description, unitPrice, qty, taxable) {
   div.setAttribute('data-custom', 'true');
   div.setAttribute('data-unit-price', price.toFixed(2));
   div.setAttribute('data-price-tier', '');
-  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  div.style.cssText = 'margin-bottom:6px';
   div.innerHTML = `
-    <input class="form-control custom-item-desc" type="text" value="${esc(description || '')}" placeholder="e.g. T-shirt, service charge" style="flex:2;min-width:120px" />
-    <input class="form-control custom-item-price" type="number" step="0.01" min="0" value="${price ? price.toFixed(2) : ''}" placeholder="Price" style="width:80px"
-      onchange="onCustomItemPriceChange(this)" oninput="onCustomItemPriceChange(this)" />
-    <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
-      onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
-    <label class="custom-item-tax-label" style="display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap;cursor:pointer">
-      <input type="checkbox" class="custom-item-taxable" ${isTaxable ? 'checked' : ''} onchange="recalcOrderAmount()" /> Tax
-    </label>
-    <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>`;
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="form-control custom-item-desc" type="text" value="${esc(description || '')}" placeholder="e.g. T-shirt, service charge" style="flex:2;min-width:120px" />
+      <input class="form-control custom-item-price" type="number" step="0.01" min="0" value="${price ? price.toFixed(2) : ''}" placeholder="Price" style="width:80px"
+        onchange="onCustomItemPriceChange(this)" oninput="onCustomItemPriceChange(this)" />
+      <input class="form-control line-item-qty" type="number" min="0" value="${lineQty}" style="width:60px"
+        onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
+      <label class="custom-item-tax-label" style="display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap;cursor:pointer">
+        <input type="checkbox" class="custom-item-taxable" ${isTaxable ? 'checked' : ''} onchange="recalcOrderAmount()" /> Tax
+      </label>
+      <span class="line-item-total text-sm fw-600" style="min-width:55px">${lineTotal ? '$' + lineTotal.toFixed(2) : ''}</span>
+      <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="removeOrderLineItem(this)" style="flex-shrink:0">&times;</button>
+    </div>
+    ${_endCustomerPickerHtml(endCustomerId)}`;
   wrap.appendChild(div);
   recalcOrderAmount();
 }
@@ -877,16 +944,17 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   // Editable mode: render line-item builder and populate from order items
   wrap.innerHTML = orderProductsHtml();
   for (const item of orderItems) {
+    const ec = item.EndCustomerAccountID || '';
     if (item.InventoryID && _orderFormInventory.find(i => i.ID === item.InventoryID)) {
-      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
+      addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice, ec);
     } else if (!item.InventoryID && item.ProductName && item.ProductName !== 'Account Credit') {
       // Custom item (no InventoryID, not a credit)
-      addCustomLineItem(item.ProductName, item.UnitPrice, item.Quantity, item.Taxable);
+      addCustomLineItem(item.ProductName, item.UnitPrice, item.Quantity, item.Taxable, ec);
     } else if (item.ProductName) {
       // Try to match by product name + format against current inventory
       const resolved = resolveInventoryMatch(item.ProductName, item.Format);
       if (resolved) {
-        addOrderLineItem(resolved.ID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice);
+        addOrderLineItem(resolved.ID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice, ec);
       } else {
         addUnmatchedLineItem(item);
       }
@@ -906,8 +974,11 @@ function orderItemsReadOnlyHtml(orderItems) {
     const fmtDisplay = item.PriceTier
       ? `${esc(item.Format)} (${esc(item.PriceTier)})`
       : (esc(item.Format) || '—');
+    const endCustomer = item.EndCustomerAccountID && item.EndCustomerName
+      ? `<div class="text-sm text-muted">→ ${esc(item.EndCustomerName)}</div>`
+      : '';
     return `<tr>
-      <td class="fw-600">${esc(item.ProductName || '—')}</td>
+      <td class="fw-600">${esc(item.ProductName || '—')}${endCustomer}</td>
       <td class="text-sm">${fmtDisplay}</td>
       <td class="text-sm">${qty}</td>
       <td class="text-sm"${isNeg ? ' style="color:#2e7d32"' : ''}>${price ? '$' + price.toFixed(2) : '—'}</td>
@@ -1026,6 +1097,9 @@ function collectOrderProducts() {
 function collectOrderItems() {
   const items = [];
   const rows = document.querySelectorAll('#order-line-items .order-line-item');
+  // End-customer fields are only meaningful when the order's account is
+  // flagged as DeliversIndirectly; otherwise we always send empty strings.
+  const indirect = _orderAccountIsIndirect();
   rows.forEach(row => {
     const invId = row.getAttribute('data-inventory-id') || '';
     const qtyEl = row.querySelector('.line-item-qty');
@@ -1037,6 +1111,11 @@ function collectOrderItems() {
     const price = unitPrice ? parseFloat(unitPrice) : (item ? parseFloat(item.PricePerUnit || 0) : 0);
     const isCustom = row.getAttribute('data-custom') === 'true';
     const taxable = isCustom ? (row.querySelector('.custom-item-taxable')?.checked ? 'true' : '') : 'true';
+    const endCustomerSel = indirect ? row.querySelector('.line-item-end-customer') : null;
+    const endCustomerId   = endCustomerSel?.value || '';
+    const endCustomerName = endCustomerId
+      ? ((state.accounts || []).find(a => a.ID === endCustomerId) || {}).Name || ''
+      : '';
     if (item) {
       items.push({
         InventoryID: item.ID,
@@ -1047,6 +1126,8 @@ function collectOrderItems() {
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
         Taxable: taxable,
+        EndCustomerAccountID: endCustomerId,
+        EndCustomerName: endCustomerName,
       });
     } else {
       // Custom or unmatched item
@@ -1069,6 +1150,8 @@ function collectOrderItems() {
         UnitPrice: price.toFixed(2),
         LineTotal: (qty * price).toFixed(2),
         Taxable: taxable,
+        EndCustomerAccountID: endCustomerId,
+        EndCustomerName: endCustomerName,
       });
     }
   });
@@ -1094,7 +1177,7 @@ async function loadOrders(preservePage = false) {
   _ordersDateTo = '';
   showLoading();
   const locParam = state.location ? `?location=${encodeURIComponent(state.location)}` : '';
-  const [orders, accounts, staff, itemCounts] = await Promise.all([
+  const [orders, accounts, staff, itemSummary] = await Promise.all([
     api.get(`/api/orders${locParam}`),
     api.get('/api/accounts'),
     api.get('/api/staff'),
@@ -1103,7 +1186,7 @@ async function loadOrders(preservePage = false) {
   state.accounts = accounts;
   state.staff = staff;
   _ordersCache = orders;
-  _orderItemCounts = itemCounts || {};
+  _orderItemSummary = itemSummary || {};
   renderOrders();
 }
 
@@ -1255,8 +1338,8 @@ function renderOrders() {
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
-                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${_orderItemCounts[s.ID] ? ` <span class="badge badge-items" title="${_orderItemCounts[s.ID]} line item${_orderItemCounts[s.ID] > 1 ? 's' : ''}">${_orderItemCounts[s.ID]} items</span>` : ''}${qboSyncBadge(s)}</td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatEndCustomers(s.ID)}${formatProductsSummary(s.RequestedProducts)}</td>
+                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${(_orderItemSummary[s.ID]?.count) ? ` <span class="badge badge-items" title="${_orderItemSummary[s.ID].count} line item${_orderItemSummary[s.ID].count > 1 ? 's' : ''}">${_orderItemSummary[s.ID].count} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
