@@ -10,6 +10,7 @@ let _profileOutreachCache = [];
 let _profileTodosCache = [];
 let _profileOrdersCache = [];
 let _profileOrderFooter = '';
+let _profileOrderEndCustomers = {}; // { orderId: ['Venue', ...] }
 let _profileKegsCache = [];
 let _profileKegsContext = {};
 
@@ -214,6 +215,12 @@ function accountForm(acct = {}) {
         Charge tax for this account
       </label>
     </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="f-delivers-indirectly" ${acct.DeliversIndirectly === 'true' ? 'checked' : ''} />
+        This account delivers to other accounts (orders pass through to end venues)
+      </label>
+    </div>
     <hr class="form-divider" />
     <div class="form-group">
       <label>Notes</label>
@@ -405,13 +412,14 @@ async function loadAccountProfile(accountId) {
   });
   showLoading();
 
-  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits] = await Promise.all([
+  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits, allOrderItems] = await Promise.all([
     api.get('/api/outreach'),
     api.get('/api/reminders?status=all'),
     api.get('/api/orders'),
     api.get(`/api/keg-tracking?accountId=${accountId}`),
     api.get(`/api/tap-handles?accountId=${accountId}`),
     api.get(`/api/credits?accountId=${accountId}`),
+    api.get('/api/order-items'),
   ]);
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
@@ -432,9 +440,25 @@ async function loadAccountProfile(accountId) {
   const acctOrders = orders
     .filter(s => s.AccountID === accountId)
     .sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || ''));
+  // Indirect orders: line items where this account is the end customer (i.e.
+  // shipped to here but billed/owned by a different distributor account).
+  const orderById = Object.fromEntries(orders.map(o => [o.ID, o]));
+  const indirectItems = (allOrderItems || [])
+    .filter(it => it.EndCustomerAccountID === accountId && orderById[it.OrderID])
+    .map(it => ({ item: it, order: orderById[it.OrderID] }))
+    .sort((a, b) => (b.order.OrderDate || '').localeCompare(a.order.OrderDate || ''));
   _profileOutreachCache = acctOutreach;
   _profileTodosCache = acctTodos;
   _profileOrdersCache = acctOrders;
+  // Build a per-order list of distinct end-customer names for the "→ Venue"
+  // hint shown beneath the order date (only relevant when this account
+  // delivers indirectly).
+  _profileOrderEndCustomers = {};
+  for (const it of (allOrderItems || [])) {
+    if (!it.OrderID || !it.EndCustomerName) continue;
+    const list = _profileOrderEndCustomers[it.OrderID] || (_profileOrderEndCustomers[it.OrderID] = []);
+    if (!list.includes(it.EndCustomerName)) list.push(it.EndCustomerName);
+  }
 
   const totalRevenue = acctOrders.reduce((sum, s) => sum + (parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0)), 0);
   const activeTodos  = acctTodos.filter(t => t.Completed !== 'true').length;
@@ -606,6 +630,27 @@ async function loadAccountProfile(accountId) {
       <div id="profile-orders-container"></div>
     </div>
 
+    ${indirectItems.length > 0 ? `
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <h3>Indirect Orders <span class="text-muted text-sm">(${indirectItems.length} line item${indirectItems.length !== 1 ? 's' : ''} delivered here via other accounts)</span></h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Through</th><th>Product</th><th class="mobile-hide">Format</th><th>Qty</th><th class="mobile-hide">Invoice</th><th>Actions</th></tr></thead>
+          <tbody>${indirectItems.map(({ item, order }) => `<tr>
+            <td class="text-sm">${formatDate(order.OrderDate)}</td>
+            <td><span class="td-link" onclick="loadAccountProfile('${esc(order.AccountID)}')">${esc(order.AccountName) || '—'}</span></td>
+            <td class="fw-600">${esc(item.ProductName || '—')}</td>
+            <td class="mobile-hide text-sm">${esc(item.Format) || '—'}</td>
+            <td class="fw-600">${esc(item.Quantity || '0')}</td>
+            <td class="mobile-hide text-sm">${esc(order.InvoiceNumber) || '—'}</td>
+            <td class="td-actions"><button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(order.ID)}')">View Order</button></td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
     <div class="profile-section">
       <div class="profile-section-header">
         <h3>Credits <span class="text-muted text-sm">(${sortedCredits.length}${totalCreditAvailable > 0 ? ' · Balance: ' + fmtMoney(totalCreditAvailable) + (creditOnPending > 0 ? ' · ' + fmtMoney(creditOnPending) + ' on pending' : '') : ''})</span></h3>
@@ -745,8 +790,11 @@ function renderProfileOrders() {
     : pg.rows.map(s => {
         const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0);
         const isPreSale = s.Status === 'Pre-Sale';
+        const ec = _profileOrderEndCustomers[s.ID] || [];
+        const ecHtml = ec.length === 0 ? ''
+          : `<br><span class="text-muted text-sm" title="${esc(ec.join(', '))}" style="cursor:default">${ec.length === 1 ? '→ ' + esc(ec[0]) : '→ ' + ec.length + ' venues'}</span>`;
         return `<tr>
-          <td class="text-sm">${formatDate(s.OrderDate)}${formatProductsSummary(s.RequestedProducts)}</td>
+          <td class="text-sm">${formatDate(s.OrderDate)}${ecHtml}${formatProductsSummary(s.RequestedProducts)}</td>
           <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}</td>
           <td class="mobile-hide text-sm">${s.DeliveryDate ? formatDate(s.DeliveryDate) : '—'}</td>
           <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
@@ -1160,6 +1208,7 @@ function openAddAccount() {
       ABCLicense: val('f-abc-license'),
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
+      DeliversIndirectly: document.getElementById('f-delivers-indirectly').checked ? 'true' : 'false',
       CheckInFrequency: val('f-checkin-frequency'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
       ServicedBy: val('f-serviced-by') || '',
@@ -1188,6 +1237,7 @@ function openEditAccount(id) {
       ABCLicense: val('f-abc-license'),
       ChargeDeposits: document.getElementById('f-charge-deposits').checked ? 'true' : 'false',
       Taxable: document.getElementById('f-taxable').checked ? 'true' : 'false',
+      DeliversIndirectly: document.getElementById('f-delivers-indirectly').checked ? 'true' : 'false',
       CheckInFrequency: val('f-checkin-frequency'),
       Notes: val('f-notes'), StaffID: staffId, StaffName: staffName,
       ServicedBy: val('f-serviced-by') || '',
