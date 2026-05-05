@@ -581,6 +581,14 @@ async function loadQboStatus() {
         <p class="text-sm text-muted" style="margin-bottom:12px">
           Connect your QuickBooks Online account to create invoices in QuickBooks when saving orders.
         </p>
+        ${status.redirectUri ? `
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Redirect URI</label>
+          <input class="form-control" value="${esc(status.redirectUri)}" readonly onclick="this.select()" style="font-family:monospace;font-size:13px;background:var(--bg-secondary)" />
+          <p class="text-sm text-muted" style="margin-top:4px">
+            Add this exact URI to your Intuit Developer app's <strong>Redirect URIs</strong> list before connecting, otherwise Intuit will reject the request with a redirect URI error.
+          </p>
+        </div>` : ''}
         <a class="btn btn-primary" href="${BASE_PATH}/auth/qbo">Connect to QuickBooks</a>`;
       return;
     }
