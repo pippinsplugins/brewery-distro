@@ -68,10 +68,20 @@ function todoForm(todo = {}) {
 
 let _todosCache = [];
 let _todoStatusFilter = 'active';
+let _todoSearchFilter = '';
+let _todoStaffFilter  = '';
 
 async function loadTodos(preservePage = false) {
   if (!preservePage) _paginationReset('todos');
-  _todoStatusFilter = (document.getElementById('todo-status') || {}).value || _todoStatusFilter;
+  // Capture filter values into module state before showLoading() wipes the
+  // DOM, so renderTodos() can fall back to them when the inputs no longer
+  // exist (e.g. after Done/Del/Reopen reloads).
+  const statusEl = document.getElementById('todo-status');
+  const searchEl = document.getElementById('todo-search');
+  const staffEl  = document.getElementById('todo-staff');
+  if (statusEl) _todoStatusFilter = statusEl.value || _todoStatusFilter;
+  if (searchEl) _todoSearchFilter = searchEl.value;
+  if (staffEl)  _todoStaffFilter  = staffEl.value;
   showLoading();
 
   const [todos, accounts, staff] = await Promise.all([
@@ -90,8 +100,10 @@ function renderTodos() {
   const todos = _todosCache;
   const _focused = document.activeElement?.id;
   const statusFilter = _todoStatusFilter;
-  const search = (document.getElementById('todo-search') || {}).value || '';
-  const staffFilter = (document.getElementById('todo-staff') || {}).value || state.navFilters?.staffId || '';
+  const searchEl = document.getElementById('todo-search');
+  const staffEl  = document.getElementById('todo-staff');
+  const search = searchEl ? searchEl.value : _todoSearchFilter;
+  const staffFilter = (staffEl ? staffEl.value : _todoStaffFilter) || state.navFilters?.staffId || '';
   const staffFilterName = state.navFilters?.staffName || '';
 
   let filtered = todos;
@@ -125,8 +137,8 @@ function renderTodos() {
       </div>
     </div>
     <div class="filter-bar">
-      <input type="search" id="todo-search" placeholder="Search title, account, staff..." value="${esc(search)}" oninput="_paginationReset('todos'); renderTodos()" />
-      <select id="todo-staff" onchange="state.navFilters={}; _paginationReset('todos'); renderTodos()">${staffOpts}</select>
+      <input type="search" id="todo-search" placeholder="Search title, account, staff..." value="${esc(search)}" oninput="_todoSearchFilter=this.value; _paginationReset('todos'); renderTodos()" />
+      <select id="todo-staff" onchange="_todoStaffFilter=this.value; state.navFilters={}; _paginationReset('todos'); renderTodos()">${staffOpts}</select>
       <select id="todo-status" onchange="_paginationReset('todos'); loadTodos()">
         <option value="active" ${statusFilter === 'active' ? 'selected' : ''}>Active</option>
         <option value="completed" ${statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
@@ -215,7 +227,7 @@ function openEditTodo(id) {
     });
     modal.close();
     toast('Todo updated');
-    loadTodos();
+    loadTodos(true);
   });
   setTimeout(() => initMentions('f-notes'), 0);
 }
@@ -282,7 +294,7 @@ async function completeTodo(id) {
     }
 
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    else if (state.view === 'todos') loadTodos();
+    else if (state.view === 'todos') loadTodos(true);
     else loadDashboard();
   }, 'Mark Done');
 
@@ -298,7 +310,7 @@ async function completeTodo(id) {
 async function reopenTodo(id) {
   await api.put(`/api/reminders/${id}`, { Completed: 'false' });
   toast('Todo reopened');
-  loadTodos();
+  loadTodos(true);
 }
 
 async function deleteTodo(id) {
@@ -306,6 +318,6 @@ async function deleteTodo(id) {
     await api.del(`/api/reminders/${id}`);
     modal.close();
     toast('Todo deleted');
-    loadTodos();
+    loadTodos(true);
   });
 }
