@@ -8,6 +8,17 @@ const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearToke
 const authRouter = express.Router();
 const apiRouter  = express.Router();
 
+// Build the OAuth redirect URI Intuit will call back. Honors the env override
+// when set, otherwise derives it from the incoming request + BASE_PATH so
+// sub-path deployments (e.g. /trb) get the right public-facing URL. Both the
+// authorize and token-exchange steps must produce IDENTICAL strings or Intuit
+// rejects with "redirect_uri does not match".
+function computeRedirectUri(req) {
+  if (process.env.QBO_REDIRECT_URI) return process.env.QBO_REDIRECT_URI;
+  const basePath = process.env.BASE_PATH || '';
+  return `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
+}
+
 // ── OAuth flow (public, mounted at /auth/qbo) ───────────────────
 
 // GET /auth/qbo — redirect to Intuit OAuth
@@ -16,9 +27,8 @@ authRouter.get('/', (req, res) => {
     return res.status(503).json({ error: 'QuickBooks is not configured' });
   }
 
-  const basePath = process.env.BASE_PATH || '';
-  const redirectUri = process.env.QBO_REDIRECT_URI
-    || `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
+  const redirectUri = computeRedirectUri(req);
+  console.log(`[qbo] OAuth start — redirect_uri=${redirectUri}`);
 
   // Generate a random nonce to prevent CSRF on the OAuth callback
   const state = crypto.randomBytes(16).toString('hex');
@@ -44,8 +54,7 @@ authRouter.get('/callback', async (req, res) => {
     }
     delete req.session.qboOAuthState;
 
-    const redirectUri = process.env.QBO_REDIRECT_URI
-      || `${req.protocol}://${req.get('host')}${basePath}/auth/qbo/callback`;
+    const redirectUri = computeRedirectUri(req);
 
     const oauthClient = getOAuthClient(redirectUri);
     const authResponse = await oauthClient.createToken(req.url);
@@ -79,6 +88,7 @@ apiRouter.get('/status', async (req, res) => {
       connected,
       realmId: connected ? tokens.realmId : null,
       appUrl:  connected ? QBO_APP_URL : null,
+      redirectUri: computeRedirectUri(req),
     });
   } catch (err) {
     console.error('[qbo]', err.message);
