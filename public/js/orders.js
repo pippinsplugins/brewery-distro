@@ -631,9 +631,9 @@ function _endCustomerPickerHtml(selectedId) {
   const acctName = acctId ? ((state.accounts || []).find(a => a.ID === acctId) || {}).Name : '';
   const defaultLabel = acctName ? `Stays with ${acctName}` : 'No pass-through (stays with this account)';
   const opts = `<option value="">${esc(defaultLabel)}</option>${accountOptions(selectedId || '')}`;
-  return `<div class="line-item-delivers-to" style="display:${indirect ? 'flex' : 'none'};gap:6px;align-items:center;margin-top:4px;padding-left:8px">
-    <span class="text-sm text-muted" style="white-space:nowrap">→ Delivers to:</span>
-    <select class="form-control line-item-end-customer" style="flex:1;font-size:13px;padding:4px 8px;height:auto">${opts}</select>
+  return `<div class="line-item-delivers-to" style="display:${indirect ? 'flex' : 'none'};gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;margin-left:12px;padding-left:8px;border-left:2px solid var(--color-border, #e5e7eb)">
+    <span class="line-item-delivers-to-label text-sm text-muted" style="white-space:nowrap">&rarr; Delivers to:</span>
+    <select class="form-control line-item-end-customer" style="flex:1;min-width:140px;font-size:13px;padding:4px 8px;height:auto">${opts}</select>
   </div>`;
 }
 
@@ -703,8 +703,8 @@ function addOrderLineItem(inventoryId, qty, priceTier, savedUnitPrice, endCustom
   const tierHtml = prices.length > 1 ? _buildTierDropdown(prices, selectedTierLabel) : '';
 
   div.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center">
-      <select class="form-control" onchange="onLineItemProductChange(this)" style="flex:2;min-width:120px">
+    <div class="order-line-item-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select class="form-control line-item-product" onchange="onLineItemProductChange(this)" style="flex:2;min-width:120px">
         ${_buildProductOptions(inventoryId || '')}
       </select>
       ${tierHtml}
@@ -761,8 +761,8 @@ function addUnmatchedLineItem(item) {
   div.setAttribute('data-price-tier', item.PriceTier || '');
   div.style.cssText = 'margin-bottom:6px';
   div.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center">
-      <span style="flex:2;min-width:120px;font-size:13px" title="Not in current location inventory">${esc(item.ProductName)}${item.Format ? ' — ' + esc(item.Format) : ''}</span>
+    <div class="order-line-item-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="line-item-unmatched" style="flex:2;min-width:120px;font-size:13px" title="Not in current location inventory">${esc(item.ProductName)}${item.Format ? ' — ' + esc(item.Format) : ''}</span>
       <span class="line-item-price text-sm" style="min-width:55px">${price ? '$' + price.toFixed(2) : '—'}</span>
       <input class="form-control line-item-qty" type="number" min="0" value="${qty}" style="width:60px"
         onchange="recalcOrderAmount()" oninput="recalcOrderAmount()" />
@@ -790,7 +790,7 @@ function addCustomLineItem(description, unitPrice, qty, taxable, endCustomerId) 
   div.setAttribute('data-price-tier', '');
   div.style.cssText = 'margin-bottom:6px';
   div.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center">
+    <div class="order-line-item-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input class="form-control custom-item-desc" type="text" value="${esc(description || '')}" placeholder="e.g. T-shirt, service charge" style="flex:2;min-width:120px" />
       <input class="form-control custom-item-price" type="number" step="0.01" min="0" value="${price ? price.toFixed(2) : ''}" placeholder="Price" style="width:80px"
         onchange="onCustomItemPriceChange(this)" oninput="onCustomItemPriceChange(this)" />

@@ -1690,18 +1690,43 @@ th input[type="checkbox"] {
     margin-left: 0;
   }
 
-  /* ── Order line items: stack on mobile ── */
-  .order-line-item {
+  /* ── Order line items: stack on mobile ──
+     PR #376 added a per-line "Delivers to" picker. On narrow screens the main
+     row would cram product select + price + qty + total + delete onto one
+     line, making the product name unreadable. Give the product select its own
+     full-width row, let the qty/price/total cluster below it wrap, and keep
+     the Delivers-to sub-row clearly attached via the indent + left border. */
+  .order-line-item-row {
     flex-wrap: wrap !important;
   }
 
-  .order-line-item select.form-control {
+  .order-line-item-row > select.form-control,
+  .order-line-item-row > .line-item-product,
+  .order-line-item-row > .line-item-unmatched,
+  .order-line-item-row > .custom-item-desc {
     flex: 1 1 100% !important;
     min-width: 0 !important;
+    max-width: 100% !important;
   }
 
-  .order-line-item .line-item-qty {
+  .order-line-item-row .line-item-tier {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+
+  .order-line-item-row .line-item-qty {
     width: 70px !important;
+  }
+
+  /* Delivers-to picker: label on its own line above a full-width select on
+     the narrowest phones so the customer name is actually readable. */
+  .line-item-delivers-to {
+    margin-left: 8px !important;
+  }
+
+  .line-item-delivers-to .line-item-end-customer {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
   }
 
   /* ── Toast: fit to phone width ── */
