@@ -942,13 +942,18 @@ async function refreshOrderProductsFromItems(orderItems, readOnly = false) {
   }
 
   // Editable mode: render line-item builder and populate from order items
+  // Account Credit rows are intentionally skipped — they're managed via the
+  // dedicated "Account Credit" section of the form and re-created on save.
+  // Without this, they fall through to addUnmatchedLineItem which renders a
+  // Delivers-to dropdown that doesn't apply to a credit.
   wrap.innerHTML = orderProductsHtml();
   for (const item of orderItems) {
+    if (item.ProductName === 'Account Credit') continue;
     const ec = item.EndCustomerAccountID || '';
     if (item.InventoryID && _orderFormInventory.find(i => i.ID === item.InventoryID)) {
       addOrderLineItem(item.InventoryID, parseInt(item.Quantity || 0), item.PriceTier || undefined, item.UnitPrice, ec);
-    } else if (!item.InventoryID && item.ProductName && item.ProductName !== 'Account Credit') {
-      // Custom item (no InventoryID, not a credit)
+    } else if (!item.InventoryID && item.ProductName) {
+      // Custom item (no InventoryID)
       addCustomLineItem(item.ProductName, item.UnitPrice, item.Quantity, item.Taxable, ec);
     } else if (item.ProductName) {
       // Try to match by product name + format against current inventory
