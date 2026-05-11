@@ -531,6 +531,41 @@ function clearAllCaches() {
   _qboPaymentMethods = null;
 }
 
+/**
+ * Collect additional invoice email recipients (CC) for an account, excluding
+ * the address already used as the primary BillEmail. Pulls from the regular
+ * Email field (when BillingEmail is the primary) plus the AdditionalEmails
+ * JSON array. Dedupes case-insensitively.
+ *
+ * @param {object} account - ACCOUNTS row
+ * @param {string} primaryEmail - the address used as BillEmail on the invoice
+ * @returns {string[]} unique CC email addresses (may be empty)
+ */
+function collectInvoiceCcs(account, primaryEmail) {
+  const ccs = [];
+  const seen = new Set();
+  if (primaryEmail) seen.add(primaryEmail.toLowerCase().trim());
+  const add = (e) => {
+    if (!e) return;
+    const norm = String(e).trim();
+    if (!norm) return;
+    const key = norm.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    ccs.push(norm);
+  };
+  // If BillingEmail was used as the primary, include Email as a CC.
+  if (account.BillingEmail && account.Email) add(account.Email);
+  // Append AdditionalEmails (stored as a JSON array of strings).
+  if (account.AdditionalEmails) {
+    try {
+      const extras = JSON.parse(account.AdditionalEmails);
+      if (Array.isArray(extras)) extras.forEach(add);
+    } catch { /* ignore malformed JSON */ }
+  }
+  return ccs;
+}
+
 // ── Payment / Invoice lookup ─────────────────────────────────────
 
 async function getPayment(paymentId) {
@@ -796,8 +831,12 @@ async function createInvoice(order, lineItems, account, _isRetry) {
     }
   }
 
-  // Determine bill email: prefer BillingEmail, fall back to account Email
+  // Determine bill email: prefer BillingEmail, fall back to account Email.
+  // Additional recipients (the regular Email if BillingEmail was used, plus
+  // anything in AdditionalEmails) become CC addresses on the QBO invoice so
+  // they're included both on the initial send and any future re-sends.
   const billEmail = account.BillingEmail || account.Email;
+  const ccEmails = collectInvoiceCcs(account, billEmail);
 
   // Look up QBO Department from order Location
   let departmentRef;
@@ -819,6 +858,7 @@ async function createInvoice(order, lineItems, account, _isRetry) {
     TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     DueDate:      order.DeliveryDate ? order.DeliveryDate.split('T')[0] : undefined,
     BillEmail:     billEmail ? { Address: billEmail } : undefined,
+    BillEmailCc:   ccEmails.length > 0 ? { Address: ccEmails.join(', ') } : undefined,
     DepartmentRef: departmentRef,
   };
 
@@ -933,13 +973,17 @@ async function syncOrderToQbo(orderId) {
 
     console.log(`[qbo] Order ${orderId} synced → QBO Invoice ${qboInvoiceId}`);
 
-    // Send the invoice via email
+    // Send the invoice via email. QBO sends to the BillEmail on the invoice
+    // plus any BillEmailCc / BillEmailBcc addresses we set when creating it,
+    // so additional recipients automatically receive the message.
     let invoiceSendNote = '';
     const billEmail = account.BillingEmail || account.Email;
     if (billEmail) {
       try {
         await qboApiRequest('POST', `invoice/${qboInvoiceId}/send`);
-        console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${billEmail}`);
+        const ccs = collectInvoiceCcs(account, billEmail);
+        const recipientList = ccs.length > 0 ? `${billEmail} (cc: ${ccs.join(', ')})` : billEmail;
+        console.log(`[qbo] Invoice ${qboInvoiceId} sent to ${recipientList}`);
       } catch (sendErr) {
         console.error(`[qbo] Invoice ${qboInvoiceId} created but send failed:`, sendErr.message);
         invoiceSendNote = `Invoice ${invoice.DocNumber || qboInvoiceId} was not sent: ${sendErr.message}`;
