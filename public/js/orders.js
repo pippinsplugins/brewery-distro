@@ -1464,6 +1464,32 @@ async function openAddOrder(presetAccountId = '') {
   }
 }
 
+// Compose a stable string for the order's "material" state — the fields that
+// matter for QBO invoicing. Used to detect whether an edit changed enough to
+// warrant pushing the update back to the existing QBO invoice and re-sending.
+function orderMaterialSignature(order, items) {
+  const itemSig = (items || [])
+    .filter(i => i.ProductName !== 'Account Credit')
+    .map(i => [
+      i.InventoryID || '',
+      i.ProductName || '',
+      i.Format || '',
+      i.PriceTier || '',
+      String(i.Quantity || ''),
+      String(i.UnitPrice || ''),
+      i.EndCustomerAccountID || '',
+    ].join('|'))
+    .sort()
+    .join(';');
+  return [
+    order.AccountID || '',
+    String(order.OrderAmount || ''),
+    String(order.TaxAmount || ''),
+    String(order.DepositAmount || ''),
+    itemSig,
+  ].join('::');
+}
+
 async function openEditOrder(id) {
   if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   const order = _ordersCache.find(s => s.ID === id);
@@ -1480,6 +1506,16 @@ async function openEditOrder(id) {
       loadOrders();
     }, 'Save');
   } else {
+    // Snapshot the order's current line items + material signature so the save
+    // handler can detect line item / amount / recipient changes and push them
+    // back to QBO (resync + resend) for synced, unpaid orders.
+    const origItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+    const origSig = orderMaterialSignature(order, origItems);
+    const wasSyncedUnpaid = order.QboInvoiceId
+      && order.QboSyncStatus === 'synced'
+      && !order.QboPaymentId
+      && order.Status !== 'Cancelled';
+
     modal.open('Edit Order', orderForm(order), async () => {
       const staffId = val('f-staff');
       const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
@@ -1548,6 +1584,30 @@ async function openEditOrder(id) {
           toast('Payment synced to QuickBooks');
         } catch (err) {
           toast('Payment saved but QBO sync failed: ' + (err.message || 'unknown error'), 'error');
+        }
+      }
+      // Push edits to the existing QBO invoice when line items, amounts, or
+      // recipients changed. Skipped when the order is becoming Paid (the
+      // payment sync above handles that case; updating + resending an invoice
+      // we just marked paid would be noisy).
+      if (wasSyncedUnpaid && !becomingPaid) {
+        const newSig = orderMaterialSignature(
+          { AccountID: val('f-account') || order.AccountID,
+            OrderAmount: finalAmount,
+            TaxAmount: val('f-tax'),
+            DepositAmount: val('f-deposit-amount') || '0' },
+          collectOrderItems(),
+        );
+        if (newSig !== origSig) {
+          try {
+            const result = await api.post(`/api/qbo/resync/${id}`);
+            if (result.status === 'sent') toast('QBO invoice updated and resent');
+            else if (result.status === 'updated') toast('QBO invoice updated (resend skipped: ' + (result.error || 'no email') + ')');
+            else if (result.status === 'failed') toast('Order saved but QBO update failed: ' + (result.error || 'unknown'), 'error');
+            // 'skipped' (paid/cancelled/etc.) needs no toast — already guarded above
+          } catch (err) {
+            toast('Order saved but QBO update failed: ' + (err.message || 'unknown'), 'error');
+          }
         }
       }
       // Prompt QBO sync when transitioning from Draft to Pending or Paid

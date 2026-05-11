@@ -742,7 +742,19 @@ async function getNextInvoiceNumber() {
 
 // ── Invoice creation ─────────────────────────────────────────────
 
-async function createInvoice(order, lineItems, account, _isRetry) {
+/**
+ * Build the QBO Invoice request body for an order, sharing the layout logic
+ * between createInvoice (initial POST) and updateInvoice (sparse update of
+ * an existing invoice). Honors deposits per keg format, tax via TxnTaxDetail,
+ * and BillEmail/BillEmailCc from the account's email fields.
+ *
+ * @param {object} order - ORDERS row
+ * @param {Array<object>} lineItems - ORDER_ITEMS rows
+ * @param {object} account - ACCOUNTS row
+ * @returns {Promise<object>} invoice body suitable for POST /invoice or
+ *   (with Id/SyncToken/sparse merged in by the caller) POST /invoice?operation=update
+ */
+async function _buildInvoiceBody(order, lineItems, account) {
   const customerId = await findOrCreateCustomer(account);
   const productItemId = await getOrCreateProductItem();
   const taxInfo = await getTaxInfo();
@@ -887,6 +899,12 @@ async function createInvoice(order, lineItems, account, _isRetry) {
   // Remove undefined values
   Object.keys(invoiceBody).forEach(k => invoiceBody[k] === undefined && delete invoiceBody[k]);
 
+  return invoiceBody;
+}
+
+async function createInvoice(order, lineItems, account, _isRetry) {
+  const invoiceBody = await _buildInvoiceBody(order, lineItems, account);
+
   let result;
   try {
     result = await qboApiRequest('POST', 'invoice', invoiceBody);
@@ -908,8 +926,51 @@ async function createInvoice(order, lineItems, account, _isRetry) {
 
   const invoice = result.Invoice;
   // Ensure DocNumber is always set — QBO may not echo it back in some configurations
-  if (invoice && !invoice.DocNumber) invoice.DocNumber = docNumber;
+  if (invoice && !invoice.DocNumber) invoice.DocNumber = invoiceBody.DocNumber;
   return invoice;
+}
+
+/**
+ * Sparse-update an existing QBO invoice with the order's current line items,
+ * amounts, and recipients. Fetches the invoice first to read its SyncToken
+ * (QBO requires it on every update).
+ *
+ * @param {string} invoiceId - QBO invoice Id
+ * @param {object} order - ORDERS row
+ * @param {Array<object>} lineItems - ORDER_ITEMS rows
+ * @param {object} account - ACCOUNTS row
+ * @param {boolean} [_isRetry] - internal; retries on 610 cache-miss errors
+ * @returns {Promise<object>} updated invoice
+ */
+async function updateInvoice(invoiceId, order, lineItems, account, _isRetry) {
+  const existing = await getInvoice(invoiceId);
+  if (!existing) throw new Error(`Invoice ${invoiceId} not found in QBO`);
+
+  const body = await _buildInvoiceBody(order, lineItems, account);
+  body.Id        = String(existing.Id);
+  body.SyncToken = existing.SyncToken;
+  body.sparse    = true;
+  // Preserve the original DocNumber when possible — we don't want to renumber
+  // an invoice that customers have already seen.
+  if (existing.DocNumber) body.DocNumber = existing.DocNumber;
+
+  let result;
+  try {
+    result = await qboApiRequest('POST', 'invoice?operation=update', body);
+  } catch (err) {
+    if (!_isRetry && (err.message.includes('"code":"610"') || /made inactive/i.test(err.message))) {
+      console.warn(`[qbo] Invoice update got 610 (inactive entity), clearing caches and retrying…`);
+      clearAllCaches();
+      if (account.QboCustomerId) {
+        try { await updateRow('ACCOUNTS', account.ID, { QboCustomerId: '' }); } catch (e) { /* ignore */ }
+        account.QboCustomerId = '';
+      }
+      return updateInvoice(invoiceId, order, lineItems, account, true);
+    }
+    throw err;
+  }
+
+  return result.Invoice;
 }
 
 // ── Top-level sync function ──────────────────────────────────────
@@ -1043,6 +1104,86 @@ async function syncOrderToQbo(orderId) {
   }
 }
 
+/**
+ * Push edits to an already-synced order back to its QBO invoice and re-send.
+ * Used after the order header or its line items change locally.
+ *
+ * Guard rails:
+ *   - QBO must be configured and connected
+ *   - The order must have a QboInvoiceId and QboSyncStatus='synced'
+ *   - The order must not be paid in QBO (QboPaymentId unset)
+ *   - The order must not be Cancelled
+ *
+ * On any failure, sets QboSyncStatus='failed' with the error message so the
+ * order form's QBO section surfaces a Retry button. Does not throw.
+ *
+ * @param {string} orderId
+ * @returns {Promise<{ status: string, error?: string, recipients?: string }>}
+ */
+async function resyncOrderToQbo(orderId) {
+  try {
+    if (!isQboConfigured()) return { status: 'disabled' };
+    const tokens = await getValidToken();
+    if (!tokens) {
+      await updateRow('ORDERS', orderId, {
+        QboSyncStatus: 'failed',
+        QboSyncError:  'Not connected to QuickBooks — reconnect in Settings',
+      });
+      return { status: 'failed', error: 'not connected' };
+    }
+
+    const order = getRow('ORDERS', orderId);
+    if (!order) return { status: 'skipped', error: 'order not found' };
+    if (!order.QboInvoiceId || order.QboSyncStatus !== 'synced') {
+      return { status: 'skipped', error: 'order is not synced to QBO' };
+    }
+    if (order.QboPaymentId) {
+      return { status: 'skipped', error: 'invoice already paid in QBO' };
+    }
+    if (order.Status === 'Cancelled') {
+      return { status: 'skipped', error: 'order is cancelled' };
+    }
+
+    const account = getRow('ACCOUNTS', order.AccountID);
+    if (!account) {
+      const msg = `Account ${order.AccountID} not found`;
+      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed', QboSyncError: msg });
+      return { status: 'failed', error: msg };
+    }
+
+    const allItems = await getAllRows('ORDER_ITEMS');
+    const lineItems = allItems.filter(i => i.OrderID === orderId);
+
+    const updated = await updateInvoice(order.QboInvoiceId, order, lineItems, account);
+    if (!updated || !updated.Id) throw new Error('QBO returned no invoice on update');
+
+    // Make sure local QboSyncStatus is back to synced (clears any prior failure).
+    await updateRow('ORDERS', orderId, { QboSyncStatus: 'synced', QboSyncError: '' });
+
+    // Re-send to BillEmail + BillEmailCc — same shape as the initial sync.
+    const billEmail = account.BillingEmail || account.Email;
+    if (billEmail) {
+      try {
+        await qboApiRequest('POST', `invoice/${order.QboInvoiceId}/send`);
+        const ccs = collectInvoiceCcs(account, billEmail);
+        const recipientList = ccs.length > 0 ? `${billEmail} (cc: ${ccs.join(', ')})` : billEmail;
+        console.log(`[qbo] Invoice ${order.QboInvoiceId} re-sent to ${recipientList}`);
+        return { status: 'sent', recipients: recipientList };
+      } catch (sendErr) {
+        console.error(`[qbo] Invoice ${order.QboInvoiceId} updated but re-send failed:`, sendErr.message);
+        return { status: 'updated', error: sendErr.message };
+      }
+    }
+    return { status: 'updated', error: 'no email address on account' };
+  } catch (err) {
+    console.error(`[qbo] Resync failed for order ${orderId}:`, err.message);
+    try {
+      await updateRow('ORDERS', orderId, { QboSyncStatus: 'failed', QboSyncError: err.message || 'Resync failed' });
+    } catch { /* ignore */ }
+    return { status: 'failed', error: err.message };
+  }
+}
+
 module.exports = {
   isQboConfigured,
   getOAuthClient,
@@ -1051,6 +1192,7 @@ module.exports = {
   clearTokens,
   getValidToken,
   syncOrderToQbo,
+  resyncOrderToQbo,
   fetchTaxCodes,
   clearTaxInfoCache,
   getPayment,
