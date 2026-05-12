@@ -181,7 +181,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     </div>
     <div class="form-group">
       <label>Invoice Number</label>
-      <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
+      <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001"${dis} />
     </div>
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
@@ -231,7 +231,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div id="order-total-summary" class="order-total-summary" style="display:none"></div>
     <div class="form-group" style="margin-top:14px">
       <label>Notes / Reference</label>
-      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
+      <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc."${dis}>${esc(order.Notes)}</textarea>
     </div>
     ${_qboAppUrl && order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
     <hr class="form-divider" />
@@ -1470,15 +1470,9 @@ async function openEditOrder(id) {
   if (!order) return;
   const isPaid = order.Status === 'Paid';
   if (isPaid) {
-    modal.open('View Order', orderForm(order, '', true), async () => {
-      await api.put(`/api/orders/${id}`, {
-        InvoiceNumber: val('f-invoice'),
-        Notes: val('f-notes'),
-      });
-      modal.close();
-      toast('Order updated');
-      loadOrders();
-    }, 'Save');
+    // Paid orders are view-only — the only mutation still available is the
+    // Delivered checkbox in the orders list (handled outside this modal).
+    modal.open('View Order', orderForm(order, '', true), () => modal.close(), 'Close');
   } else {
     modal.open('Edit Order', orderForm(order), async () => {
       const staffId = val('f-staff');

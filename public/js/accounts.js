@@ -1039,15 +1039,9 @@ function profileEditOrder(id) {
     if (!order) return;
     const isPaid = order.Status === 'Paid';
     if (isPaid) {
-      modal.open('View Order', orderForm(order, '', true), async () => {
-        await api.put(`/api/orders/${id}`, {
-          InvoiceNumber: val('f-invoice'),
-          Notes: val('f-notes'),
-        });
-        modal.close();
-        toast('Order updated');
-        loadAccountProfile(state.accountProfileId);
-      }, 'Save');
+      // Paid orders are view-only — the only mutation still available is the
+      // Delivered checkbox in the orders list (handled outside this modal).
+      modal.open('View Order', orderForm(order, '', true), () => modal.close(), 'Close');
     } else {
       modal.open('Edit Order', orderForm(order), async () => {
         const staffId = val('f-staff');
