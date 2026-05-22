@@ -265,7 +265,8 @@ function openBulkReassignTodos() {
     let succeeded = 0;
     for (const id of ids) {
       try {
-        await api.put(`/api/reminders/${id}`, { StaffID: staffId, StaffName: staffName });
+        // ?silent=1 — bulk reassigns shouldn't email each recipient (see #389).
+        await api.put(`/api/reminders/${id}?silent=1`, { StaffID: staffId, StaffName: staffName });
         succeeded++;
       } catch (err) {
         console.error('[bulk-reassign]', id, err.message);

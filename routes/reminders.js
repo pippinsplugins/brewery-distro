@@ -91,10 +91,15 @@ router.put('/:id', async (req, res) => {
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
+    // ?silent=1 suppresses mention + assignment notifications. Used by the
+    // bulk-reassign UI so reassigning N todos doesn't email recipients N times.
+    const silent = req.query.silent === '1' || req.query.silent === 'true';
     const updated = await updateRow('REMINDERS', req.params.id, updates);
-    const baseUrl = req.protocol + '://' + req.get('host');
-    processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
-    processAssignment({ newStaffId: updated.StaffID, oldStaffId, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    if (!silent) {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      processMentions({ newText: updated.Notes, oldText: oldNotes, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, mentionerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+      processAssignment({ newStaffId: updated.StaffID, oldStaffId, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
+    }
 
     // When completing a recurring reminder, spawn the next occurrence
     if (updates.Completed === 'true' && updated.Recurrence && RECURRENCE_VALUES.has(updated.Recurrence) && updated.Recurrence !== 'none') {
