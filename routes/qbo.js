@@ -3,7 +3,7 @@
 const crypto      = require('crypto');
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, QBO_APP_URL } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -204,6 +204,21 @@ apiRouter.post('/sync/:orderId', async (req, res) => {
       order.QboSyncError = 'QBO sync failed — check Settings for connection issues';
     }
     res.json(order);
+  } catch (err) {
+    console.error('[qbo]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/qbo/resync/:orderId — push edits to an existing invoice + re-send.
+// Called by the order-edit client when line items, amounts, or recipients
+// change on an already-synced, unpaid order. Skips paid/cancelled orders.
+apiRouter.post('/resync/:orderId', async (req, res) => {
+  try {
+    const result = await resyncOrderToQbo(req.params.orderId);
+    const { getRow } = require('../db');
+    const order = getRow('ORDERS', req.params.orderId);
+    res.json({ ...result, order });
   } catch (err) {
     console.error('[qbo]', err.message);
     res.status(500).json({ error: err.message });
