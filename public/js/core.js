@@ -311,7 +311,12 @@ const modal = {
     document.getElementById('modal-body').innerHTML = bodyHtml;
     document.getElementById('modal-submit-btn').textContent = submitLabel;
     document.getElementById('modal-submit-btn').className = 'btn btn-primary';
-    document.getElementById('modal-cancel-btn').textContent = onSubmit ? 'Cancel' : 'Close';
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    cancelBtn.textContent = onSubmit ? 'Cancel' : 'Close';
+    // Clear any custom onclick a previous modal attached (e.g. email confirm's
+    // "Back to Edit"). The standard addEventListener-based close handler is
+    // unaffected.
+    cancelBtn.onclick = null;
     document.getElementById('modal-overlay').classList.remove('hidden');
     modal._onSubmit = onSubmit;
 

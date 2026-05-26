@@ -1444,17 +1444,24 @@ function updateBulkEmailBar() {
   }
 }
 
-function fromEmailHtml() {
+function fromEmailHtml(preselect) {
+  const chosen = preselect || state.userEmail || '';
   if (state.userEmails && state.userEmails.length > 1) {
     const opts = state.userEmails.map(e =>
-      `<option value="${esc(e)}"${e === state.userEmail ? ' selected' : ''}>${esc(e)}</option>`
+      `<option value="${esc(e)}"${e === chosen ? ' selected' : ''}>${esc(e)}</option>`
     ).join('');
     return `<select class="form-control" id="f-email-from">${opts}</select>`;
   }
-  return `<input class="form-control" id="f-email-from" value="${esc(state.userEmail || '')}" readonly style="background:#f5f5f5;cursor:default" />`;
+  return `<input class="form-control" id="f-email-from" value="${esc(chosen)}" readonly style="background:#f5f5f5;cursor:default" />`;
 }
 
-function openEmailCompose(accountId) {
+// Shared body-preview style used by both confirm modals — preserves newlines
+// and escapes HTML.
+function _emailBodyPreviewHtml(body) {
+  return `<div style="white-space:pre-wrap;background:#f7f7f8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;max-height:240px;overflow-y:auto;font-size:13px">${esc(body)}</div>`;
+}
+
+function openEmailCompose(accountId, draft) {
   const acct = state.accounts.find(a => a.ID === accountId);
   if (!acct) return;
   _emailInventoryCache = null;
@@ -1472,6 +1479,9 @@ function openEmailCompose(accountId) {
   const primaryEmail = acct.Email || additionalEmails[0];
   const ccEmails = acct.Email ? additionalEmails : additionalEmails.slice(1);
   const recipientDisplay = allEmails.join(', ');
+  const initialSubject = draft?.subject || '';
+  const initialBody    = draft?.body    || '';
+  const initialFrom    = draft?.fromEmail || '';
 
   const formHtml = `
     <div class="form-group">
@@ -1480,45 +1490,81 @@ function openEmailCompose(accountId) {
     </div>
     <div class="form-group">
       <label>From</label>
-      ${fromEmailHtml()}
+      ${fromEmailHtml(initialFrom)}
     </div>
     <div class="form-group">
       <label>Subject <span class="required">*</span></label>
-      <input class="form-control" id="f-email-subject" placeholder="Email subject..." />
+      <input class="form-control" id="f-email-subject" placeholder="Email subject..." value="${esc(initialSubject)}" />
     </div>
     ${inventoryHelperHtml()}
     <div class="form-group">
       <label>Message <span class="required">*</span></label>
-      <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message..."></textarea>
+      <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message...">${esc(initialBody)}</textarea>
     </div>`;
 
-  modal.open('Send Email', formHtml, async () => {
+  modal.open('Send Email', formHtml, () => {
     const subject   = val('f-email-subject');
     const body      = val('f-email-body');
     const fromEmail = val('f-email-from');
     if (!subject) { toast('Subject is required', 'error'); return; }
     if (!body)    { toast('Message is required', 'error'); return; }
 
-    try {
-      await api.post('/api/email/send', {
-        to:          primaryEmail,
-        cc:          ccEmails.length > 0 ? ccEmails : undefined,
-        subject,
-        body,
-        fromEmail,
-        accountId:   acct.ID,
-        accountName: acct.Name,
-      });
-      modal.close();
-      toast('Email sent successfully');
-      if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
-    } catch (err) {
-      toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
+    // Two-step confirm — show the message + recipients so users can't fire
+    // off an email by accidentally hitting Enter or Send too early (#391).
+    const confirmHtml = `
+      <p class="text-sm text-muted" style="margin:0 0 12px">Review before sending.</p>
+      <div class="form-group">
+        <label>To${ccEmails.length > 0 ? ' / Cc' : ''}</label>
+        <div class="text-sm" style="padding:8px 10px;background:#f7f7f8;border-radius:6px">${esc(recipientDisplay)}</div>
+      </div>
+      <div class="form-group">
+        <label>From</label>
+        <div class="text-sm" style="padding:8px 10px;background:#f7f7f8;border-radius:6px">${esc(fromEmail || state.userEmail || '')}</div>
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <div class="text-sm fw-600" style="padding:8px 10px;background:#f7f7f8;border-radius:6px">${esc(subject)}</div>
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        ${_emailBodyPreviewHtml(body)}
+      </div>`;
+
+    modal.open('Confirm Send', confirmHtml, async () => {
+      try {
+        await api.post('/api/email/send', {
+          to:          primaryEmail,
+          cc:          ccEmails.length > 0 ? ccEmails : undefined,
+          subject,
+          body,
+          fromEmail,
+          accountId:   acct.ID,
+          accountName: acct.Name,
+        });
+        modal.close();
+        toast('Email sent successfully');
+        if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+      } catch (err) {
+        toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
+      }
+    }, 'Send');
+
+    // Repurpose the modal's Cancel button to go back to the form with the
+    // user's draft intact, instead of closing the flow entirely. The standard
+    // Cancel-closes-modal listener still runs first; our handler then reopens
+    // the compose modal with the draft values.
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.textContent = 'Back to Edit';
+      cancelBtn.onclick = () => {
+        // Defer so this runs after the addEventListener('click', modal.close).
+        setTimeout(() => openEmailCompose(accountId, { subject, body, fromEmail }), 0);
+      };
     }
   }, 'Send');
 }
 
-function openBulkEmail() {
+function openBulkEmail(draft) {
   const checked = document.querySelectorAll('.acct-select:checked');
   if (checked.length === 0) {
     toast('Select at least one account first', 'error');
@@ -1553,6 +1599,10 @@ function openBulkEmail() {
       </div>`
     : '';
 
+  const initialSubject = draft?.subject || '';
+  const initialBody    = draft?.body    || '';
+  const initialFrom    = draft?.fromEmail || '';
+
   const formHtml = `
     ${warningHtml}
     <div class="form-group">
@@ -1563,24 +1613,49 @@ function openBulkEmail() {
     </div>
     <div class="form-group">
       <label>From</label>
-      ${fromEmailHtml()}
+      ${fromEmailHtml(initialFrom)}
     </div>
     <div class="form-group">
       <label>Subject <span class="required">*</span></label>
-      <input class="form-control" id="f-email-subject" placeholder="Email subject..." />
+      <input class="form-control" id="f-email-subject" placeholder="Email subject..." value="${esc(initialSubject)}" />
     </div>
     ${inventoryHelperHtml()}
     <div class="form-group">
       <label>Message <span class="required">*</span></label>
-      <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message..."></textarea>
+      <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message...">${esc(initialBody)}</textarea>
     </div>`;
 
-  modal.open('Send Bulk Email', formHtml, async () => {
+  modal.open('Send Bulk Email', formHtml, () => {
     const subject   = val('f-email-subject');
     const body      = val('f-email-body');
     const fromEmail = val('f-email-from');
     if (!subject) { toast('Subject is required', 'error'); return; }
     if (!body)    { toast('Message is required', 'error'); return; }
+
+    // Two-step confirm — show what will go out and to whom before we
+    // actually fire the bulk send (#391).
+    const confirmHtml = `
+      <p class="text-sm text-muted" style="margin:0 0 12px">
+        About to BCC <strong>${totalAddresses}</strong> address${totalAddresses !== 1 ? 'es' : ''} across <strong>${withEmail.length}</strong> account${withEmail.length !== 1 ? 's' : ''}.
+      </p>
+      <div class="form-group">
+        <label>Recipients</label>
+        <ul class="text-sm" style="max-height:140px;overflow-y:auto;margin:4px 0;padding-left:20px;color:var(--text-secondary)">
+          ${recipientList}
+        </ul>
+      </div>
+      <div class="form-group">
+        <label>From</label>
+        <div class="text-sm" style="padding:8px 10px;background:#f7f7f8;border-radius:6px">${esc(fromEmail || state.userEmail || '')}</div>
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <div class="text-sm fw-600" style="padding:8px 10px;background:#f7f7f8;border-radius:6px">${esc(subject)}</div>
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        ${_emailBodyPreviewHtml(body)}
+      </div>`;
 
     const recipients = withEmail.map(a => ({
       email:            a.Email,
@@ -1589,14 +1664,24 @@ function openBulkEmail() {
       accountName:      a.Name,
     }));
 
-    try {
-      const result = await api.post('/api/email/bulk', { recipients, subject, body, fromEmail });
-      modal.close();
-      toast(`Email sent to ${result.sent} address${result.sent !== 1 ? 'es' : ''}`);
-      document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
-      updateBulkEmailBar();
-    } catch (err) {
-      toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
+    modal.open('Confirm Send', confirmHtml, async () => {
+      try {
+        const result = await api.post('/api/email/bulk', { recipients, subject, body, fromEmail });
+        modal.close();
+        toast(`Email sent to ${result.sent} address${result.sent !== 1 ? 'es' : ''}`);
+        document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
+        updateBulkEmailBar();
+      } catch (err) {
+        toast('Failed to send email: ' + (err.message || 'Unknown error'), 'error');
+      }
+    }, 'Send');
+
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.textContent = 'Back to Edit';
+      cancelBtn.onclick = () => {
+        setTimeout(() => openBulkEmail({ subject, body, fromEmail }), 0);
+      };
     }
   }, 'Send');
 }
