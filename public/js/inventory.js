@@ -13,6 +13,20 @@ async function loadInventory(preservePage = false) {
 
 let _invSort = { col: 'Name', dir: 'asc' };
 let _invStockFilter = 'in-stock';
+let _invTypeFilter = '';
+let _invFormatFilter = '';
+
+// Classify an inventory row's Format string into a coarse "Type" bucket.
+// Formats are free-form text (e.g. "1/6 Keg", "12oz Can", "750ml Bottle"), so
+// we substring-match case-insensitively. Anything that matches nothing falls
+// into "Other".
+function _inventoryType(fmt) {
+  const f = (fmt || '').toLowerCase();
+  if (f.includes('keg')) return 'Keg';
+  if (f.includes('can')) return 'Can';
+  if (f.includes('bottle')) return 'Bottle';
+  return 'Other';
+}
 
 function sortInventory(col) {
   _paginationReset('inventory');
@@ -30,15 +44,32 @@ function renderInventory() {
   const _focused = document.activeElement?.id;
   const search = (document.getElementById('inv-search') || {}).value || '';
   const stockFilter = _invStockFilter;
+  const typeFilter = _invTypeFilter;
+  const formatFilter = _invFormatFilter;
 
   let filtered = items;
   if (stockFilter === 'in-stock') filtered = filtered.filter(i => parseInt(i.Units || '0') > 0);
   else if (stockFilter === 'low') filtered = filtered.filter(i => { const u = parseInt(i.Units || '0'); return u > 0 && u <= parseInt(i.LowStockThreshold || '5'); });
   else if (stockFilter === 'out') filtered = filtered.filter(i => parseInt(i.Units || '0') <= 0);
 
+  if (typeFilter) filtered = filtered.filter(i => _inventoryType(i.Format) === typeFilter);
+  if (formatFilter) filtered = filtered.filter(i => (i.Format || '') === formatFilter);
+
   if (search) filtered = filtered.filter(i =>
     (i.Name || '').toLowerCase().includes(search.toLowerCase()) || (i.Style || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  // Build the Format dropdown options from all distinct formats at this
+  // location (respecting only the Type filter, so changing Type narrows the
+  // available formats but the user can still see every size for that type).
+  const formatPool = typeFilter
+    ? items.filter(i => _inventoryType(i.Format) === typeFilter)
+    : items;
+  const distinctFormats = [...new Set(formatPool.map(i => i.Format || '').filter(Boolean))].sort();
+  // If the currently selected format no longer matches the type filter, drop it.
+  if (formatFilter && !distinctFormats.includes(formatFilter)) {
+    _invFormatFilter = '';
+  }
 
   // Sort
   const { col, dir } = _invSort;
@@ -81,6 +112,17 @@ function renderInventory() {
     </div>
     <div class="filter-bar">
       <input type="search" id="inv-search" placeholder="Search products..." value="${esc(search)}" oninput="_paginationReset('inventory'); renderInventory()" />
+      <select id="inv-type" onchange="_invTypeFilter=this.value; _invFormatFilter=''; _paginationReset('inventory'); renderInventory()">
+        <option value=""${typeFilter === '' ? ' selected' : ''}>All Types</option>
+        <option value="Keg"${typeFilter === 'Keg' ? ' selected' : ''}>Kegs</option>
+        <option value="Can"${typeFilter === 'Can' ? ' selected' : ''}>Cans</option>
+        <option value="Bottle"${typeFilter === 'Bottle' ? ' selected' : ''}>Bottles</option>
+        <option value="Other"${typeFilter === 'Other' ? ' selected' : ''}>Other</option>
+      </select>
+      <select id="inv-format" onchange="_invFormatFilter=this.value; _paginationReset('inventory'); renderInventory()">
+        <option value=""${_invFormatFilter === '' ? ' selected' : ''}>All Sizes</option>
+        ${distinctFormats.map(f => `<option value="${esc(f)}"${_invFormatFilter === f ? ' selected' : ''}>${esc(f)}</option>`).join('')}
+      </select>
       <select id="inv-stock" onchange="_invStockFilter=this.value; _paginationReset('inventory'); renderInventory()">
         <option value="in-stock"${stockFilter === 'in-stock' ? ' selected' : ''}>In-Stock Only</option>
         <option value="all"${stockFilter === 'all' ? ' selected' : ''}>All Products</option>
