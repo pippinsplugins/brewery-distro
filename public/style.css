@@ -437,9 +437,11 @@ body {
 
 .stats-grid {
   display: grid;
-  /* min raised from 160px → 190px so 6 tiles of $XXX,XXX.XX values fit
-     without clipping; auto-fit still collapses gracefully on narrow widths */
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  /* Min raised to 210px so six tiles can hold $XXX,XXX.XX values on one
+     line. Combined with auto-fit, tiles wrap to a second row when the
+     viewport can't accommodate the full set rather than squeezing the
+     value below the readable font floor. */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 14px;
   margin-bottom: 24px;
 }
@@ -468,14 +470,16 @@ body {
 .stat-card.danger  { border-left-color: #e53935; }
 
 .stat-value {
-  /* clamp() scales 24px → 32px across viewport widths so dense six-tile
-     rows with $XXX,XXX.XX numbers shrink the font rather than clip */
-  font-size: clamp(22px, 1.6vw + 14px, 32px);
+  /* clamp() scales the value font with viewport width so dense six-tile
+     rows with $XXX,XXX.XX numbers shrink instead of overflowing. */
+  font-size: clamp(20px, 1.6vw + 12px, 32px);
   font-weight: 800;
   color: var(--green-dark);
   line-height: 1.05;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  /* Keep dollar amounts on one line — wrapping mid-number reads as a
+     formatting bug (e.g. "$10,616.0\n0"). The tile shrinks the font and
+     the grid drops to fewer columns instead. */
+  white-space: nowrap;
   min-width: 0;
 }
 
