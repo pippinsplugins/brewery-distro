@@ -61,30 +61,56 @@ router.get('/', async (req, res) => {
     const productMap = Object.fromEntries(products.map(p => [p.ID, p]));
 
     // ── A. Sales Summary ──────────────────────────────────────────
+    // Split each amount into "paid" (Status === 'Paid' — payment received)
+    // and "pending" (Pending — invoiced/delivered but awaiting payment) so
+    // the reports can distinguish booked revenue from outstanding AR.
     const salesBuckets = {};
     let totalOrders = 0, totalAmount = 0, totalTax = 0, totalDeposits = 0;
+    let totalPaidAmount = 0, totalPendingAmount = 0;
+    let totalPaidCount = 0, totalPendingCount = 0;
 
     for (const o of salesOrders) {
       const key = bucketKey(o.OrderDate, granularity);
-      if (!salesBuckets[key]) salesBuckets[key] = { bucket: key, orderCount: 0, orderAmount: 0, taxAmount: 0, depositAmount: 0 };
+      if (!salesBuckets[key]) {
+        salesBuckets[key] = {
+          bucket: key,
+          orderCount: 0, orderAmount: 0, taxAmount: 0, depositAmount: 0,
+          paidOrderCount: 0, pendingOrderCount: 0,
+          paidAmount: 0, pendingAmount: 0,
+        };
+      }
       const b = salesBuckets[key];
       const amt = parseFloat(o.OrderAmount || 0);
       const tax = parseFloat(o.TaxAmount || 0);
       const dep = parseFloat(o.DepositAmount || 0);
+      const isPaid = o.Status === 'Paid';
       b.orderCount++;
       b.orderAmount += amt;
       b.taxAmount += tax;
       b.depositAmount += dep;
+      if (isPaid) { b.paidAmount += amt; b.paidOrderCount++; }
+      else        { b.pendingAmount += amt; b.pendingOrderCount++; }
       totalOrders++;
       totalAmount += amt;
       totalTax += tax;
       totalDeposits += dep;
+      if (isPaid) { totalPaidAmount += amt; totalPaidCount++; }
+      else        { totalPendingAmount += amt; totalPendingCount++; }
     }
 
     const salesSummary = {
       buckets: Object.values(salesBuckets).sort((a, b) => a.bucket.localeCompare(b.bucket)),
       granularity,
-      totals: { orderCount: totalOrders, orderAmount: totalAmount, taxAmount: totalTax, depositAmount: totalDeposits },
+      totals: {
+        orderCount: totalOrders,
+        orderAmount: totalAmount,
+        taxAmount: totalTax,
+        depositAmount: totalDeposits,
+        paidOrderCount: totalPaidCount,
+        pendingOrderCount: totalPendingCount,
+        paidAmount: totalPaidAmount,
+        pendingAmount: totalPendingAmount,
+      },
     };
 
     // ── B. Top Products ───────────────────────────────────────────
@@ -153,11 +179,21 @@ router.get('/', async (req, res) => {
       if (!o.AccountID) continue;
       if (!accountAgg[o.AccountID]) {
         const acct = accountMap[o.AccountID] || {};
-        accountAgg[o.AccountID] = { accountId: o.AccountID, name: o.AccountName || acct.Name || '', type: acct.Type || '', orderCount: 0, totalSpent: 0, lastOrderDate: '' };
+        accountAgg[o.AccountID] = {
+          accountId: o.AccountID,
+          name: o.AccountName || acct.Name || '',
+          type: acct.Type || '',
+          orderCount: 0, totalSpent: 0,
+          paidSpent: 0, pendingSpent: 0,
+          lastOrderDate: '',
+        };
       }
       const a = accountAgg[o.AccountID];
+      const amt = parseFloat(o.OrderAmount || 0);
       a.orderCount++;
-      a.totalSpent += parseFloat(o.OrderAmount || 0);
+      a.totalSpent += amt;
+      if (o.Status === 'Paid') a.paidSpent += amt;
+      else                     a.pendingSpent += amt;
       const d = (o.OrderDate || '').substring(0, 10);
       if (d > a.lastOrderDate) a.lastOrderDate = d;
     }
@@ -218,11 +254,20 @@ router.get('/', async (req, res) => {
       const repId = o.StaffID || '_unassigned';
       if (!repAgg[repId]) {
         const s = staffMap[o.StaffID] || {};
-        repAgg[repId] = { staffId: repId, name: o.StaffName || s.Name || 'Unassigned', orderCount: 0, totalRevenue: 0, accountIds: new Set() };
+        repAgg[repId] = {
+          staffId: repId,
+          name: o.StaffName || s.Name || 'Unassigned',
+          orderCount: 0, totalRevenue: 0,
+          paidRevenue: 0, pendingRevenue: 0,
+          accountIds: new Set(),
+        };
       }
       const r = repAgg[repId];
+      const amt = parseFloat(o.OrderAmount || 0);
       r.orderCount++;
-      r.totalRevenue += parseFloat(o.OrderAmount || 0);
+      r.totalRevenue += amt;
+      if (o.Status === 'Paid') r.paidRevenue += amt;
+      else                     r.pendingRevenue += amt;
       if (o.AccountID) r.accountIds.add(o.AccountID);
     }
 
@@ -232,6 +277,8 @@ router.get('/', async (req, res) => {
         name: r.name,
         orderCount: r.orderCount,
         totalRevenue: r.totalRevenue,
+        paidRevenue: r.paidRevenue,
+        pendingRevenue: r.pendingRevenue,
         avgOrder: r.orderCount > 0 ? r.totalRevenue / r.orderCount : 0,
         accountsServed: r.accountIds.size,
       }))
