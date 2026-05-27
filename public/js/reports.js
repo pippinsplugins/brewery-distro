@@ -82,11 +82,19 @@ function renderReports() {
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-value">${s.orderCount}</div>
-        <div class="stat-label">Orders</div>
+        <div class="stat-label">Orders<br><span class="text-sm text-muted">${s.paidOrderCount || 0} paid / ${s.pendingOrderCount || 0} pending</span></div>
       </div>
       <div class="stat-card accent">
         <div class="stat-value">${fmtMoney(s.orderAmount)}</div>
-        <div class="stat-label">Revenue</div>
+        <div class="stat-label">Total Revenue</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-success">${fmtMoney(s.paidAmount || 0)}</div>
+        <div class="stat-label">Paid Revenue</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtMoney(s.pendingAmount || 0)}</div>
+        <div class="stat-label">Awaiting Payment</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">${fmtMoney(s.taxAmount)}</div>
@@ -162,10 +170,14 @@ function _renderSalesChart(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Period</th><th>Orders</th><th>Revenue</th><th>Tax</th><th>Deposits</th></tr></thead>
+            <thead><tr><th>Period</th><th>Orders</th><th>Paid Revenue</th><th>Pending Revenue</th><th>Total Revenue</th><th>Tax</th><th>Deposits</th></tr></thead>
             <tbody>
               ${buckets.map(b => `<tr>
-                <td>${esc(b.bucket)}</td><td>${b.orderCount}</td><td>${fmtMoney(b.orderAmount)}</td>
+                <td>${esc(b.bucket)}</td>
+                <td>${b.orderCount} <span class="text-muted text-sm">(${b.paidOrderCount || 0}/${b.pendingOrderCount || 0})</span></td>
+                <td class="text-success">${fmtMoney(b.paidAmount || 0)}</td>
+                <td>${fmtMoney(b.pendingAmount || 0)}</td>
+                <td class="fw-600">${fmtMoney(b.orderAmount)}</td>
                 <td>${fmtMoney(b.taxAmount)}</td><td>${fmtMoney(b.depositAmount)}</td>
               </tr>`).join('')}
             </tbody>
@@ -185,8 +197,9 @@ function _buildSalesChart(data) {
     data: {
       labels: buckets.map(b => b.bucket),
       datasets: [
-        { label: 'Revenue', data: buckets.map(b => b.orderAmount), backgroundColor: _chartColors.green },
-        { label: 'Tax', data: buckets.map(b => b.taxAmount), backgroundColor: _chartColors.amber },
+        { label: 'Paid Revenue',    data: buckets.map(b => b.paidAmount    || 0), backgroundColor: _chartColors.green },
+        { label: 'Pending Revenue', data: buckets.map(b => b.pendingAmount || 0), backgroundColor: _chartColors.amber },
+        { label: 'Tax',             data: buckets.map(b => b.taxAmount),         backgroundColor: _chartColors.blue  },
       ],
     },
     options: {
@@ -267,11 +280,13 @@ function _renderAccountActivity(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Account</th><th>Type</th><th>Orders</th><th>Total Spent</th><th>Avg Order</th><th>Last Order</th></tr></thead>
+            <thead><tr><th>Account</th><th>Type</th><th>Orders</th><th>Paid</th><th>Pending</th><th>Total Spent</th><th>Avg Order</th><th>Last Order</th></tr></thead>
             <tbody>
               ${accounts.map(a => `<tr>
                 <td>${esc(a.name)}</td><td>${esc(a.type)}</td><td>${a.orderCount}</td>
-                <td>${fmtMoney(a.totalSpent)}</td><td>${fmtMoney(a.avgOrder)}</td><td>${formatDate(a.lastOrderDate)}</td>
+                <td class="text-success">${fmtMoney(a.paidSpent || 0)}</td>
+                <td>${fmtMoney(a.pendingSpent || 0)}</td>
+                <td class="fw-600">${fmtMoney(a.totalSpent)}</td><td>${fmtMoney(a.avgOrder)}</td><td>${formatDate(a.lastOrderDate)}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -363,10 +378,13 @@ function _renderSalesByRep(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Rep</th><th>Orders</th><th>Revenue</th><th>Avg Order</th><th>Accounts</th></tr></thead>
+            <thead><tr><th>Rep</th><th>Orders</th><th>Paid Revenue</th><th>Pending Revenue</th><th>Total Revenue</th><th>Avg Order</th><th>Accounts</th></tr></thead>
             <tbody>
               ${reps.map(r => `<tr>
-                <td>${esc(r.name)}</td><td>${r.orderCount}</td><td>${fmtMoney(r.totalRevenue)}</td>
+                <td>${esc(r.name)}</td><td>${r.orderCount}</td>
+                <td class="text-success">${fmtMoney(r.paidRevenue || 0)}</td>
+                <td>${fmtMoney(r.pendingRevenue || 0)}</td>
+                <td class="fw-600">${fmtMoney(r.totalRevenue)}</td>
                 <td>${fmtMoney(r.avgOrder)}</td><td>${r.accountsServed}</td>
               </tr>`).join('')}
             </tbody>
@@ -419,9 +437,9 @@ function _reportsExportCsv() {
 
   // Sales Summary
   lines.push('--- Sales Summary ---');
-  lines.push('Period,Orders,Revenue,Tax,Deposits');
+  lines.push('Period,Orders,Paid Orders,Pending Orders,Paid Revenue,Pending Revenue,Total Revenue,Tax,Deposits');
   for (const b of d.salesSummary.buckets) {
-    lines.push(`${b.bucket},${b.orderCount},${b.orderAmount.toFixed(2)},${b.taxAmount.toFixed(2)},${b.depositAmount.toFixed(2)}`);
+    lines.push(`${b.bucket},${b.orderCount},${b.paidOrderCount || 0},${b.pendingOrderCount || 0},${(b.paidAmount || 0).toFixed(2)},${(b.pendingAmount || 0).toFixed(2)},${b.orderAmount.toFixed(2)},${b.taxAmount.toFixed(2)},${b.depositAmount.toFixed(2)}`);
   }
   lines.push('');
 
@@ -444,9 +462,9 @@ function _reportsExportCsv() {
 
   // Account Activity
   lines.push('--- Account Activity ---');
-  lines.push('Account,Type,Orders,Total Spent,Avg Order,Last Order');
+  lines.push('Account,Type,Orders,Paid Spent,Pending Spent,Total Spent,Avg Order,Last Order');
   for (const a of d.accountActivity) {
-    lines.push(`"${a.name}","${a.type}",${a.orderCount},${a.totalSpent.toFixed(2)},${a.avgOrder.toFixed(2)},${a.lastOrderDate}`);
+    lines.push(`"${a.name}","${a.type}",${a.orderCount},${(a.paidSpent || 0).toFixed(2)},${(a.pendingSpent || 0).toFixed(2)},${a.totalSpent.toFixed(2)},${a.avgOrder.toFixed(2)},${a.lastOrderDate}`);
   }
   lines.push('');
 
@@ -460,9 +478,9 @@ function _reportsExportCsv() {
 
   // Sales by Rep
   lines.push('--- Sales by Rep ---');
-  lines.push('Rep,Orders,Revenue,Avg Order,Accounts');
+  lines.push('Rep,Orders,Paid Revenue,Pending Revenue,Total Revenue,Avg Order,Accounts');
   for (const r of d.salesByRep) {
-    lines.push(`"${r.name}",${r.orderCount},${r.totalRevenue.toFixed(2)},${r.avgOrder.toFixed(2)},${r.accountsServed}`);
+    lines.push(`"${r.name}",${r.orderCount},${(r.paidRevenue || 0).toFixed(2)},${(r.pendingRevenue || 0).toFixed(2)},${r.totalRevenue.toFixed(2)},${r.avgOrder.toFixed(2)},${r.accountsServed}`);
   }
 
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
