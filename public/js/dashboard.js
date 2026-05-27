@@ -26,9 +26,19 @@ async function loadDashboard() {
   }
   const _staffAtLocation = (id) => !state.location || LOCATIONS.length <= 1 || !id || locationStaffIds.has(id);
 
-  // Pending deliveries: undelivered orders with a delivery date
+  // Pending deliveries: undelivered orders with a delivery date.
+  // Pre-Sale / Cancelled / Draft orders are excluded — Pre-Sales aren't
+  // deliverable (the date is just an estimate) and the others aren't real
+  // orders yet. Matches the server-side filter in routes/dashboard.js.
   const pendingDeliveries = (allOrders || [])
-    .filter(o => o.Delivered !== 'true' && o.DeliveryDate && _staffAtLocation(o.StaffID))
+    .filter(o =>
+      o.Delivered !== 'true'
+      && o.DeliveryDate
+      && o.Status !== 'Pre-Sale'
+      && o.Status !== 'Cancelled'
+      && o.Status !== 'Draft'
+      && _staffAtLocation(o.StaffID),
+    )
     .map(o => ({
       _type: 'delivery',
       ID: o.ID,
