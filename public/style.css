@@ -437,7 +437,9 @@ body {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  /* min raised from 160px → 190px so 6 tiles of $XXX,XXX.XX values fit
+     without clipping; auto-fit still collapses gracefully on narrow widths */
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
   margin-bottom: 24px;
 }
@@ -450,6 +452,10 @@ body {
   border-left: 4px solid var(--green-mid);
   cursor: pointer;
   transition: box-shadow 0.15s, transform 0.1s;
+  /* min-width:0 lets grid item shrink below content size so overflow-wrap
+     can break long values instead of pushing past the card */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .stat-card:hover {
@@ -462,10 +468,15 @@ body {
 .stat-card.danger  { border-left-color: #e53935; }
 
 .stat-value {
-  font-size: 32px;
+  /* clamp() scales 24px → 32px across viewport widths so dense six-tile
+     rows with $XXX,XXX.XX numbers shrink the font rather than clip */
+  font-size: clamp(22px, 1.6vw + 14px, 32px);
   font-weight: 800;
   color: var(--green-dark);
-  line-height: 1;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .stat-card.accent  .stat-value { color: var(--accent); }
@@ -1605,9 +1616,10 @@ th input[type="checkbox"] {
     padding: 14px 16px;
   }
 
-  /* ── Stats grid: smaller minimums ── */
+  /* ── Stats grid: 2 columns on tablets/large phones so values like
+     $XXX,XXX.XX have room without clipping ── */
   .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
   }
 
