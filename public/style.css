@@ -1458,6 +1458,55 @@ th input[type="checkbox"] {
   .form-row-3 .form-group:has(.checkbox-label) { margin-bottom: 4px; }
 }
 
+/* ── Quantity stepper ─────────────────────────────────── */
+/* Used in the delivery-confirm modal to wrap a numeric input with -/+ buttons
+   that increment by 1 (clamped to the input's min/max). Renders compactly on
+   desktop and expands to full-width on mobile via the @media block below. */
+.qty-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card-bg);
+  width: 140px;
+}
+
+.qty-stepper-btn {
+  background: var(--bg-secondary, #f7f7f8);
+  border: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  width: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.1s;
+}
+
+.qty-stepper-btn:hover    { background: var(--border); }
+.qty-stepper-btn:active   { background: var(--green-mid); color: #fff; }
+.qty-stepper-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.qty-stepper-input {
+  flex: 1;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.qty-stepper-input::-webkit-outer-spin-button,
+.qty-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* ── Mobile: < 640px ─────────────────────────────────── */
 
 @media (max-width: 640px) {
@@ -1822,6 +1871,18 @@ th input[type="checkbox"] {
     font-size: 18px;
     padding: 10px 14px;
     text-align: center;
+  }
+
+  /* Stretch the stepper to full width on mobile and grow the tap targets
+     to 48×48px (Apple/Material touch-friendly minimum). */
+  .deliv-confirm-table .qty-stepper {
+    display: flex;
+    width: 100%;
+  }
+  .deliv-confirm-table .qty-stepper-btn {
+    width: 56px;
+    font-size: 22px;
+    min-height: 48px;
   }
 
   /* The table-wrap usually adds horizontal scroll; not needed when rows are

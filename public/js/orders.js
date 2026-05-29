@@ -12,6 +12,17 @@ let _orderCreditApplied = 0;
   } catch { /* ignore — QBO not configured */ }
 })();
 
+// Adjust a numeric input by ±1 (used by the +/− stepper buttons in the
+// delivery-confirm modal). Clamps to the input's min/max attributes.
+function adjustQtyStepper(id, delta) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const cur = parseInt(el.value || '0', 10) || 0;
+  const min = el.min !== '' ? parseInt(el.min, 10) : 0;
+  const max = el.max !== '' ? parseInt(el.max, 10) : Infinity;
+  el.value = String(Math.max(min, Math.min(max, cur + delta)));
+}
+
 function qboInvoiceUrl(order) {
   if (!_qboAppUrl || !order.QboInvoiceId) return '';
   return `${_qboAppUrl}/app/invoice?txnId=${encodeURIComponent(order.QboInvoiceId)}`;
@@ -1912,14 +1923,29 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     const stock = parseInt(item.Units || '0');
     const prefill = group === 'order' ? Math.min(orderQtyMap[item.ID] || 0, stock) : 0;
     const hidden = group === 'other';
+    const inputId = `deliv-qty-${item.ID}`;
     return `<tr class="deliv-confirm-row" data-stock="${group}"${hidden ? ' style="display:none"' : ''}>
             <td class="fw-600" data-label="Product">${esc(item.Name)}</td>
             <td class="text-sm" data-label="Format">${esc(item.Format) || '—'}</td>
             <td class="text-sm" data-label="In Stock">${esc(item.Units)}</td>
-            <td class="deliv-confirm-input-cell" data-label="Qty Delivered"><input class="form-control deliv-confirm-input" type="number" min="0" max="${stock}" value="${prefill}"
-                 id="deliv-qty-${item.ID}" style="width:80px" /></td>
+            <td class="deliv-confirm-input-cell" data-label="Qty Delivered">${qtyStepperHtml(inputId, prefill, 0, stock)}</td>
           </tr>`;
   };
+
+  // Renders a [-] [input] [+] stepper. The input keeps its id/min/max/value
+  // so existing save handlers that read by id (parseInt(getElementById(id).value))
+  // continue to work without change. Users can still tap the number to type.
+  function qtyStepperHtml(id, value, min, max) {
+    return `<div class="qty-stepper" role="group">
+      <button type="button" class="qty-stepper-btn" aria-label="Decrease" tabindex="-1"
+        onclick="adjustQtyStepper('${esc(id)}', -1)">&minus;</button>
+      <input class="form-control deliv-confirm-input qty-stepper-input"
+        type="number" inputmode="numeric" pattern="[0-9]*"
+        min="${min}" max="${max}" value="${value}" id="${esc(id)}" />
+      <button type="button" class="qty-stepper-btn" aria-label="Increase" tabindex="-1"
+        onclick="adjustQtyStepper('${esc(id)}', 1)">+</button>
+    </div>`;
+  }
 
   // Products section (only if inventory items exist)
   const productsSection = items.length ? `
@@ -1962,8 +1988,7 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
               <td class="text-sm" data-label="Format">${esc(k.Format) || '—'}</td>
               <td class="text-sm" data-label="Outstanding">${outstanding}</td>
               <td class="text-sm" data-label="Deposit">${depPerUnit > 0 ? '$' + depPerUnit.toFixed(2) + '/keg' : '—'}</td>
-              <td class="deliv-confirm-input-cell" data-label="Returned"><input class="form-control deliv-confirm-input" type="number" min="0" max="${outstanding}" value="0"
-                   id="keg-ret-${k.ID}" style="width:80px" /></td>
+              <td class="deliv-confirm-input-cell" data-label="Returned">${qtyStepperHtml(`keg-ret-${k.ID}`, 0, 0, outstanding)}</td>
             </tr>`;
           }).join('')}
         </tbody>
