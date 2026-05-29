@@ -1834,19 +1834,23 @@ th input[type="checkbox"] {
     flex-direction: column;
   }
 
+  /* ── Filter bar inputs: 16px to prevent iOS auto-zoom on focus (#403) ── */
   .filter-bar input,
   .filter-bar select {
     width: 100%;
     min-height: 40px;
-    font-size: 14px;
+    font-size: 16px;
   }
 
-  /* ── Form touch targets ── */
+  /* ── Form touch targets ──
+     Form controls must be 16px+ to prevent iOS Safari from auto-zooming when
+     the user taps into them (#403). 14px reads as 'small but legible' on
+     desktop but triggers viewport zoom on mobile. */
   .form-control,
   select,
   textarea {
     min-height: 40px;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   /* iOS zoom prevention: inputs must be at least 16px */
