@@ -54,7 +54,10 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
+  /* 100dvh tracks iOS Safari's actual visible viewport (responds to chrome
+     showing/hiding and rotation). Falls back to 100vh in older browsers. */
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ── Layout ─────────────────────────────────────────── */
@@ -62,6 +65,7 @@ body {
 .layout {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ── Sidebar ─────────────────────────────────────────── */
@@ -74,6 +78,7 @@ body {
   position: fixed;
   top: 0; left: 0;
   height: 100vh;
+  height: 100dvh;
   z-index: 100;
   overflow-y: auto;
 }
@@ -876,6 +881,7 @@ tbody td {
 .modal-body {
   padding: 20px 22px;
   max-height: 60vh;
+  max-height: 60dvh;
   overflow-y: auto;
 }
 
@@ -1641,8 +1647,13 @@ th input[type="checkbox"] {
     overflow-x: hidden;
   }
 
+  /* Use 100dvh (dynamic viewport height) where supported so the modal
+     re-measures when iOS Safari's chrome shows/hides and during
+     portrait <-> landscape rotation. Falls back to 80vh on older
+     browsers via the cascade. (#405) */
   .modal-body {
     max-height: 80vh;
+    max-height: 80dvh;
     padding: 16px;
     overflow-x: hidden;
   }
@@ -2059,6 +2070,12 @@ th input[type="checkbox"] {
 }
 
 /* ── Landscape mode fix for modals ──────────────────── */
+/* Uses 100dvh (dynamic viewport height) where supported so the modal
+   recomputes correctly when iOS Safari's bottom chrome shows/hides
+   and during portrait <-> landscape rotation. 100vh on iOS Safari is
+   the *largest* viewport (chrome hidden), which clips modals when the
+   chrome is visible after a rotation. Falls back to 100vh in older
+   browsers via the cascade. (#405) */
 @media (max-width: 900px) and (max-height: 500px) {
   .modal-overlay {
     padding: 4px;
@@ -2067,11 +2084,13 @@ th input[type="checkbox"] {
 
   .modal-body {
     max-height: calc(100vh - 120px);
+    max-height: calc(100dvh - 120px);
   }
 
   .modal {
     margin: 0;
     max-height: calc(100vh - 8px);
+    max-height: calc(100dvh - 8px);
     overflow-y: auto;
   }
 }
