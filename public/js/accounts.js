@@ -1039,7 +1039,16 @@ function profileEditOrder(id) {
     if (!order) return;
     const isPaid = order.Status === 'Paid';
     if (isPaid) {
-      modal.open('View Order', orderForm(order, '', true), async () => {
+      // Mirror the orders-list paid view: surface a 'Mark Delivered' button
+      // inside the view-only modal (#404) so users don't have to close the
+      // modal and reopen the row's overflow menu.
+      const notDelivered = order.Delivered !== 'true';
+      const deliveryBanner = notDelivered ? `
+        <div class="info-banner" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="fw-600">This order has not been delivered yet.</span>
+          <button type="button" class="btn btn-primary btn-sm" style="margin-left:auto" onclick="profileMarkDeliveredFromView('${esc(id)}')">Mark Delivered</button>
+        </div>` : '';
+      modal.open('View Order', deliveryBanner + orderForm(order, '', true), async () => {
         await api.put(`/api/orders/${id}`, {
           InvoiceNumber: val('f-invoice'),
           Notes: val('f-notes'),
