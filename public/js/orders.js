@@ -1496,7 +1496,17 @@ async function openEditOrder(id) {
   if (!order) return;
   const isPaid = order.Status === 'Paid';
   if (isPaid) {
-    modal.open('View Order', orderForm(order, '', true), async () => {
+    // After #386 the paid-order modal is view-only. Surface a prominent
+    // 'Mark Delivered' button inside the modal so users don't have to close
+    // it and hunt for the action in the row's overflow menu (#404). The
+    // checkbox column is hidden on mobile, so the menu was the only path.
+    const notDelivered = order.Delivered !== 'true';
+    const deliveryBanner = notDelivered ? `
+      <div class="info-banner" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="fw-600">This order has not been delivered yet.</span>
+        <button type="button" class="btn btn-primary btn-sm" style="margin-left:auto" onclick="markDeliveredFromView('${esc(id)}')">Mark Delivered</button>
+      </div>` : '';
+    modal.open('View Order', deliveryBanner + orderForm(order, '', true), async () => {
       await api.put(`/api/orders/${id}`, {
         InvoiceNumber: val('f-invoice'),
         Notes: val('f-notes'),
@@ -1833,6 +1843,14 @@ async function toggleDelivered(id) {
   await openDeliveryConfirmModal(id, order, loadOrders);
 }
 
+// Invoked from the 'Mark Delivered' banner inside the view-only paid-order
+// modal (#404). Closes the view modal first so the delivery confirm modal
+// has a clean slate, then runs the standard delivery flow.
+async function markDeliveredFromView(id) {
+  modal.close();
+  await toggleDelivered(id);
+}
+
 async function profileMarkOrderPaid(id) {
   // Ensure orders cache is populated for the modal
   if (!_ordersCache.find(s => s.ID === id)) {
@@ -1846,6 +1864,14 @@ async function profileToggleDelivered(id) {
   const order = orders.find(s => s.ID === id);
   if (!order) return;
   await openDeliveryConfirmModal(id, order, () => loadAccountProfile(state.accountProfileId));
+}
+
+// Profile-view equivalent of markDeliveredFromView — closes the view-only
+// paid-order modal and runs the standard profile delivery flow so the
+// account profile refreshes correctly afterward (#404).
+async function profileMarkDeliveredFromView(id) {
+  modal.close();
+  await profileToggleDelivered(id);
 }
 
 async function profileEditPreSale(id) {
