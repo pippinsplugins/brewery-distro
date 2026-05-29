@@ -1464,6 +1464,55 @@ th input[type="checkbox"] {
   .form-row-3 .form-group:has(.checkbox-label) { margin-bottom: 4px; }
 }
 
+/* ── Quantity stepper ─────────────────────────────────── */
+/* Used in the delivery-confirm modal to wrap a numeric input with -/+ buttons
+   that increment by 1 (clamped to the input's min/max). Renders compactly on
+   desktop and expands to full-width on mobile via the @media block below. */
+.qty-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card-bg);
+  width: 140px;
+}
+
+.qty-stepper-btn {
+  background: var(--bg-secondary, #f7f7f8);
+  border: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  width: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.1s;
+}
+
+.qty-stepper-btn:hover    { background: var(--border); }
+.qty-stepper-btn:active   { background: var(--green-mid); color: #fff; }
+.qty-stepper-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.qty-stepper-input {
+  flex: 1;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.qty-stepper-input::-webkit-outer-spin-button,
+.qty-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* ── Mobile: < 640px ─────────────────────────────────── */
 
 @media (max-width: 640px) {
@@ -1754,6 +1803,103 @@ th input[type="checkbox"] {
   .line-item-delivers-to .line-item-end-customer {
     flex: 1 1 100% !important;
     min-width: 0 !important;
+  }
+
+  /* ── Delivery confirmation modal: flatten table rows into cards ──
+     The Products + Keg Returns tables in openDeliveryConfirmModal cram a
+     narrow number input into a multi-column row. On a phone the qty/returned
+     input is the primary action but visually the smallest target. Flatten
+     each row into a stacked card with labeled fields and a full-width input
+     so the tap target matches the importance of the action.
+     Desktop layout is unchanged — these styles only apply at this breakpoint. */
+  .deliv-confirm-table,
+  .deliv-confirm-table thead,
+  .deliv-confirm-table tbody,
+  .deliv-confirm-table tr,
+  .deliv-confirm-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .deliv-confirm-table thead {
+    display: none;
+  }
+
+  .deliv-confirm-table .deliv-confirm-row {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .deliv-confirm-table .deliv-confirm-row td {
+    padding: 4px 0;
+    border: none;
+    font-size: 14px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* Show the column header inline before each value so context is preserved
+     after the row collapses (skip the product name which is already bold). */
+  .deliv-confirm-table .deliv-confirm-row td[data-label]:not(.fw-600):not(.deliv-confirm-input-cell)::before {
+    content: attr(data-label) ": ";
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-right: 4px;
+  }
+
+  .deliv-confirm-table .deliv-confirm-row td.fw-600 {
+    font-size: 15px;
+    padding-bottom: 6px;
+  }
+
+  /* The qty/returned input is the primary action: full width, labeled,
+     comfortable height. */
+  .deliv-confirm-table .deliv-confirm-input-cell {
+    margin-top: 8px;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--border) !important;
+  }
+
+  .deliv-confirm-table .deliv-confirm-input-cell::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .deliv-confirm-table .deliv-confirm-input {
+    width: 100% !important;
+    min-height: 48px;
+    font-size: 18px;
+    padding: 10px 14px;
+    text-align: center;
+  }
+
+  /* Stretch the stepper to full width on mobile and grow the tap targets
+     to 48×48px (Apple/Material touch-friendly minimum). */
+  .deliv-confirm-table .qty-stepper {
+    display: flex;
+    width: 100%;
+  }
+  .deliv-confirm-table .qty-stepper-btn {
+    width: 56px;
+    font-size: 22px;
+    min-height: 48px;
+  }
+
+  /* The table-wrap usually adds horizontal scroll; not needed when rows are
+     stacked cards. */
+  .deliv-confirm-table {
+    overflow-x: visible;
   }
 
   /* ── Toast: fit to phone width ── */
