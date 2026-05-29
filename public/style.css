@@ -1467,26 +1467,30 @@ th input[type="checkbox"] {
 /* ── Quantity stepper ─────────────────────────────────── */
 /* Used in the delivery-confirm modal to wrap a numeric input with -/+ buttons
    that increment by 1 (clamped to the input's min/max). Renders compactly on
-   desktop and expands to full-width on mobile via the @media block below. */
+   desktop (~108px) and expands to full-width on mobile via the @media block
+   below. Sized small so it fits inside narrow table cells without overflowing
+   the modal; the input still accepts typed input for values needing more than
+   a few taps. */
 .qty-stepper {
-  display: inline-flex;
+  display: flex;
   align-items: stretch;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--card-bg);
-  width: 140px;
+  width: 108px;
+  max-width: 100%;
 }
 
 .qty-stepper-btn {
   background: var(--bg-secondary, #f7f7f8);
   border: 0;
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1;
   padding: 0;
-  width: 36px;
+  width: 30px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
@@ -1502,9 +1506,11 @@ th input[type="checkbox"] {
 .qty-stepper-input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   border: 0 !important;
   border-radius: 0 !important;
   text-align: center;
+  padding: 6px 4px;
   -moz-appearance: textfield;
 }
 .qty-stepper-input::-webkit-outer-spin-button,
@@ -1512,6 +1518,10 @@ th input[type="checkbox"] {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* Make sure the qty/returned table cell reserves enough room for the stepper
+   so it isn't squeezed visually narrower than its content. */
+.deliv-confirm-input-cell { min-width: 120px; }
 
 /* ── Mobile: < 640px ─────────────────────────────────── */
 
