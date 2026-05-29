@@ -1912,11 +1912,11 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
     const stock = parseInt(item.Units || '0');
     const prefill = group === 'order' ? Math.min(orderQtyMap[item.ID] || 0, stock) : 0;
     const hidden = group === 'other';
-    return `<tr data-stock="${group}"${hidden ? ' style="display:none"' : ''}>
-            <td class="fw-600">${esc(item.Name)}</td>
-            <td class="text-sm">${esc(item.Format) || '—'}</td>
-            <td class="text-sm">${esc(item.Units)}</td>
-            <td><input class="form-control" type="number" min="0" max="${stock}" value="${prefill}"
+    return `<tr class="deliv-confirm-row" data-stock="${group}"${hidden ? ' style="display:none"' : ''}>
+            <td class="fw-600" data-label="Product">${esc(item.Name)}</td>
+            <td class="text-sm" data-label="Format">${esc(item.Format) || '—'}</td>
+            <td class="text-sm" data-label="In Stock">${esc(item.Units)}</td>
+            <td class="deliv-confirm-input-cell" data-label="Qty Delivered"><input class="form-control deliv-confirm-input" type="number" min="0" max="${stock}" value="${prefill}"
                  id="deliv-qty-${item.ID}" style="width:80px" /></td>
           </tr>`;
   };
@@ -1925,7 +1925,7 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
   const productsSection = items.length ? `
     ${!orderProducts.length ? '<p class="text-muted text-sm" style="margin-bottom:8px">No products assigned to this order.</p>' : ''}
     <div class="table-wrap" style="margin-bottom:16px">
-      <table>
+      <table class="deliv-confirm-table">
         <thead><tr><th>Product</th><th>Format</th><th>In Stock</th><th>Qty Delivered</th></tr></thead>
         <tbody>
           ${orderProducts.map(i => delivRow(i, 'order')).join('')}
@@ -1951,18 +1951,18 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
       <strong>${totalOutstanding}</strong> keg${totalOutstanding !== 1 ? 's' : ''} outstanding for this account. Enter any returns collected during this delivery.
     </p>
     <div class="table-wrap" style="margin-bottom:16px">
-      <table>
+      <table class="deliv-confirm-table">
         <thead><tr><th>Product</th><th>Format</th><th>Outstanding</th><th>Deposit</th><th>Returned</th></tr></thead>
         <tbody>
           ${outstandingKegs.map(k => {
             const outstanding = Math.max(0, (parseInt(k.Quantity)||0) - (parseInt(k.ReturnedQuantity)||0));
             const depPerUnit = parseFloat(k.DepositPerUnit) || 0;
-            return `<tr>
-              <td class="fw-600">${esc(k.ProductName)}</td>
-              <td class="text-sm">${esc(k.Format) || '—'}</td>
-              <td class="text-sm">${outstanding}</td>
-              <td class="text-sm">${depPerUnit > 0 ? '$' + depPerUnit.toFixed(2) + '/keg' : '—'}</td>
-              <td><input class="form-control" type="number" min="0" max="${outstanding}" value="0"
+            return `<tr class="deliv-confirm-row">
+              <td class="fw-600" data-label="Product">${esc(k.ProductName)}</td>
+              <td class="text-sm" data-label="Format">${esc(k.Format) || '—'}</td>
+              <td class="text-sm" data-label="Outstanding">${outstanding}</td>
+              <td class="text-sm" data-label="Deposit">${depPerUnit > 0 ? '$' + depPerUnit.toFixed(2) + '/keg' : '—'}</td>
+              <td class="deliv-confirm-input-cell" data-label="Returned"><input class="form-control deliv-confirm-input" type="number" min="0" max="${outstanding}" value="0"
                    id="keg-ret-${k.ID}" style="width:80px" /></td>
             </tr>`;
           }).join('')}
