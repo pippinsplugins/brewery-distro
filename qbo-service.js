@@ -787,7 +787,11 @@ async function _buildInvoiceBody(order, lineItems, account) {
   const taxAmount = parseFloat(order.TaxAmount || 0);
   const hasTax = taxAmount > 0 && taxInfo;
 
-  // Build QBO line items referencing the generic product item
+  // Build QBO line items referencing the generic product item.
+  // When the order has tax, only lines flagged Taxable='true' are coded TAX;
+  // everything else (Account Credit refund lines, explicitly non-taxable
+  // custom items, etc.) is coded NON so it doesn't shrink the tax base or
+  // get inflated by the tax rate.
   const lines = lineItems.map((li, idx) => {
     const line = {
       DetailType:          'SalesItemLineDetail',
@@ -800,9 +804,8 @@ async function _buildInvoiceBody(order, lineItems, account) {
       },
       LineNum: idx + 1,
     };
-    // Mark product lines as taxable when tax applies
     if (hasTax) {
-      line.SalesItemLineDetail.TaxCodeRef = { value: 'TAX' };
+      line.SalesItemLineDetail.TaxCodeRef = { value: li.Taxable === 'true' ? 'TAX' : 'NON' };
     }
     return line;
   });
