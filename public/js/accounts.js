@@ -31,6 +31,7 @@ let _emailInventoryCache = null;
 let _emailInventoryCategory = 'All';
 let _emailInventoryShowQty = true;
 let _acctTagFilters = [];
+let _acctTagExcludes = [];
 
 function collectSelectedTags() {
   const checkboxes = document.querySelectorAll('#f-tags input[type="checkbox"]:checked');
@@ -273,6 +274,7 @@ function renderAccounts() {
   const typeFilter     = (document.getElementById('acct-type')     || {}).value ?? nav.type     ?? '';
   const statusFilter   = (document.getElementById('acct-status')   || {}).value ?? nav.status   ?? '';
   const tagFilter      = _acctTagFilters.length > 0 ? _acctTagFilters : [];
+  const tagExclude     = _acctTagExcludes.length > 0 ? _acctTagExcludes : [];
   const methodFilter   = (document.getElementById('acct-method')   || {}).value ?? nav.method   ?? '';
   const locationFilter = (document.getElementById('acct-location') || {}).value ?? (state.location || '');
   const search         = (document.getElementById('acct-search')   || {}).value ?? nav.search   ?? '';
@@ -287,11 +289,13 @@ function renderAccounts() {
   } else {
     filtered = filtered.filter(a => a.Status !== 'Inactive');
   }
-  if (tagFilter.length > 0) {
+  if (tagFilter.length > 0 || tagExclude.length > 0) {
     filtered = filtered.filter(a => {
       let tags = [];
       try { tags = JSON.parse(a.Tags || '[]'); } catch (e) { tags = []; }
-      return tagFilter.every(t => tags.includes(t));
+      if (tagFilter.length > 0 && !tagFilter.every(t => tags.includes(t))) return false;
+      if (tagExclude.length > 0 && tagExclude.some(t => tags.includes(t))) return false;
+      return true;
     });
   }
   if (methodFilter) {
@@ -348,15 +352,22 @@ function renderAccounts() {
       </select>
       ${ACCOUNT_TAGS.length > 0 ? `<div class="dropdown-multi" id="tag-filter-dropdown">
         <button type="button" class="btn btn-secondary btn-filter-multi" onclick="toggleTagFilterMenu()">
-          ${tagFilter.length === 0 ? 'All Tags' : tagFilter.length === 1 ? esc(tagFilter[0]) : tagFilter.length + ' Tags'}
+          ${tagFilterButtonLabel(tagFilter, tagExclude)}
           <span style="margin-left:4px;font-size:10px">&#9662;</span>
         </button>
         <div class="dropdown-multi-menu" id="tag-filter-menu" style="display:none">
+          <div class="dropdown-multi-section-label">Include (must have all)</div>
           ${ACCOUNT_TAGS.map(t => `<label class="dropdown-multi-item" onclick="event.stopPropagation()">
-            <input type="checkbox" value="${esc(t)}" ${tagFilter.includes(t) ? 'checked' : ''} onchange="applyTagFilter()" />
+            <input type="checkbox" data-tag-filter="include" value="${esc(t)}" ${tagFilter.includes(t) ? 'checked' : ''} onchange="applyTagFilter()" />
             ${esc(t)}
           </label>`).join('')}
-          ${tagFilter.length > 0 ? '<div style="border-top:1px solid var(--border);margin:4px 0"></div><div class="dropdown-multi-item" style="color:var(--text-muted);cursor:pointer" onclick="clearTagFilter()">Clear all</div>' : ''}
+          <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+          <div class="dropdown-multi-section-label">Exclude (hide if has any)</div>
+          ${ACCOUNT_TAGS.map(t => `<label class="dropdown-multi-item" onclick="event.stopPropagation()">
+            <input type="checkbox" data-tag-filter="exclude" value="${esc(t)}" ${tagExclude.includes(t) ? 'checked' : ''} onchange="applyTagFilter()" />
+            ${esc(t)}
+          </label>`).join('')}
+          ${(tagFilter.length > 0 || tagExclude.length > 0) ? '<div style="border-top:1px solid var(--border);margin:4px 0"></div><div class="dropdown-multi-item" style="color:var(--text-muted);cursor:pointer" onclick="clearTagFilter()">Clear all</div>' : ''}
         </div>
       </div>` : ''}
       <select id="acct-method" onchange="_paginationReset('accounts'); renderAccounts()">
@@ -1452,16 +1463,37 @@ function toggleTagFilterMenu() {
 }
 
 function applyTagFilter() {
-  const checkboxes = document.querySelectorAll('#tag-filter-menu input[type="checkbox"]');
-  _acctTagFilters = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+  const inc = document.querySelectorAll('#tag-filter-menu input[data-tag-filter="include"]');
+  const exc = document.querySelectorAll('#tag-filter-menu input[data-tag-filter="exclude"]');
+  _acctTagFilters  = Array.from(inc).filter(cb => cb.checked).map(cb => cb.value);
+  _acctTagExcludes = Array.from(exc).filter(cb => cb.checked).map(cb => cb.value);
   _paginationReset('accounts');
   renderAccounts();
 }
 
 function clearTagFilter() {
   _acctTagFilters = [];
+  _acctTagExcludes = [];
   _paginationReset('accounts');
   renderAccounts();
+}
+
+// Compact summary of the current include + exclude tag selection for the
+// dropdown trigger button. Examples:
+//   no selection                        → "All Tags"
+//   include: ["VIP"]                    → "VIP"
+//   include: ["VIP","Wholesale"]        → "2 Tags"
+//   exclude: ["Cancelled"]              → "excl. Cancelled"
+//   include: ["VIP"] + exclude: 2 tags  → "VIP, excl. 2"
+function tagFilterButtonLabel(include, exclude) {
+  const incPart = include.length === 0 ? ''
+    : include.length === 1 ? esc(include[0])
+    : include.length + ' Tags';
+  const excPart = exclude.length === 0 ? ''
+    : exclude.length === 1 ? `excl. ${esc(exclude[0])}`
+    : `excl. ${exclude.length}`;
+  if (!incPart && !excPart) return 'All Tags';
+  return [incPart, excPart].filter(Boolean).join(', ');
 }
 
 // ── Email Functions ──────────────────────────────────────────────
