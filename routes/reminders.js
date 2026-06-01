@@ -88,9 +88,20 @@ router.put('/:id', async (req, res) => {
     const existing = getRow('REMINDERS', req.params.id);
     const oldNotes = existing?.Notes || '';
     const oldStaffId = existing?.StaffID || '';
+    const wasCompleted = existing?.Completed === 'true';
     const updates = { ...req.body };
     delete updates.ID;
     delete updates.CreatedAt;
+    // Always control CompletedAt server-side based on the Completed transition
+    // so single-row and bulk callers don't have to remember to set it.
+    if (updates.Completed === 'true' && !wasCompleted) {
+      updates.CompletedAt = new Date().toISOString();
+    } else if (updates.Completed === 'false' && wasCompleted) {
+      updates.CompletedAt = '';
+    } else {
+      // Don't let a caller override it on unrelated edits.
+      delete updates.CompletedAt;
+    }
     // ?silent=1 suppresses mention + assignment notifications. Used by the
     // bulk-reassign UI so reassigning N todos doesn't email recipients N times.
     const silent = req.query.silent === '1' || req.query.silent === 'true';
