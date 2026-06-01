@@ -132,7 +132,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <div class="form-row">
       <div class="form-group">
         <label>Account <span class="required">*</span></label>
-        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox(); refreshLineItemDeliversTo()">
+        <select class="form-control" id="f-account" ${presetAccountId || readOnly ? 'disabled' : ''} onchange="initOrderDepositCheckbox(); initOrderTaxCheckbox(); refreshLineItemDeliversTo(); refreshOrderBillingTermHint()">
           <option value="">-- Select Account --</option>
           ${accountOptions(selAcctId, order.Location || state.location)}
         </select>
@@ -187,7 +187,8 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       </div>
       <div class="form-group">
         <label>Delivery Date</label>
-        <input class="form-control" id="f-delivery-date" type="date" value="${esc(order.DeliveryDate)}"${dis} />
+        <input class="form-control" id="f-delivery-date" type="date" value="${esc(order.DeliveryDate)}"${dis}${readOnly ? '' : ' onchange="refreshOrderBillingTermHint()"'} />
+        <p id="order-billing-term-hint" class="text-sm text-muted" style="margin-top:4px;min-height:18px"></p>
       </div>
     </div>
     <div class="form-group">
@@ -668,6 +669,28 @@ function refreshLineItemDeliversTo() {
       if (blank) blank.textContent = defaultLabel;
     }
   });
+}
+
+// Show the selected account's billing term + computed QBO invoice due date
+// underneath the Delivery Date input. Recomputed on account or delivery-date
+// change. Mirrors the server-side calculation in qbo-service.js._computeInvoiceDueDate.
+function refreshOrderBillingTermHint() {
+  const hint = document.getElementById('order-billing-term-hint');
+  if (!hint) return;
+  const acctId = document.getElementById('f-account-hidden')?.value || val('f-account');
+  const acct = acctId ? (state.accounts || []).find(a => a.ID === acctId) : null;
+  if (!acct) { hint.textContent = ''; return; }
+  const term = acct.BillingTerm || '';
+  const m = term.match(/(\d+)/);
+  const days = m ? parseInt(m[1], 10) : 0;
+  const termLabel = term || 'COD';
+  const base = val('f-delivery-date') || val('f-order-date') || '';
+  if (!base) { hint.textContent = `Billing term: ${termLabel}`; return; }
+  const d = new Date(base + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) { hint.textContent = `Billing term: ${termLabel}`; return; }
+  d.setDate(d.getDate() + days);
+  const due = d.toISOString().split('T')[0];
+  hint.textContent = `Billing term: ${termLabel} — invoice due ${formatDate(due)}`;
 }
 
 function _buildTierDropdown(prices, selectedTier) {
@@ -1467,6 +1490,7 @@ async function openAddOrder(presetAccountId = '') {
   initOrderDepositCheckbox(presetAccountId);
   initOrderTaxCheckbox(presetAccountId);
   initOrderCredit(presetAccountId);
+  refreshOrderBillingTermHint();
   // Wire up account dropdown change to also refresh credit
   const acctSelect = document.getElementById('f-account');
   if (acctSelect) {
@@ -1661,6 +1685,7 @@ async function openEditOrder(id) {
     }
   }
   if (!isPaid) await initOrderCredit(order.AccountID, id);
+  refreshOrderBillingTermHint();
 }
 
 async function deleteOrder(id) {

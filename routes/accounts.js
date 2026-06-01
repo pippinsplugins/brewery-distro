@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, BillingContactName, BillingEmail, BillingPhone, Address, City, State, Zip, ABCLicense, ChargeDeposits, Taxable, DeliversIndirectly, Status, Notes, StaffID, StaffName, ServicedBy, CheckInFrequency } = req.body;
+    const { Name, Type, Tags, ContactName, Email, AdditionalEmails, Phone, PreferredMethod, BillingContactName, BillingEmail, BillingPhone, BillingTerm, Address, City, State, Zip, ABCLicense, ChargeDeposits, Taxable, DeliversIndirectly, Status, Notes, StaffID, StaffName, ServicedBy, CheckInFrequency } = req.body;
     if (!Name) return res.status(400).json({ error: 'Account name is required' });
 
     const account = {
@@ -41,6 +41,7 @@ router.post('/', async (req, res) => {
       BillingContactName: BillingContactName || '',
       BillingEmail: BillingEmail || '',
       BillingPhone: BillingPhone || '',
+      BillingTerm: BillingTerm || '',
       Address: Address || '',
       City: City || '',
       State: State || '',
