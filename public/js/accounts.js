@@ -757,7 +757,7 @@ function renderProfileTodos() {
     : pg.rows.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
         <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
         <td class="mobile-hide">${typeBadge(t.Type) || '—'}</td>
-        <td>${urgencyBadge(t.DueDate, t.Completed)}</td>
+        <td>${urgencyBadge(t.DueDate, t.Completed)}${t.Completed === 'true' && t.CompletedAt ? `<br><span class="text-muted text-sm">Done ${formatDate(t.CompletedAt)}</span>` : ''}</td>
         <td class="mobile-hide">${priorityBadge(t.Priority)}</td>
         <td class="mobile-hide text-sm text-muted">${esc(t.Notes) || '—'}</td>
         <td class="td-actions">
