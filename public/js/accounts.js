@@ -465,7 +465,17 @@ async function loadAccountProfile(accountId) {
   const freqStats = computeOrderFrequencyStats(acctOrders);
 
   // Keg tracking calculations
-  const acctKegs = (kegRecords || []).sort((a, b) => (b.DeliveredDate || '').localeCompare(a.DeliveredDate || ''));
+  // Sort outstanding kegs to the top so they don't get lost on later pages
+  // when an account has a long return history. Within each group sort by
+  // delivered date desc (oldest outstanding still bubbles to the bottom of
+  // the outstanding group, which makes long-overdue kegs easy to spot).
+  const _kegOutstanding = (k) => Math.max(0, (parseInt(k.Quantity) || 0) - (parseInt(k.ReturnedQuantity) || 0));
+  const acctKegs = (kegRecords || []).sort((a, b) => {
+    const aOut = _kegOutstanding(a) > 0 ? 0 : 1;
+    const bOut = _kegOutstanding(b) > 0 ? 0 : 1;
+    if (aOut !== bOut) return aOut - bOut;
+    return (b.DeliveredDate || '').localeCompare(a.DeliveredDate || '');
+  });
   _profileKegsCache = acctKegs;
   _profileKegsContext = { accountId, accountName: acct.Name };
   const outstandingKegs = acctKegs.reduce((sum, k) => {
