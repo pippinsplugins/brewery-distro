@@ -26,6 +26,31 @@ function isQboConfigured() {
   return !!(QBO_CLIENT_ID && QBO_CLIENT_SECRET);
 }
 
+/**
+ * Parse account.BillingTerm (e.g. "Net 15", "Net 30", or "" for COD) into a
+ * day count to add to the base date when computing invoice DueDate.
+ */
+function _termDays(billingTerm) {
+  if (!billingTerm) return 0;
+  const m = String(billingTerm).match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/**
+ * Compute the invoice DueDate (YYYY-MM-DD) for an order using the account's
+ * billing term. Base date is DeliveryDate, falling back to OrderDate. Returns
+ * undefined when neither date is present so the QBO API call omits the field.
+ */
+function _computeInvoiceDueDate(order, account) {
+  const base = order.DeliveryDate || order.OrderDate;
+  if (!base) return undefined;
+  const days = _termDays(account?.BillingTerm);
+  const d = new Date(base.split('T')[0] + 'T00:00:00Z');
+  if (Number.isNaN(d.getTime())) return undefined;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 // ── OAuth client ─────────────────────────────────────────────────
 
 function getOAuthClient(redirectUri) {
@@ -868,7 +893,7 @@ async function _buildInvoiceBody(order, lineItems, account) {
     Line:         lines,
     DocNumber:    docNumber,
     TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
-    DueDate:      order.DeliveryDate ? order.DeliveryDate.split('T')[0] : undefined,
+    DueDate:      _computeInvoiceDueDate(order, account),
     BillEmail:     billEmail ? { Address: billEmail } : undefined,
     BillEmailCc:   ccEmails.length > 0 ? { Address: ccEmails.join(', ') } : undefined,
     DepartmentRef: departmentRef,
