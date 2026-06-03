@@ -332,6 +332,13 @@ All standard REST endpoints also accept API key authentication. Useful endpoints
 | `POST` | `/api/stock-movements` | Create a stock movement (updates inventory Units) |
 | `DELETE` | `/api/stock-movements/:id` | Delete a stock movement (reverses the unit change) |
 
+### Keg Returns
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/keg-returns` | List keg return events. Supports `?orderId=` (events recorded during one delivery) or `?accountId=` (full return history for an account). Sorted newest first. |
+| `POST` | `/api/keg-returns` | Record one keg return event (called by the delivery-confirm flow). Required fields: `OrderID`, `KegTrackingID`, `Quantity`. Optional: `AccountID`, `AccountName`, `ProductName`, `Format`, `DepositPerUnit`, `DepositRefunded`, `ReturnedDate`, `Notes`. |
+
 ### Outreach
 
 | Method | Endpoint | Description |
