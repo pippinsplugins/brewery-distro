@@ -1151,6 +1151,9 @@ function profileEditOrder(id) {
       await refreshOrderProducts(order.RequestedProducts, isPaid);
     }
     if (!isPaid) initOrderCredit(order.AccountID, id);
+    if (order.Delivered === 'true' && typeof loadOrderKegReturns === 'function') {
+      loadOrderKegReturns(id);
+    }
   });
 }
 

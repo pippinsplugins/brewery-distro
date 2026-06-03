@@ -245,6 +245,7 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
       <label>Notes / Reference</label>
       <textarea class="form-control" id="f-notes" rows="2" placeholder="Order details, product breakdown, etc.">${esc(order.Notes)}</textarea>
     </div>
+    ${order.ID && order.Delivered === 'true' ? '<div id="order-keg-returns-wrap"></div>' : ''}
     ${_qboAppUrl && order.ID && !(!order.QboSyncStatus && order.Status === 'Paid' && order.Delivered === 'true') ? `
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
@@ -691,6 +692,45 @@ function refreshOrderBillingTermHint() {
   d.setDate(d.getDate() + days);
   const due = d.toISOString().split('T')[0];
   hint.textContent = `Billing term: ${termLabel} — invoice due ${formatDate(due)}`;
+}
+
+// Fetch + render the "Kegs Returned on This Order" section in the order
+// modal. Only mounted for delivered orders (the wrap div is only emitted in
+// orderForm when Delivered=true). Renders nothing if no returns exist —
+// quiet for orders that didn't involve any keg returns.
+async function loadOrderKegReturns(orderId) {
+  const wrap = document.getElementById('order-keg-returns-wrap');
+  if (!wrap || !orderId) return;
+  let rows = [];
+  try {
+    rows = await api.get(`/api/keg-returns?orderId=${encodeURIComponent(orderId)}`);
+  } catch { /* leave wrap empty */ }
+  if (!rows || rows.length === 0) { wrap.innerHTML = ''; return; }
+  const totalQty = rows.reduce((s, r) => s + (parseInt(r.Quantity) || 0), 0);
+  const totalRefund = rows.reduce((s, r) => s + (parseFloat(r.DepositRefunded) || 0), 0);
+  wrap.innerHTML = `
+    <hr class="form-divider" />
+    <div class="form-section-title">Kegs Returned on This Delivery</div>
+    <div class="table-wrap" style="margin-top:8px">
+      <table>
+        <thead><tr><th>Product</th><th>Format</th><th class="text-right">Qty</th><th class="text-right">Deposit Refunded</th><th>Date</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td class="fw-600">${esc(r.ProductName) || '—'}</td>
+            <td>${esc(r.Format) || '—'}</td>
+            <td class="text-right">${esc(r.Quantity)}</td>
+            <td class="text-right">${parseFloat(r.DepositRefunded) > 0 ? '$' + parseFloat(r.DepositRefunded).toFixed(2) : '—'}</td>
+            <td>${formatDate(r.ReturnedDate)}</td>
+          </tr>`).join('')}
+          <tr class="row-totals">
+            <td colspan="2" class="fw-600 text-right">Total</td>
+            <td class="text-right fw-600">${totalQty}</td>
+            <td class="text-right fw-600">${totalRefund > 0 ? '$' + totalRefund.toFixed(2) : '—'}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function _buildTierDropdown(prices, selectedTier) {
@@ -1686,6 +1726,7 @@ async function openEditOrder(id) {
   }
   if (!isPaid) await initOrderCredit(order.AccountID, id);
   refreshOrderBillingTermHint();
+  if (order.Delivered === 'true') loadOrderKegReturns(id);
 }
 
 async function deleteOrder(id) {
@@ -2148,13 +2189,29 @@ async function openDeliveryConfirmModal(orderId, order, onComplete) {
         Notes: combinedNotes,
       };
       const depPerUnit = parseFloat(r.keg.DepositPerUnit) || 0;
+      let refundAmount = 0;
       if (depPerUnit > 0) {
-        const refundAmount = r.returnQty * depPerUnit;
+        refundAmount = r.returnQty * depPerUnit;
         const existingRefunded = parseFloat(r.keg.DepositRefunded) || 0;
         updates.DepositRefunded = String((existingRefunded + refundAmount).toFixed(2));
         totalDepositRefund += refundAmount;
       }
       await api.put(`/api/keg-tracking/${r.keg.ID}`, updates);
+      // Log the return event against the delivery order so it shows up in
+      // historical look-backs ("what kegs came back on order X?").
+      await api.post('/api/keg-returns', {
+        AccountID: order.AccountID,
+        AccountName: order.AccountName || '',
+        OrderID: orderId,
+        KegTrackingID: r.keg.ID,
+        ProductName: r.keg.ProductName || '',
+        Format: r.keg.Format || '',
+        Quantity: String(r.returnQty),
+        DepositPerUnit: depPerUnit > 0 ? String(depPerUnit.toFixed(2)) : '',
+        DepositRefunded: refundAmount > 0 ? String(refundAmount.toFixed(2)) : '',
+        ReturnedDate: today(),
+        Notes: notes || '',
+      });
     }
 
     const kegDepositDest = document.querySelector('input[name="keg-deposit-dest"]:checked')?.value;
