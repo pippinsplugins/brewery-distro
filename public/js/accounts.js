@@ -438,7 +438,7 @@ async function loadAccountProfile(accountId) {
   });
   showLoading();
 
-  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits, allOrderItems] = await Promise.all([
+  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits, allOrderItems, kegReturnRecords] = await Promise.all([
     api.get('/api/outreach'),
     api.get('/api/reminders?status=all'),
     api.get('/api/orders'),
@@ -446,6 +446,7 @@ async function loadAccountProfile(accountId) {
     api.get(`/api/tap-handles?accountId=${accountId}`),
     api.get(`/api/credits?accountId=${accountId}`),
     api.get('/api/order-items'),
+    api.get(`/api/keg-returns?accountId=${accountId}`),
   ]);
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
@@ -504,6 +505,15 @@ async function loadAccountProfile(accountId) {
   });
   _profileKegsCache = acctKegs;
   _profileKegsContext = { accountId, accountName: acct.Name };
+  // Populate the keg-returns lookup so renderProfileKegs's Returned cell can
+  // link to the originating delivery orders (mirrors the Kegs page).
+  if (typeof _kegReturnsByTrackingId !== 'undefined') {
+    _kegReturnsByTrackingId = {};
+    for (const r of (kegReturnRecords || [])) {
+      if (!r.KegTrackingID) continue;
+      (_kegReturnsByTrackingId[r.KegTrackingID] ||= []).push(r);
+    }
+  }
   const outstandingKegs = acctKegs.reduce((sum, k) => {
     const qty = parseInt(k.Quantity) || 0;
     const returned = parseInt(k.ReturnedQuantity) || 0;
@@ -884,7 +894,7 @@ function renderProfileKegs() {
           <td class="fw-600">${esc(k.ProductName)}</td>
           <td class="mobile-hide text-sm">${esc(k.Format)}</td>
           <td class="text-center">${qty}</td>
-          <td class="mobile-hide text-center">${returned}</td>
+          <td class="mobile-hide text-center">${typeof returnedCell === 'function' ? returnedCell(k, returned) : returned}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="mobile-hide text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
           <td class="mobile-hide text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Fully refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
@@ -1151,6 +1161,9 @@ function profileEditOrder(id) {
       await refreshOrderProducts(order.RequestedProducts, isPaid);
     }
     if (!isPaid) initOrderCredit(order.AccountID, id);
+    if (order.Delivered === 'true' && typeof loadOrderKegReturns === 'function') {
+      loadOrderKegReturns(id);
+    }
   });
 }
 

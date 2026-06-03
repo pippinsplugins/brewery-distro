@@ -20,6 +20,7 @@ const TABLES = {
   STOCK_MOVEMENTS: 'StockMovements',
   SETTINGS:        'Settings',
   KEG_TRACKING:    'KegTracking',
+  KEG_RETURNS:     'KegReturns',
   TAP_HANDLES:     'TapHandles',
   EMAIL_LOG:       'EmailLog',
   ORDER_ITEMS:     'OrderItems',
@@ -42,6 +43,10 @@ const HEADERS = {
   STOCK_MOVEMENTS: ['ID', 'InventoryID', 'InventoryName', 'OrderID', 'Type', 'Quantity', 'Notes', 'Date', 'CreatedAt'],
   SETTINGS:        ['ID', 'Key', 'Value', 'UpdatedAt'],
   KEG_TRACKING:    ['ID', 'AccountID', 'AccountName', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'DepositPerUnit', 'DepositTotal', 'DepositRefunded', 'DeliveredDate', 'ReturnedDate', 'ReturnedQuantity', 'Notes', 'CreatedAt'],
+  // KEG_RETURNS: one row per return event (kegs returned while confirming
+  // a delivery order). OrderID points to the order during which the return
+  // happened, KegTrackingID points back to the outbound KEG_TRACKING row.
+  KEG_RETURNS:     ['ID', 'AccountID', 'AccountName', 'OrderID', 'KegTrackingID', 'ProductName', 'Format', 'Quantity', 'DepositPerUnit', 'DepositRefunded', 'ReturnedDate', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
   EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
   ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'PriceTier', 'Quantity', 'UnitPrice', 'LineTotal', 'Taxable', 'EndCustomerAccountID', 'EndCustomerName', 'CreatedAt'],

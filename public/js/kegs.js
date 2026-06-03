@@ -2,11 +2,25 @@
 
 let _kegsCache = [];
 let _kegsStatusFilter = 'outstanding';
+// Map of KegTrackingID → array of KEG_RETURNS events, populated alongside the
+// keg-tracking cache so the Returned column can link to the originating
+// delivery orders. Empty for legacy returns that pre-date the KEG_RETURNS
+// table (the count is then rendered as plain text).
+let _kegReturnsByTrackingId = {};
 
 async function loadKegs(preservePage = false) {
   if (!preservePage) _paginationReset('kegs');
   showLoading();
-  _kegsCache = await api.get('/api/keg-tracking');
+  const [kegs, returns] = await Promise.all([
+    api.get('/api/keg-tracking'),
+    api.get('/api/keg-returns'),
+  ]);
+  _kegsCache = kegs;
+  _kegReturnsByTrackingId = {};
+  for (const r of (returns || [])) {
+    if (!r.KegTrackingID) continue;
+    (_kegReturnsByTrackingId[r.KegTrackingID] ||= []).push(r);
+  }
   renderKegs();
 }
 
@@ -69,7 +83,7 @@ function renderKegs() {
           <td class="mobile-hide text-sm">${esc(k.Format)}</td>
           <td class="mobile-hide text-sm">${formatDate(k.DeliveredDate)}</td>
           <td class="text-center">${qty}</td>
-          <td class="mobile-hide text-center">${returned}</td>
+          <td class="mobile-hide text-center">${returnedCell(k, returned)}</td>
           <td class="text-center fw-600${outstanding > 0 ? ' text-danger' : ''}">${outstanding}</td>
           <td class="mobile-hide text-sm">${depTotal > 0 ? fmtMoney(depTotal) : '—'}</td>
           <td class="mobile-hide text-sm">${depTotal > 0 ? (fullyReturned || depOutstanding <= 0 ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32">Refunded</span>' : fmtMoney(depRefunded) + ' / ' + fmtMoney(depTotal)) : '—'}</td>
@@ -116,6 +130,70 @@ function renderKegs() {
     ${pg.total > 0 ? paginationControls('kegs', pg, 'renderKegs') : ''}`);
 
   if (_focused === 'kegs-search') refocusSearch('kegs-search');
+}
+
+// Render the Returned-count cell. When there's at least one matching
+// KEG_RETURNS row, render the count as a link that opens a modal listing
+// the originating delivery orders. Legacy rows (returned but with no
+// matching events) fall back to plain text.
+function returnedCell(keg, returned) {
+  if (returned <= 0) return String(returned);
+  const events = _kegReturnsByTrackingId[keg.ID] || [];
+  if (events.length === 0) return String(returned);
+  return `<a href="#" class="td-link" onclick="event.preventDefault(); openKegReturnHistory('${esc(keg.ID)}', '${esc(keg.ProductName || '')}', '${esc(keg.Format || '')}')">${returned}</a>`;
+}
+
+// Modal listing every return event for one outbound KEG_TRACKING row, with
+// links to the orders during which the returns happened.
+function openKegReturnHistory(kegTrackingId, productName, format) {
+  const events = (_kegReturnsByTrackingId[kegTrackingId] || [])
+    .slice()
+    .sort((a, b) => (b.ReturnedDate || b.CreatedAt || '').localeCompare(a.ReturnedDate || a.CreatedAt || ''));
+  if (events.length === 0) { toast('No return history available', 'error'); return; }
+  const label = format ? `${productName} (${format})` : productName;
+  const totalQty = events.reduce((s, e) => s + (parseInt(e.Quantity) || 0), 0);
+  const totalRefund = events.reduce((s, e) => s + (parseFloat(e.DepositRefunded) || 0), 0);
+  const body = `
+    <p class="text-muted text-sm" style="margin-bottom:12px">Return history for ${esc(label) || 'this keg record'}.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th class="text-center">Qty</th><th class="text-right">Deposit Refunded</th><th>Order</th></tr></thead>
+        <tbody>
+          ${events.map(e => `<tr>
+            <td>${formatDate(e.ReturnedDate || e.CreatedAt)}</td>
+            <td class="text-center">${esc(e.Quantity)}</td>
+            <td class="text-right">${parseFloat(e.DepositRefunded) > 0 ? '$' + parseFloat(e.DepositRefunded).toFixed(2) : '—'}</td>
+            <td>${e.OrderID
+              ? `<a href="#" class="td-link" onclick="event.preventDefault(); _kegReturnHistoryOpenOrder('${esc(e.OrderID)}')">View order</a>`
+              : '—'}</td>
+          </tr>`).join('')}
+          <tr class="row-totals">
+            <td class="fw-600 text-right">Total</td>
+            <td class="text-center fw-600">${totalQty}</td>
+            <td class="text-right fw-600">${totalRefund > 0 ? '$' + totalRefund.toFixed(2) : '—'}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+  modal.open('Keg Return History', body, () => modal.close(), 'Close');
+}
+
+// Close the return-history modal and open the order modal for the chosen
+// event's OrderID. Uses openEditOrder, which handles paid (View) and unpaid
+// (Edit) variants on its own.
+async function _kegReturnHistoryOpenOrder(orderId) {
+  modal.close();
+  // openEditOrder expects the order to be in _ordersCache (orders page state).
+  // From the Keg Tracking page that cache may be empty, so pull the order
+  // directly and seed it.
+  try {
+    if (typeof _ordersCache !== 'undefined' && !_ordersCache.find(o => o.ID === orderId)) {
+      const all = await api.get('/api/orders');
+      _ordersCache = all;
+    }
+  } catch { /* fall through; openEditOrder will toast if it can't find the order */ }
+  if (typeof openEditOrder === 'function') openEditOrder(orderId);
 }
 
 const KEG_FORMATS = ['1/6 Keg', '1/4 Keg', '1/2 Keg'];

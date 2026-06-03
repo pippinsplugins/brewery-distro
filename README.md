@@ -143,6 +143,7 @@ All data is stored in a local SQLite database. Every column is TEXT type. The sc
 | Outreach | ID, AccountID, AccountName, Date, Method, Notes, FollowUpDate, FollowUpStatus, CreatedAt |
 | Reminders | ID, Type, AccountID, AccountName, Title, DueDate, Priority, Notes, Completed, StaffID, StaffName, Recurrence, RecurrenceParentID, CreatedAt |
 | KegTracking | ID, AccountID, AccountName, OrderID, InventoryID, ProductName, Format, Quantity, DepositPerUnit, DepositTotal, DepositRefunded, DeliveredDate, ReturnedDate, ReturnedQuantity, Notes, CreatedAt |
+| KegReturns | ID, AccountID, AccountName, OrderID, KegTrackingID, ProductName, Format, Quantity, DepositPerUnit, DepositRefunded, ReturnedDate, Notes, CreatedAt |
 | TapHandles | ID, AccountID, AccountName, Quantity, DeployedDate, CollectedDate, CollectedQuantity, Notes, CreatedAt |
 | Staff | ID, Name, Email, Phone, Role, Active, Notes, Locations (JSON), CreatedAt |
 | EmailLog | ID, SenderName, SenderEmail, Recipients, Subject, Body, Type, AccountIDs, Status, Error, CreatedAt |
@@ -175,6 +176,7 @@ All data is stored in a local SQLite database. Every column is TEXT type. The sc
 │   ├── inbound-emails.js   # Inbound email management
 │   ├── inventory.js        # Inventory CRUD + enrichment
 │   ├── keg-tracking.js     # Keg deploy/return tracking
+│   ├── keg-returns.js      # Per-order keg return event log
 │   ├── notifications.js    # Notification log
 │   ├── order-items.js      # Order line items
 │   ├── orders.js           # Orders CRUD + PDF import
