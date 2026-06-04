@@ -1519,7 +1519,9 @@ async function openAddOrder(presetAccountId = '') {
     const reloadFn = state.view === 'account-profile'
       ? () => loadAccountProfile(state.accountProfileId)
       : () => loadOrders();
-    if (newStatus !== 'Draft') {
+    // Only prompt to create a QBO invoice when the order is meant to be a
+    // real receivable — Pre-Sale and Cancelled don't generate invoices.
+    if (newStatus === 'Pending' || newStatus === 'Paid') {
       promptQboSync(order.ID, reloadFn);
     } else {
       reloadFn();
@@ -1695,8 +1697,10 @@ async function openEditOrder(id) {
           }
         }
       }
-      // Prompt QBO sync when transitioning from Draft to Pending or Paid
-      const leavingDraft = order.Status === 'Draft' && newStatus !== 'Draft';
+      // Prompt QBO sync when transitioning from Draft to Pending or Paid.
+      // Pre-Sale and Cancelled aren't real receivables and shouldn't trigger
+      // an invoice — moving to those statuses is a no-op for QBO.
+      const leavingDraft = order.Status === 'Draft' && (newStatus === 'Pending' || newStatus === 'Paid');
       if (leavingDraft && !order.QboInvoiceId) {
         const reloadFn = state.view === 'account-profile'
           ? () => loadAccountProfile(state.accountProfileId)
