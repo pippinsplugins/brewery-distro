@@ -3,7 +3,7 @@
 const crypto      = require('crypto');
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, QBO_APP_URL } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, getCustomerPaymentSummary, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -219,6 +219,28 @@ apiRouter.post('/resync/:orderId', async (req, res) => {
     const { getRow } = require('../db');
     const order = getRow('ORDERS', req.params.orderId);
     res.json({ ...result, order });
+  } catch (err) {
+    console.error('[qbo]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/qbo/customer/:accountId/payment-summary — heuristic look at the
+// customer's recent QBO payments to surface "last paid by Card", etc. on
+// the account profile and order modal. Returns { available: false } when
+// QBO isn't connected or the account isn't synced — UI hides itself.
+apiRouter.get('/customer/:accountId/payment-summary', async (req, res) => {
+  try {
+    if (!isQboConfigured()) return res.json({ available: false, reason: 'not-configured' });
+    const tokens = await getStoredTokens();
+    if (!tokens || !tokens.accessToken) return res.json({ available: false, reason: 'not-connected' });
+    const { getRow } = require('../db');
+    const account = getRow('ACCOUNTS', req.params.accountId);
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    if (!account.QboCustomerId) return res.json({ available: false, reason: 'not-synced' });
+    const summary = await getCustomerPaymentSummary(account.QboCustomerId);
+    if (!summary) return res.json({ available: true, summary: null });
+    res.json({ available: true, summary });
   } catch (err) {
     console.error('[qbo]', err.message);
     res.status(500).json({ error: err.message });

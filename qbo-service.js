@@ -554,6 +554,7 @@ function clearAllCaches() {
   _qboTaxInfo = null;
   _qboDepartments = null;
   _qboPaymentMethods = null;
+  if (typeof _qboPaymentSummaryCache !== 'undefined') _qboPaymentSummaryCache.clear();
 }
 
 /**
@@ -734,6 +735,64 @@ async function createPayment(order, account) {
 
   const result = await qboApiRequest('POST', 'payment', paymentBody);
   return result.Payment;
+}
+
+// ── Customer payment summary ─────────────────────────────────────
+// Cached briefly so opening multiple orders for the same account doesn't
+// re-query QBO on every render.
+const _qboPaymentSummaryCache = new Map(); // qboCustomerId -> { summary, expiresAt }
+const PAYMENT_SUMMARY_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Look up a QBO customer's recent payment activity. Returns the most-recent
+ * payment date, the inferred method used (Card / ACH / Check / Cash / Other),
+ * and the distinct methods seen across the last batch — useful as a heuristic
+ * for "has the customer paid by card before?" since QBO doesn't expose
+ * saved-on-file methods through the Accounting API.
+ *
+ * Returns null when QBO isn't connected or the customer has no payments.
+ *
+ * @param {string} qboCustomerId
+ * @returns {Promise<{lastPaymentDate: string, lastMethod: string, methodsUsed: string[], paymentCount: number} | null>}
+ */
+async function getCustomerPaymentSummary(qboCustomerId) {
+  if (!qboCustomerId) return null;
+  const cached = _qboPaymentSummaryCache.get(qboCustomerId);
+  if (cached && cached.expiresAt > Date.now()) return cached.summary;
+
+  // QBO's Payment.CustomerRef = '<id>' must be quoted; ORDER BY MetaData.CreateTime DESC gets newest first.
+  const query = `SELECT * FROM Payment WHERE CustomerRef = '${qboCustomerId}' ORDER BY MetaData.CreateTime DESC MAXRESULTS 25`;
+  let payments = [];
+  try {
+    const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+    payments = result.QueryResponse?.Payment || [];
+  } catch (err) {
+    console.error('[qbo] payment-summary query failed:', err.message);
+    return null;
+  }
+
+  if (payments.length === 0) {
+    _qboPaymentSummaryCache.set(qboCustomerId, { summary: null, expiresAt: Date.now() + PAYMENT_SUMMARY_TTL_MS });
+    return null;
+  }
+
+  const classify = (p) => {
+    let method = p.PaymentMethodRef?.name || '';
+    if (!method && p.CreditCardPayment?.CreditChargeInfo) method = 'Credit Card';
+    if (/credit\s*card|visa|master|amex|discover/i.test(method)) return 'Card';
+    if (/ach|bank|e[-_ ]?check/i.test(method)) return 'ACH';
+    if (/check/i.test(method)) return 'Check';
+    if (/cash/i.test(method)) return 'Cash';
+    return method || 'Other';
+  };
+
+  const lastPaymentDate = payments[0].TxnDate || '';
+  const lastMethod = classify(payments[0]);
+  const methodsUsed = [...new Set(payments.map(classify))];
+
+  const summary = { lastPaymentDate, lastMethod, methodsUsed, paymentCount: payments.length };
+  _qboPaymentSummaryCache.set(qboCustomerId, { summary, expiresAt: Date.now() + PAYMENT_SUMMARY_TTL_MS });
+  return summary;
 }
 
 // ── Invoice number generation ────────────────────────────────────
@@ -1229,5 +1288,6 @@ module.exports = {
   voidInvoice,
   processQboPaymentWebhook,
   createPayment,
+  getCustomerPaymentSummary,
   QBO_APP_URL,
 };

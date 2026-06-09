@@ -250,12 +250,13 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
     <hr class="form-divider" />
     <div class="form-section-title">QuickBooks</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}${order.InvoicePdf ? `<a href="/api/qbo/invoice-pdf/${esc(order.ID)}" target="_blank" class="btn btn-ghost btn-sm">Download Invoice</a>` : ''}` : ''}
+      ${order.QboSyncStatus === 'synced' ? `<span class="badge badge-success">Synced</span>${qboInvoiceUrl(order) ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">View in QuickBooks</a>` : `<span class="text-sm text-muted">Invoice ID: ${esc(order.QboInvoiceId)}</span>`}${order.InvoicePdf ? `<a href="/api/qbo/invoice-pdf/${esc(order.ID)}" target="_blank" class="btn btn-ghost btn-sm">Download Invoice</a>` : ''}${qboInvoiceUrl(order) && !order.QboPaymentId && order.Status !== 'Paid' && order.Status !== 'Cancelled' ? `<a href="${qboInvoiceUrl(order)}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Pay in QuickBooks</a>` : ''}` : ''}
       ${order.QboSyncStatus === 'failed' ? `<span class="badge badge-danger">Sync Failed</span>${order.QboSyncError ? `<span class="text-sm text-danger">${esc(order.QboSyncError)}</span>` : ''}<button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Retry</button>` : ''}
       ${order.QboSyncStatus === 'disabled' ? '<span class="badge badge-neutral">Not Connected</span>' : ''}
       ${order.QboSyncStatus === 'skipped' ? `<span class="badge badge-neutral">Sync Disabled</span><button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Create Invoice</button>` : ''}
       ${!order.QboSyncStatus ? `<span class="badge badge-neutral">Pending</span><button class="btn btn-ghost btn-sm" onclick="retryQboSync('${esc(order.ID)}')">Create Invoice</button>` : ''}
-    </div>` : ''}`;
+    </div>
+    ${order.AccountID ? `<div id="qbo-payment-summary-slot" data-account-id="${esc(order.AccountID)}" class="text-sm text-muted" style="margin-top:6px"></div>` : ''}` : ''}`;
 }
 
 function preSaleForm(ps = {}, presetAccountId = '') {
@@ -1731,6 +1732,24 @@ async function openEditOrder(id) {
   if (!isPaid) await initOrderCredit(order.AccountID, id);
   refreshOrderBillingTermHint();
   if (order.Delivered === 'true') loadOrderKegReturns(id);
+  loadOrderQboPaymentSummary(order.AccountID);
+}
+
+// Populate the "Last paid by X on DATE" hint in the QBO section of the order
+// modal. Quietly does nothing when QBO isn't connected or the customer
+// isn't synced yet. Server caches the lookup so opening multiple orders
+// for the same account doesn't re-query QBO each time.
+async function loadOrderQboPaymentSummary(accountId) {
+  const slot = document.getElementById('qbo-payment-summary-slot');
+  if (!slot || !accountId || slot.dataset.accountId !== accountId) return;
+  let data;
+  try {
+    data = await api.get(`/api/qbo/customer/${encodeURIComponent(accountId)}/payment-summary`);
+  } catch { return; }
+  if (!data?.available || !data.summary) return;
+  const { lastMethod, lastPaymentDate } = data.summary;
+  if (!lastMethod && !lastPaymentDate) return;
+  slot.textContent = `Last paid by ${lastMethod}${lastPaymentDate ? ' on ' + formatDate(lastPaymentDate) : ''}`;
 }
 
 async function deleteOrder(id) {
