@@ -1062,6 +1062,27 @@ async function updateInvoice(invoiceId, order, lineItems, account, _isRetry) {
 
 // ── Top-level sync function ──────────────────────────────────────
 
+/**
+ * Download the latest invoice PDF from QBO and overwrite the locally-cached
+ * copy at data/invoices/<orderId>.pdf. Used after both the initial sync and
+ * any resync that edits an existing invoice — keeps "Download Invoice" from
+ * serving a stale PDF (issue #426). Failures are logged but never thrown:
+ * a missing/stale cache shouldn't take down the whole sync flow.
+ */
+async function _refreshOrderInvoicePdf(orderId, qboInvoiceId) {
+  try {
+    const pdfBuffer = await downloadInvoicePdf(qboInvoiceId);
+    const pdfDir = path.join(__dirname, 'data', 'invoices');
+    fs.mkdirSync(pdfDir, { recursive: true });
+    const pdfFilename = `${orderId}.pdf`;
+    fs.writeFileSync(path.join(pdfDir, pdfFilename), pdfBuffer);
+    await updateRow('ORDERS', orderId, { InvoicePdf: pdfFilename });
+    console.log(`[qbo] Invoice PDF refreshed for order ${orderId}`);
+  } catch (pdfErr) {
+    console.error(`[qbo] Failed to refresh invoice PDF for order ${orderId}:`, pdfErr.message);
+  }
+}
+
 async function syncOrderToQbo(orderId) {
   try {
     if (!isQboConfigured()) {
@@ -1172,17 +1193,7 @@ async function syncOrderToQbo(orderId) {
     }
 
     // Download and save invoice PDF locally
-    try {
-      const pdfBuffer = await downloadInvoicePdf(qboInvoiceId);
-      const pdfDir = path.join(__dirname, 'data', 'invoices');
-      fs.mkdirSync(pdfDir, { recursive: true });
-      const pdfFilename = `${orderId}.pdf`;
-      fs.writeFileSync(path.join(pdfDir, pdfFilename), pdfBuffer);
-      await updateRow('ORDERS', orderId, { InvoicePdf: pdfFilename });
-      console.log(`[qbo] Invoice PDF saved for order ${orderId}`);
-    } catch (pdfErr) {
-      console.error(`[qbo] Failed to download invoice PDF for order ${orderId}:`, pdfErr.message);
-    }
+    await _refreshOrderInvoicePdf(orderId, qboInvoiceId);
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
     try {
@@ -1246,6 +1257,10 @@ async function resyncOrderToQbo(orderId) {
 
     // Make sure local QboSyncStatus is back to synced (clears any prior failure).
     await updateRow('ORDERS', orderId, { QboSyncStatus: 'synced', QboSyncError: '' });
+
+    // Refresh the locally-cached invoice PDF so "Download Invoice" returns
+    // the updated version, not the original (#426).
+    await _refreshOrderInvoicePdf(orderId, order.QboInvoiceId);
 
     // Re-send to BillEmail + BillEmailCc — same shape as the initial sync.
     const billEmail = account.BillingEmail || account.Email;
