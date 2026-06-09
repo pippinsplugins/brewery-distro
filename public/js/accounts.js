@@ -648,6 +648,7 @@ async function loadAccountProfile(accountId) {
 
     <div class="profile-info card" style="margin-bottom:24px">
       ${infoRows || '<span class="text-muted">No additional info on file.</span>'}
+      <div id="qbo-payment-info-slot" data-account-id="${esc(accountId)}"></div>
     </div>
 
     <div class="profile-section">
@@ -764,6 +765,27 @@ async function loadAccountProfile(accountId) {
   renderProfileTodos();
   renderProfileOrders();
   renderProfileKegs();
+  loadQboPaymentInfoForProfile(accountId);
+}
+
+// Fetch the QBO customer's recent-payment summary (last method used + last
+// payment date) and render it into the profile info panel slot. Quiet when
+// QBO isn't connected, the account isn't synced, or the customer has no
+// payment history — the slot just stays empty.
+async function loadQboPaymentInfoForProfile(accountId) {
+  const slot = document.getElementById('qbo-payment-info-slot');
+  if (!slot || slot.dataset.accountId !== accountId) return;
+  let data;
+  try {
+    data = await api.get(`/api/qbo/customer/${encodeURIComponent(accountId)}/payment-summary`);
+  } catch { return; }
+  if (!data?.available || !data.summary) return;
+  const { lastMethod, lastPaymentDate, methodsUsed } = data.summary;
+  const distinctMethods = methodsUsed.filter(m => m && m !== 'Other');
+  const methodsBlurb = distinctMethods.length > 1
+    ? ` <span class="text-muted text-sm">(also: ${distinctMethods.filter(m => m !== lastMethod).map(esc).join(', ')})</span>`
+    : '';
+  slot.innerHTML = `<div class="profile-info-item"><span class="profile-info-label">QBO Last Paid</span><span>${esc(lastMethod) || '—'}${lastPaymentDate ? ' on ' + formatDate(lastPaymentDate) : ''}${methodsBlurb}</span></div>`;
 }
 
 function renderProfileOutreach() {
@@ -1163,6 +1185,9 @@ function profileEditOrder(id) {
     if (!isPaid) initOrderCredit(order.AccountID, id);
     if (order.Delivered === 'true' && typeof loadOrderKegReturns === 'function') {
       loadOrderKegReturns(id);
+    }
+    if (typeof loadOrderQboPaymentSummary === 'function') {
+      loadOrderQboPaymentSummary(order.AccountID);
     }
   });
 }
