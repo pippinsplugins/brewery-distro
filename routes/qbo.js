@@ -3,7 +3,7 @@
 const crypto      = require('crypto');
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, getCustomerPaymentSummary, QBO_APP_URL } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, getCustomerPaymentSummary, refreshOrderInvoicePdf, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -140,24 +140,44 @@ apiRouter.post('/tax-code', async (req, res) => {
   }
 });
 
-// GET /api/qbo/invoice-pdf/:orderId — serve saved invoice PDF
-apiRouter.get('/invoice-pdf/:orderId', (req, res) => {
+// GET /api/qbo/invoice-pdf/:orderId — serve saved invoice PDF.
+// If the local cache is missing for any reason (InvoicePdf not set, or the
+// file was deleted/never persisted), re-download from QBO and try once more
+// before giving up. Requires the order to have a QboInvoiceId.
+apiRouter.get('/invoice-pdf/:orderId', async (req, res) => {
   try {
     const { getRow } = require('../db');
     const path = require('path');
     const fs = require('fs');
-    const order = getRow('ORDERS', req.params.orderId);
-    if (!order || !order.InvoicePdf) {
-      return res.status(404).json({ error: 'Invoice PDF not found' });
-    }
+    let order = getRow('ORDERS', req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
     const invoicesDir = path.resolve(path.join(__dirname, '..', 'data', 'invoices'));
-    const pdfPath = path.resolve(path.join(invoicesDir, order.InvoicePdf));
-    // Prevent path traversal — resolved path must stay within invoices directory
-    if (!pdfPath.startsWith(invoicesDir + path.sep)) {
-      return res.status(400).json({ error: 'Invalid invoice path' });
-    }
-    if (!fs.existsSync(pdfPath)) {
-      return res.status(404).json({ error: 'Invoice PDF file missing' });
+
+    // Resolve a path candidate that's guarded against traversal. Returns
+    // null when InvoicePdf is unset or the resolved path escapes the dir.
+    const candidatePath = () => {
+      if (!order.InvoicePdf) return null;
+      const p = path.resolve(path.join(invoicesDir, order.InvoicePdf));
+      if (!p.startsWith(invoicesDir + path.sep)) return null;
+      return p;
+    };
+
+    let pdfPath = candidatePath();
+    if (!pdfPath || !fs.existsSync(pdfPath)) {
+      // Cache miss — refetch from QBO if we have an invoice id to refetch with.
+      if (!order.QboInvoiceId) {
+        return res.status(404).json({ error: 'Invoice PDF not found' });
+      }
+      try {
+        await refreshOrderInvoicePdf(req.params.orderId, order.QboInvoiceId);
+      } catch (err) {
+        console.error('[qbo] PDF refetch failed:', err.message);
+      }
+      order = getRow('ORDERS', req.params.orderId);
+      pdfPath = candidatePath();
+      if (!pdfPath || !fs.existsSync(pdfPath)) {
+        return res.status(404).json({ error: 'Invoice PDF unavailable' });
+      }
     }
     res.sendFile(pdfPath, { headers: { 'Content-Type': 'application/pdf' } });
   } catch (err) {
