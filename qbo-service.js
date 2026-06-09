@@ -1069,7 +1069,7 @@ async function updateInvoice(invoiceId, order, lineItems, account, _isRetry) {
  * serving a stale PDF (issue #426). Failures are logged but never thrown:
  * a missing/stale cache shouldn't take down the whole sync flow.
  */
-async function _refreshOrderInvoicePdf(orderId, qboInvoiceId) {
+async function refreshOrderInvoicePdf(orderId, qboInvoiceId) {
   try {
     const pdfBuffer = await downloadInvoicePdf(qboInvoiceId);
     const pdfDir = path.join(__dirname, 'data', 'invoices');
@@ -1193,7 +1193,7 @@ async function syncOrderToQbo(orderId) {
     }
 
     // Download and save invoice PDF locally
-    await _refreshOrderInvoicePdf(orderId, qboInvoiceId);
+    await refreshOrderInvoicePdf(orderId, qboInvoiceId);
   } catch (err) {
     console.error(`[qbo] Sync failed for order ${orderId}:`, err.message);
     try {
@@ -1260,7 +1260,7 @@ async function resyncOrderToQbo(orderId) {
 
     // Refresh the locally-cached invoice PDF so "Download Invoice" returns
     // the updated version, not the original (#426).
-    await _refreshOrderInvoicePdf(orderId, order.QboInvoiceId);
+    await refreshOrderInvoicePdf(orderId, order.QboInvoiceId);
 
     // Re-send to BillEmail + BillEmailCc — same shape as the initial sync.
     const billEmail = account.BillingEmail || account.Email;
@@ -1304,5 +1304,6 @@ module.exports = {
   processQboPaymentWebhook,
   createPayment,
   getCustomerPaymentSummary,
+  refreshOrderInvoicePdf,
   QBO_APP_URL,
 };
