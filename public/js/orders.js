@@ -191,9 +191,15 @@ function orderForm(order = {}, presetAccountId = '', readOnly = false) {
         <p id="order-billing-term-hint" class="text-sm text-muted" style="margin-top:4px;min-height:18px"></p>
       </div>
     </div>
-    <div class="form-group">
-      <label>Invoice Number</label>
-      <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>Invoice Number</label>
+        <input class="form-control" id="f-invoice" value="${esc(order.InvoiceNumber)}" placeholder="e.g. INV-2024-001" />
+      </div>
+      <div class="form-group">
+        <label>PO Number</label>
+        <input class="form-control" id="f-po" value="${esc(order.PONumber || '')}" placeholder="Customer PO #"${dis} />
+      </div>
     </div>
     <hr class="form-divider" />
     <div class="form-section-title">Products</div>
@@ -1419,7 +1425,7 @@ function renderOrders() {
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatEndCustomers(s.ID)}${formatProductsSummary(s.RequestedProducts)}</td>
-                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${(_orderItemSummary[s.ID]?.count) ? ` <span class="badge badge-items" title="${_orderItemSummary[s.ID].count} line item${_orderItemSummary[s.ID].count > 1 ? 's' : ''}">${_orderItemSummary[s.ID].count} items</span>` : ''}${qboSyncBadge(s)}</td>
+                <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${s.PONumber ? `<br><span class="text-muted text-sm">PO: ${esc(s.PONumber)}</span>` : ''}${(_orderItemSummary[s.ID]?.count) ? ` <span class="badge badge-items" title="${_orderItemSummary[s.ID].count} line item${_orderItemSummary[s.ID].count > 1 ? 's' : ''}">${_orderItemSummary[s.ID].count} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
@@ -1487,7 +1493,7 @@ async function openAddOrder(presetAccountId = '') {
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
-      InvoiceNumber: val('f-invoice'), Status: newStatus,
+      InvoiceNumber: val('f-invoice'), PONumber: val('f-po'), Status: newStatus,
       OrderAmount: finalAmount, TaxAmount: val('f-tax'),
       DepositAmount: val('f-deposit-amount') || '0',
       Notes: val('f-notes'),
@@ -1564,6 +1570,7 @@ function orderMaterialSignature(order, items) {
     String(order.OrderAmount || ''),
     String(order.TaxAmount || ''),
     String(order.DepositAmount || ''),
+    order.PONumber || '',
     itemSig,
   ].join('::');
 }
@@ -1586,7 +1593,7 @@ async function openEditOrder(id) {
       </div>` : '';
     modal.open('View Order', deliveryBanner + orderForm(order, '', true), async () => {
       await api.put(`/api/orders/${id}`, {
-        InvoiceNumber: val('f-invoice'),
+        InvoiceNumber: val('f-invoice'), PONumber: val('f-po'),
         Notes: val('f-notes'),
       });
       modal.close();
@@ -1627,7 +1634,7 @@ async function openEditOrder(id) {
         Location: val('f-location') || state.location,
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
-        InvoiceNumber: val('f-invoice'), Status: newStatus,
+        InvoiceNumber: val('f-invoice'), PONumber: val('f-po'), Status: newStatus,
         OrderAmount: finalAmount, TaxAmount: val('f-tax'),
         DepositAmount: val('f-deposit-amount') || '0',
         Notes: val('f-notes'),
@@ -1683,7 +1690,8 @@ async function openEditOrder(id) {
           { AccountID: val('f-account') || order.AccountID,
             OrderAmount: finalAmount,
             TaxAmount: val('f-tax'),
-            DepositAmount: val('f-deposit-amount') || '0' },
+            DepositAmount: val('f-deposit-amount') || '0',
+            PONumber: val('f-po') },
           collectOrderItems(),
         );
         if (newSig !== origSig) {
@@ -1854,7 +1862,7 @@ async function convertPreSale(id) {
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
       OrderDate: orderDate, DeliveryDate: val('f-delivery-date'),
-      InvoiceNumber: val('f-invoice'), Status: 'Pending',
+      InvoiceNumber: val('f-invoice'), PONumber: val('f-po'), Status: 'Pending',
       OrderAmount: amount, TaxAmount: val('f-tax'),
       Notes: val('f-notes'),
       RequestedProducts: products || ps.RequestedProducts || '',

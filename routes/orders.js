@@ -72,7 +72,7 @@ router.post('/', async (req, res) => {
   try {
     const {
       AccountID, AccountName, Location, StaffID, StaffName,
-      OrderDate, DeliveryDate, InvoiceNumber,
+      OrderDate, DeliveryDate, InvoiceNumber, PONumber,
       OrderAmount, TaxAmount, DepositAmount, Notes, RequestedProducts, Status, Delivered,
     } = req.body;
 
@@ -89,6 +89,7 @@ router.post('/', async (req, res) => {
       OrderDate: withTimestamp(OrderDate),
       DeliveryDate: DeliveryDate || '',
       InvoiceNumber: InvoiceNumber || '',
+      PONumber: PONumber || '',
       OrderAmount: OrderAmount || '0',
       TaxAmount:  TaxAmount  || '0',
       DepositAmount: DepositAmount || '0',

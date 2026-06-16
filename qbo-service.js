@@ -954,6 +954,7 @@ async function _buildInvoiceBody(order, lineItems, account) {
     CustomerRef:  { value: customerId },
     Line:         lines,
     DocNumber:    docNumber,
+    PONumber:     order.PONumber ? String(order.PONumber).slice(0, 25) : undefined,
     TxnDate:      order.OrderDate ? order.OrderDate.split('T')[0] : undefined,
     DueDate:      _computeInvoiceDueDate(order, account),
     BillEmail:     billEmail ? { Address: billEmail } : undefined,
