@@ -798,30 +798,33 @@ async function getCustomerPaymentSummary(qboCustomerId) {
 // ── Invoice number generation ────────────────────────────────────
 
 async function getNextInvoiceNumber() {
-  // Fetch recent invoices and find the highest numeric DocNumber
+  // Fetch recent invoices and find the highest purely-numeric DocNumber.
+  // Earlier this scan also matched prefixed numbers (e.g. "PO 8197") via
+  //   /^(.*?)(\d+)$/
+  // and copied the prefix forward to the next generated number. A stray
+  // manual entry in QBO with a "PO " prefix and a higher trailing number
+  // would then poison every subsequent invoice the app created. Restrict
+  // to pure-digit DocNumbers so the brewery's own numeric sequence is the
+  // only signal used.
   const query = "SELECT DocNumber FROM Invoice ORDER BY MetaData.CreateTime DESC MAXRESULTS 100";
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
   const invoices = result.QueryResponse?.Invoice || [];
 
   let maxNum = 0;
-  let bestPrefix = '';
   let bestPadding = 0;
 
   for (const inv of invoices) {
     if (!inv.DocNumber) continue;
-    const match = inv.DocNumber.match(/^(.*?)(\d+)$/);
-    if (match) {
-      const num = parseInt(match[2], 10);
-      if (num > maxNum) {
-        maxNum = num;
-        bestPrefix = match[1];
-        bestPadding = match[2].length;
-      }
+    if (!/^\d+$/.test(inv.DocNumber)) continue;
+    const num = parseInt(inv.DocNumber, 10);
+    if (num > maxNum) {
+      maxNum = num;
+      bestPadding = inv.DocNumber.length;
     }
   }
 
   const nextNum = maxNum > 0 ? maxNum + 1 : 1001;
-  return bestPrefix + String(nextNum).padStart(bestPadding, '0');
+  return String(nextNum).padStart(bestPadding, '0');
 }
 
 // ── Invoice creation ─────────────────────────────────────────────
