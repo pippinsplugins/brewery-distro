@@ -178,6 +178,12 @@ server {
     listen 80;
     server_name app.yourbrewery.com;
 
+    # The app accepts uploads (PDF invoice imports, email attachments) up to
+    # 25 MB. nginx's default cap is 1 MB and rejects larger requests with
+    # an HTML 413 page before they reach the app — set the cap a bit above
+    # the app's own limit to leave headroom for multipart overhead.
+    client_max_body_size 30M;
+
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
