@@ -1,11 +1,43 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { addRow, updateRow, getAllRows } = require('../db');
 const { isEmailConfigured, sendEmail } = require('../email-service');
 
 const router = express.Router();
+
+// Gmail's per-message hard limit is 25 MB. Cap each file at 20 MB and the
+// whole request at 25 MB to leave headroom for base64 inflation (~33%) and
+// MIME overhead. Files live in memory; nothing is persisted to disk.
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 25 * 1024 * 1024;
+const emailUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_BYTES, files: 10, fieldSize: 1024 * 1024 },
+}).array('attachments', 10);
+
+// Wrap multer in a middleware that surfaces friendly errors and rejects
+// total payloads exceeding MAX_REQUEST_BYTES (multer's `fileSize` is per
+// file; we want a combined cap so a user can't attach 5×20MB).
+function uploadAttachments(req, res, next) {
+  emailUpload(req, res, (err) => {
+    if (err) {
+      const msg = err.code === 'LIMIT_FILE_SIZE'
+        ? 'Attachment exceeds 20 MB limit'
+        : err.code === 'LIMIT_FILE_COUNT'
+        ? 'Too many attachments (max 10)'
+        : err.message;
+      return res.status(400).json({ error: msg });
+    }
+    const totalBytes = (req.files || []).reduce((s, f) => s + f.size, 0);
+    if (totalBytes > MAX_REQUEST_BYTES) {
+      return res.status(400).json({ error: 'Attachments exceed 25 MB total' });
+    }
+    next();
+  });
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -71,8 +103,30 @@ router.get('/status', (req, res) => {
   res.json({ configured: isEmailConfigured() });
 });
 
-// POST /api/email/send — Send individual email to one account
-router.post('/send', async (req, res) => {
+// Decode an array field that may arrive as either a JSON string (multipart
+// form-data) or an already-parsed array (legacy application/json caller).
+function parseMaybeJsonArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch { return []; }
+}
+
+// Convert Multer file rows into the shape sendEmail expects.
+function mapAttachments(files) {
+  return (files || []).map(f => ({
+    filename: f.originalname,
+    mimeType: f.mimetype,
+    content:  f.buffer,
+  }));
+}
+
+// POST /api/email/send — Send individual email to one account.
+// Accepts multipart/form-data for attachments; legacy JSON callers without
+// files still work because multer just leaves req.body as the form fields.
+router.post('/send', uploadAttachments, async (req, res) => {
   try {
     if (!isEmailConfigured()) {
       return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
@@ -88,13 +142,14 @@ router.post('/send', async (req, res) => {
     const validatedFrom = validateFromEmail(req.user.email, fromEmail);
     const senderName  = req.user.name  || 'Brewery Team';
     const senderEmail = validatedFrom;
-    const ccEmails = Array.isArray(cc) ? cc.filter(Boolean) : [];
+    const ccEmails = parseMaybeJsonArray(cc);
+    const attachments = mapAttachments(req.files);
 
     let status = 'sent';
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, replyTo: getReplyToAddress(req.user), subject, body, fromEmail: validatedFrom });
+      await sendEmail({ user: req.user, to, cc: ccEmails.length > 0 ? ccEmails : undefined, replyTo: getReplyToAddress(req.user), subject, body, fromEmail: validatedFrom, attachments });
     } catch (err) {
       status = 'failed';
       error  = err.message;
@@ -111,6 +166,7 @@ router.post('/send', async (req, res) => {
       Body:        body,
       Type:        'individual',
       AccountIDs:  accountId || '',
+      Attachments: attachments.map(a => a.filename).join(', '),
       Status:      status,
       Error:       error,
       CreatedAt:   new Date().toISOString(),
@@ -133,17 +189,19 @@ router.post('/send', async (req, res) => {
   }
 });
 
-// POST /api/email/bulk — Send bulk email to multiple accounts via BCC
-router.post('/bulk', async (req, res) => {
+// POST /api/email/bulk — Send bulk email to multiple accounts via BCC.
+// Accepts multipart/form-data; `recipients` is sent as a JSON string field.
+router.post('/bulk', uploadAttachments, async (req, res) => {
   try {
     if (!isEmailConfigured()) {
       return res.status(503).json({ error: 'Email is not configured. Google OAuth credentials are missing.' });
     }
 
-    const { recipients, subject, body, fromEmail } = req.body;
+    const { subject, body, fromEmail } = req.body;
+    const recipients = parseMaybeJsonArray(req.body.recipients);
     // recipients: [{ email, additionalEmails, accountId, accountName }, ...]
 
-    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+    if (!recipients || recipients.length === 0) {
       return res.status(400).json({ error: 'At least one recipient is required' });
     }
     if (!subject) return res.status(400).json({ error: 'Subject is required' });
@@ -167,12 +225,13 @@ router.post('/bulk', async (req, res) => {
 
     const senderName  = req.user.name  || 'Brewery Team';
     const senderEmail = validatedFrom;
+    const attachments = mapAttachments(req.files);
 
     let status = 'sent';
     let error  = '';
 
     try {
-      await sendEmail({ user: req.user, bcc: bccEmails, replyTo: getReplyToAddress(req.user), subject, body, fromEmail: validatedFrom });
+      await sendEmail({ user: req.user, bcc: bccEmails, replyTo: getReplyToAddress(req.user), subject, body, fromEmail: validatedFrom, attachments });
     } catch (err) {
       status = 'failed';
       error  = err.message;
@@ -188,6 +247,7 @@ router.post('/bulk', async (req, res) => {
       Body:        body,
       Type:        'bulk',
       AccountIDs:  recipients.map(r => r.accountId).join(', '),
+      Attachments: attachments.map(a => a.filename).join(', '),
       Status:      status,
       Error:       error,
       CreatedAt:   new Date().toISOString(),
