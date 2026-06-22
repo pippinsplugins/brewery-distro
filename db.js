@@ -48,7 +48,7 @@ const HEADERS = {
   // happened, KegTrackingID points back to the outbound KEG_TRACKING row.
   KEG_RETURNS:     ['ID', 'AccountID', 'AccountName', 'OrderID', 'KegTrackingID', 'ProductName', 'Format', 'Quantity', 'DepositPerUnit', 'DepositRefunded', 'ReturnedDate', 'Notes', 'CreatedAt'],
   TAP_HANDLES:     ['ID', 'AccountID', 'AccountName', 'Quantity', 'DeployedDate', 'CollectedDate', 'CollectedQuantity', 'Notes', 'CreatedAt'],
-  EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Status', 'Error', 'CreatedAt'],
+  EMAIL_LOG:       ['ID', 'SenderName', 'SenderEmail', 'Recipients', 'Subject', 'Body', 'Type', 'AccountIDs', 'Attachments', 'Status', 'Error', 'CreatedAt'],
   ORDER_ITEMS:     ['ID', 'OrderID', 'InventoryID', 'ProductName', 'Format', 'PriceTier', 'Quantity', 'UnitPrice', 'LineTotal', 'Taxable', 'EndCustomerAccountID', 'EndCustomerName', 'CreatedAt'],
   NOTIFICATIONS:   ['ID', 'Type', 'Channel', 'RecipientStaffID', 'RecipientName', 'RecipientEmail', 'SenderName', 'SenderEmail', 'EntityType', 'EntityID', 'EntityName', 'Message', 'Status', 'Error', 'CreatedAt'],
   ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],

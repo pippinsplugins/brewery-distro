@@ -1568,6 +1568,130 @@ function _emailBodyPreviewHtml(body) {
   return `<div style="white-space:pre-wrap;background:#f7f7f8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;max-height:240px;overflow-y:auto;font-size:13px">${esc(body)}</div>`;
 }
 
+// Hard limits should match the server (routes/email.js). Gmail's per-message
+// cap is 25 MB; we leave headroom for base64 inflation + MIME overhead.
+const EMAIL_ATTACH_MAX_FILE_BYTES = 20 * 1024 * 1024;
+const EMAIL_ATTACH_MAX_TOTAL_BYTES = 25 * 1024 * 1024;
+const EMAIL_ATTACH_MAX_FILES = 10;
+
+function _fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Attachment input + chosen-file list. The <input type="file"> doesn't allow
+// per-file removal from a FileList, so we wrap it: each "add files" click
+// appends to a separate `_emailAttachments` array stored on a per-modal
+// element (since modal markup is replaced on each open).
+function _attachmentFieldHtml() {
+  return `
+    <div class="form-group" id="f-email-attachments-wrap">
+      <label>Attachments</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="f-email-attachments" multiple
+          onchange="_addEmailAttachments(this)" style="flex:1;min-width:200px" />
+        <span class="text-sm text-muted" id="f-email-attach-summary"></span>
+      </div>
+      <ul id="f-email-attach-list" style="list-style:none;padding:0;margin:6px 0 0;font-size:13px"></ul>
+      <p class="text-sm text-muted" style="margin-top:4px">Up to ${EMAIL_ATTACH_MAX_FILES} files, ${_fmtBytes(EMAIL_ATTACH_MAX_TOTAL_BYTES)} total. Attachments don't persist if you go back to edit.</p>
+    </div>`;
+}
+
+// In-memory store of File objects added so far. Cleared on modal open.
+let _emailAttachmentsBuffer = [];
+
+function _resetEmailAttachments() { _emailAttachmentsBuffer = []; }
+
+function _addEmailAttachments(input) {
+  const files = Array.from(input.files || []);
+  // Each picked file gets validated against the per-file cap; the chooser is
+  // additive (subsequent picks append), so we re-check totals every time.
+  for (const f of files) {
+    if (f.size > EMAIL_ATTACH_MAX_FILE_BYTES) {
+      toast(`"${f.name}" exceeds ${_fmtBytes(EMAIL_ATTACH_MAX_FILE_BYTES)} limit`, 'error');
+      continue;
+    }
+    if (_emailAttachmentsBuffer.length >= EMAIL_ATTACH_MAX_FILES) {
+      toast(`Max ${EMAIL_ATTACH_MAX_FILES} attachments`, 'error');
+      break;
+    }
+    _emailAttachmentsBuffer.push(f);
+  }
+  const total = _emailAttachmentsBuffer.reduce((s, f) => s + f.size, 0);
+  if (total > EMAIL_ATTACH_MAX_TOTAL_BYTES) {
+    // Pop until under limit.
+    while (_emailAttachmentsBuffer.length > 0
+        && _emailAttachmentsBuffer.reduce((s, f) => s + f.size, 0) > EMAIL_ATTACH_MAX_TOTAL_BYTES) {
+      const popped = _emailAttachmentsBuffer.pop();
+      toast(`"${popped.name}" not added — would exceed ${_fmtBytes(EMAIL_ATTACH_MAX_TOTAL_BYTES)} total`, 'error');
+    }
+  }
+  input.value = '';  // Reset so the same filename can be picked again later.
+  _renderEmailAttachments();
+}
+
+function _removeEmailAttachment(index) {
+  _emailAttachmentsBuffer.splice(index, 1);
+  _renderEmailAttachments();
+}
+
+function _renderEmailAttachments() {
+  const list = document.getElementById('f-email-attach-list');
+  const sum  = document.getElementById('f-email-attach-summary');
+  if (!list || !sum) return;
+  if (_emailAttachmentsBuffer.length === 0) {
+    list.innerHTML = '';
+    sum.textContent = '';
+    return;
+  }
+  const totalBytes = _emailAttachmentsBuffer.reduce((s, f) => s + f.size, 0);
+  sum.textContent = `${_emailAttachmentsBuffer.length} file${_emailAttachmentsBuffer.length !== 1 ? 's' : ''}, ${_fmtBytes(totalBytes)}`;
+  list.innerHTML = _emailAttachmentsBuffer.map((f, i) =>
+    `<li style="display:flex;align-items:center;gap:8px;padding:4px 0">
+      <span style="flex:1">${esc(f.name)}</span>
+      <span class="text-muted text-sm">${_fmtBytes(f.size)}</span>
+      <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="_removeEmailAttachment(${i})">Remove</button>
+    </li>`).join('');
+}
+
+// Build a FormData body with text fields + the in-memory attachment files,
+// then POST without setting Content-Type (lets the browser set the
+// multipart boundary). Returns the parsed JSON or throws.
+async function _postEmailFormData(path, fields) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === null) continue;
+    if (Array.isArray(v) || (typeof v === 'object' && !(v instanceof File) && !(v instanceof Blob))) {
+      fd.append(k, JSON.stringify(v));
+    } else {
+      fd.append(k, v);
+    }
+  }
+  for (const f of _emailAttachmentsBuffer) fd.append('attachments', f);
+  const res = await fetch(BASE_PATH + path, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    body: fd,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+function _attachmentSummaryHtml() {
+  if (_emailAttachmentsBuffer.length === 0) return '';
+  const totalBytes = _emailAttachmentsBuffer.reduce((s, f) => s + f.size, 0);
+  return `
+    <div class="form-group">
+      <label>Attachments</label>
+      <ul class="text-sm" style="list-style:none;padding:0;margin:0;color:var(--text-secondary)">
+        ${_emailAttachmentsBuffer.map(f => `<li>${esc(f.name)} <span class="text-muted">— ${_fmtBytes(f.size)}</span></li>`).join('')}
+      </ul>
+      <p class="text-sm text-muted" style="margin-top:4px">${_emailAttachmentsBuffer.length} file${_emailAttachmentsBuffer.length !== 1 ? 's' : ''}, ${_fmtBytes(totalBytes)} total</p>
+    </div>`;
+}
+
 function openEmailCompose(accountId, draft) {
   const acct = state.accounts.find(a => a.ID === accountId);
   if (!acct) return;
@@ -1590,6 +1714,10 @@ function openEmailCompose(accountId, draft) {
   const initialBody    = draft?.body    || '';
   const initialFrom    = draft?.fromEmail || '';
 
+  // Reset the attachment buffer when opening from scratch (no draft), but
+  // keep existing files if reopening via "Back to Edit" (draft truthy).
+  if (!draft) _resetEmailAttachments();
+
   const formHtml = `
     <div class="form-group">
       <label>To${ccEmails.length > 0 ? ' / Cc' : ''}</label>
@@ -1607,7 +1735,8 @@ function openEmailCompose(accountId, draft) {
     <div class="form-group">
       <label>Message <span class="required">*</span></label>
       <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message...">${esc(initialBody)}</textarea>
-    </div>`;
+    </div>
+    ${_attachmentFieldHtml()}`;
 
   modal.open('Send Email', formHtml, () => {
     const subject   = val('f-email-subject');
@@ -1635,11 +1764,12 @@ function openEmailCompose(accountId, draft) {
       <div class="form-group">
         <label>Message</label>
         ${_emailBodyPreviewHtml(body)}
-      </div>`;
+      </div>
+      ${_attachmentSummaryHtml()}`;
 
     modal.open('Confirm Send', confirmHtml, async () => {
       try {
-        await api.post('/api/email/send', {
+        await _postEmailFormData('/api/email/send', {
           to:          primaryEmail,
           cc:          ccEmails.length > 0 ? ccEmails : undefined,
           subject,
@@ -1649,6 +1779,7 @@ function openEmailCompose(accountId, draft) {
           accountName: acct.Name,
         });
         modal.close();
+        _resetEmailAttachments();
         toast('Email sent successfully');
         if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
       } catch (err) {
@@ -1669,6 +1800,8 @@ function openEmailCompose(accountId, draft) {
       };
     }
   }, 'Send');
+  // Render any already-staged attachments (e.g. survived Back-to-Edit).
+  _renderEmailAttachments();
 }
 
 function openBulkEmail(draft) {
@@ -1710,6 +1843,9 @@ function openBulkEmail(draft) {
   const initialBody    = draft?.body    || '';
   const initialFrom    = draft?.fromEmail || '';
 
+  // Reset the attachment buffer when opening from scratch (no draft).
+  if (!draft) _resetEmailAttachments();
+
   const formHtml = `
     ${warningHtml}
     <div class="form-group">
@@ -1730,7 +1866,8 @@ function openBulkEmail(draft) {
     <div class="form-group">
       <label>Message <span class="required">*</span></label>
       <textarea class="form-control" id="f-email-body" rows="8" placeholder="Type your message...">${esc(initialBody)}</textarea>
-    </div>`;
+    </div>
+    ${_attachmentFieldHtml()}`;
 
   modal.open('Send Bulk Email', formHtml, () => {
     const subject   = val('f-email-subject');
@@ -1762,7 +1899,8 @@ function openBulkEmail(draft) {
       <div class="form-group">
         <label>Message</label>
         ${_emailBodyPreviewHtml(body)}
-      </div>`;
+      </div>
+      ${_attachmentSummaryHtml()}`;
 
     const recipients = withEmail.map(a => ({
       email:            a.Email,
@@ -1773,8 +1911,9 @@ function openBulkEmail(draft) {
 
     modal.open('Confirm Send', confirmHtml, async () => {
       try {
-        const result = await api.post('/api/email/bulk', { recipients, subject, body, fromEmail });
+        const result = await _postEmailFormData('/api/email/bulk', { recipients, subject, body, fromEmail });
         modal.close();
+        _resetEmailAttachments();
         toast(`Email sent to ${result.sent} address${result.sent !== 1 ? 'es' : ''}`);
         document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
         updateBulkEmailBar();
@@ -1791,6 +1930,8 @@ function openBulkEmail(draft) {
       };
     }
   }, 'Send');
+  // Render any already-staged attachments (e.g. survived Back-to-Edit).
+  _renderEmailAttachments();
 }
 
 // ── Merge Account ─────────────────────────────────────────────────
