@@ -1674,8 +1674,19 @@ async function _postEmailFormData(path, fields) {
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
     body: fd,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  // Read raw text first so a non-JSON response (e.g. an nginx 413 HTML page
+  // when the upload exceeds client_max_body_size) can be translated into
+  // something readable instead of "Unexpected token '<'".
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : {}; } catch { data = null; }
+  if (data && data.error && !res.ok) throw new Error(data.error);
+  if (!res.ok) {
+    if (res.status === 413) {
+      throw new Error(`Attachments rejected — upload too large for the server (HTTP 413). Try smaller files.`);
+    }
+    throw new Error(`Server error (HTTP ${res.status}). Check your connection and try again.`);
+  }
   return data;
 }
 

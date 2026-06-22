@@ -290,8 +290,17 @@ const api = {
     const opts = { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } };
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(BASE_PATH + path, opts);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    // Read as text first so a non-JSON response (e.g. an nginx 413/502 HTML
+    // page or a proxy timeout) becomes a readable error instead of
+    // "Unexpected token '<' is not valid JSON".
+    const text = await res.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; } catch { data = null; }
+    if (!res.ok) {
+      if (data && data.error) throw new Error(data.error);
+      if (res.status === 413) throw new Error('Upload too large for the server (HTTP 413).');
+      throw new Error(`Server error (HTTP ${res.status}). Check your connection and try again.`);
+    }
     return data;
   },
   get:    (p)    => api.req('GET', p),
