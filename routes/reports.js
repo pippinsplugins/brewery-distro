@@ -21,6 +21,7 @@ function bucketKey(dateStr, granularity) {
 router.get('/', async (req, res) => {
   try {
     const { start, end, location } = req.query;
+    const taxableOnly = req.query.taxableOnly === '1' || req.query.taxableOnly === 'true';
     if (!start || !end) return res.status(400).json({ error: 'start and end query params required' });
 
     let [orders, orderItems, stockMovements, accounts, inventory, staff, products] = await Promise.all([
@@ -50,7 +51,13 @@ router.get('/', async (req, res) => {
       const d = (o.OrderDate || '').substring(0, 10);
       return d >= start && d <= end;
     });
-    const salesOrders = dateFilteredOrders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale' && o.Status !== 'Draft');
+    let salesOrders = dateFilteredOrders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale' && o.Status !== 'Draft');
+    // taxableOnly: state agencies require gross-sales reporting for taxable
+    // sales only; this narrows to orders that actually had tax applied so
+    // the brewery can pull both tax collected and the matching subtotal.
+    if (taxableOnly) {
+      salesOrders = salesOrders.filter(o => parseFloat(o.TaxAmount || 0) > 0);
+    }
 
     // Build sets for quick lookups
     const salesOrderIds = new Set(salesOrders.map(o => o.ID));

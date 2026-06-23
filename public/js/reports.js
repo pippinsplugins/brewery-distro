@@ -5,6 +5,7 @@
 let _reportsPreset = 'this-month';
 let _reportsStart = '';
 let _reportsEnd = '';
+let _reportsTaxableOnly = false;
 let _reportsData = null;
 let _reportCharts = {};
 
@@ -32,6 +33,7 @@ async function loadReports() {
   try {
     const params = new URLSearchParams({ start: _reportsStart, end: _reportsEnd });
     if (state.location) params.set('location', state.location);
+    if (_reportsTaxableOnly) params.set('taxableOnly', '1');
     _reportsData = await api.get('/api/reports?' + params.toString());
     renderReports();
   } catch (err) {
@@ -65,7 +67,7 @@ function renderReports() {
     <div class="view-header">
       <div>
         <h2>Reports</h2>
-        <div class="subtitle">${esc(formatDate(_reportsStart))} — ${esc(formatDate(_reportsEnd))}</div>
+        <div class="subtitle">${esc(formatDate(_reportsStart))} — ${esc(formatDate(_reportsEnd))}${_reportsTaxableOnly ? ' · <strong>Taxable Only</strong>' : ''}</div>
       </div>
       <div class="view-header-actions">
         <button class="btn btn-secondary" onclick="_reportsExportCsv()">Export CSV</button>
@@ -77,6 +79,10 @@ function renderReports() {
         ${presetOptions.map(([v, l]) => `<option value="${v}" ${v === _reportsPreset ? 'selected' : ''}>${l}</option>`).join('')}
       </select>
       ${customInputs}
+      <select id="reports-taxable" onchange="_reportsTaxableChange(this.value)" title="Filter to orders that had tax applied">
+        <option value="all" ${!_reportsTaxableOnly ? 'selected' : ''}>All Sales</option>
+        <option value="taxable" ${_reportsTaxableOnly ? 'selected' : ''}>Taxable Only</option>
+      </select>
     </div>
 
     <div class="stats-grid">
@@ -144,6 +150,11 @@ function _reportsCustomDate() {
     _reportsEnd = e;
     loadReports();
   }
+}
+
+function _reportsTaxableChange(value) {
+  _reportsTaxableOnly = value === 'taxable';
+  loadReports();
 }
 
 // ── Chart colors ────────────────────────────────────────────────
