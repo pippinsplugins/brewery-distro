@@ -333,12 +333,14 @@ function renderAccounts() {
       </div>
       <div class="view-header-actions">
         ${state.emailConfigured ? '<button class="btn btn-secondary" onclick="openBulkEmail()">Email Selected</button>' : ''}
+        ${state.smsConfigured ? '<button class="btn btn-secondary" onclick="openBulkSms()">Text Selected</button>' : ''}
         <button class="btn btn-primary" onclick="openAddAccount()">+ Add Account</button>
       </div>
     </div>
     <div id="bulk-actions-bar" class="bulk-actions-bar" style="display:none">
       <span id="bulk-selected-count" class="text-sm fw-600">0 selected</span>
-      <button class="btn btn-sm btn-secondary" onclick="openBulkEmail()">Email Selected</button>
+      ${state.emailConfigured ? '<button class="btn btn-sm btn-secondary" onclick="openBulkEmail()">Email Selected</button>' : ''}
+      ${state.smsConfigured ? '<button class="btn btn-sm btn-secondary" onclick="openBulkSms()">Text Selected</button>' : ''}
     </div>
     <div class="filter-bar">
       <input type="search" id="acct-search" placeholder="Search accounts..." value="${esc(search)}" oninput="_paginationReset('accounts'); renderAccounts()" />
@@ -383,15 +385,15 @@ function renderAccounts() {
       <table>
         <thead>
           <tr>
-            ${state.emailConfigured ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
+            ${(state.emailConfigured || state.smsConfigured) ? '<th style="width:32px"><input type="checkbox" onchange="toggleAllAccounts(this)" title="Select all" /></th>' : ''}
             <th class="sortable-th${_acctSort.col === 'Name' ? ' sorted' : ''}" onclick="sortAccounts('Name')">Name${_acctSort.col === 'Name' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Type</th>
             <th class="mobile-hide">Preferred</th><th class="mobile-hide">Location</th><th>Status</th><th class="mobile-hide sortable-th${_acctSort.col === 'LastContacted' ? ' sorted' : ''}" onclick="sortAccounts('LastContacted')">Last Contact${_acctSort.col === 'LastContacted' ? (_acctSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Check-in</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="${state.emailConfigured ? 9 : 8}" class="empty-state">No accounts found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="${(state.emailConfigured || state.smsConfigured) ? 9 : 8}" class="empty-state">No accounts found.</td></tr>` :
             pg.rows.map(a => `<tr>
-              ${state.emailConfigured ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
+              ${(state.emailConfigured || state.smsConfigured) ? `<td><input type="checkbox" class="acct-select" data-account-id="${esc(a.ID)}" onchange="updateBulkEmailBar()" /></td>` : ''}
               <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(a.ID)}')">${esc(a.Name)}</span><br><span class="text-muted text-sm">${esc(a.City)}${a.City && (a.State || a.Zip) ? ', ' : ''}${esc(a.State)}${a.State && a.Zip ? ' ' : ''}${esc(a.Zip)}</span>${(() => { let t = []; try { t = JSON.parse(a.Tags || '[]'); } catch(e) {} return t.length > 0 ? '<div class="tag-badges">' + t.map(x => '<span class="badge badge-tag">' + esc(x) + '</span>').join(' ') + '</div>' : ''; })()}</td>
               <td class="mobile-hide">${esc(a.Type)}</td>
               <td class="mobile-hide">${methodBadge(a.PreferredMethod)}</td>
@@ -626,6 +628,7 @@ async function loadAccountProfile(accountId) {
         <button class="btn btn-ghost btn-sm" onclick="openAddTodo('${esc(accountId)}')">+ Add Todo</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddOrder('${esc(accountId)}')">+ Log Order</button>
         ${state.emailConfigured && accountHasEmail(acct) ? `<button class="btn btn-ghost btn-sm" onclick="openEmailCompose('${esc(accountId)}')">Email</button>` : ''}
+        ${state.smsConfigured && acct.Phone ? `<button class="btn btn-ghost btn-sm" onclick="openSmsCompose('${esc(accountId)}')">Text</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openMergeAccount('${esc(accountId)}')">Merge</button>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openEditAccount('${esc(accountId)}')">Edit Account</button>
@@ -1455,7 +1458,7 @@ function updateInventoryPreview() {
 }
 
 function insertInventoryText() {
-  const textarea = document.getElementById('f-email-body');
+  const textarea = document.getElementById('f-email-body') || document.getElementById('f-sms-body');
   const preview = document.getElementById('inventory-preview');
   if (!textarea || !preview) return;
   const text = preview.textContent;
@@ -1943,6 +1946,159 @@ function openBulkEmail(draft) {
   }, 'Send');
   // Render any already-staged attachments (e.g. survived Back-to-Edit).
   _renderEmailAttachments();
+}
+
+// ── SMS Functions ─────────────────────────────────────────────────
+
+function openSmsCompose(accountId) {
+  const acct = state.accounts.find(a => a.ID === accountId);
+  if (!acct) return;
+  _emailInventoryCache = null;
+  _emailInventoryCategory = 'All';
+  _emailInventoryShowQty = true;
+
+  if (!acct.Phone) {
+    toast('This account has no phone number on file', 'error');
+    return;
+  }
+
+  const formHtml = `
+    <div class="form-group">
+      <label>To</label>
+      <input class="form-control" value="${esc(formatPhone(acct.Phone))}" readonly style="background:#f5f5f5;cursor:default" />
+    </div>
+    ${inventoryHelperHtml()}
+    <div class="form-group">
+      <label>Message <span class="required">*</span></label>
+      <textarea class="form-control" id="f-sms-body" rows="6" placeholder="Type your message..." oninput="updateSmsCharCount()"></textarea>
+      <span class="text-sm text-muted" id="sms-char-count">0 characters</span>
+    </div>`;
+
+  modal.open('Send SMS', formHtml, async () => {
+    const body = val('f-sms-body');
+    if (!body) { toast('Message is required', 'error'); return; }
+
+    try {
+      await api.post('/api/sms/send', {
+        to:          acct.Phone,
+        body,
+        accountId:   acct.ID,
+        accountName: acct.Name,
+      });
+      modal.close();
+      toast('SMS sent successfully');
+      if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+    } catch (err) {
+      toast('Failed to send SMS: ' + (err.message || 'Unknown error'), 'error');
+    }
+  }, 'Send');
+}
+
+function updateSmsCharCount() {
+  const body = val('f-sms-body');
+  const counter = document.getElementById('sms-char-count');
+  if (counter) {
+    const len = (body || '').length;
+    const segments = Math.ceil(len / 160) || 1;
+    counter.textContent = `${len} character${len !== 1 ? 's' : ''}${len > 160 ? ` (${segments} segments)` : ''}`;
+  }
+}
+
+function insertSmsInventoryText() {
+  const textarea = document.getElementById('f-sms-body');
+  const preview = document.getElementById('inventory-preview');
+  if (!textarea || !preview) return;
+  const text = preview.textContent;
+  if (!text || text === 'Loading...') return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const current = textarea.value;
+
+  if (start !== end || start > 0) {
+    const before = current.substring(0, start);
+    const after = current.substring(end);
+    const sep = before && !before.endsWith('\n') ? '\n\n' : '';
+    textarea.value = before + sep + text + after;
+  } else if (current) {
+    textarea.value = current + '\n\n' + text;
+  } else {
+    textarea.value = text;
+  }
+  textarea.focus();
+  updateSmsCharCount();
+}
+
+function openBulkSms() {
+  const checked = document.querySelectorAll('.acct-select:checked');
+  if (checked.length === 0) {
+    toast('Select at least one account first', 'error');
+    return;
+  }
+  _emailInventoryCache = null;
+  _emailInventoryCategory = 'All';
+  _emailInventoryShowQty = true;
+
+  const selectedIds = Array.from(checked).map(cb => cb.dataset.accountId);
+  const selectedAccounts = selectedIds.map(id => state.accounts.find(a => a.ID === id)).filter(Boolean);
+
+  const withPhone    = selectedAccounts.filter(a => a.Phone);
+  const withoutPhone = selectedAccounts.filter(a => !a.Phone);
+
+  if (withPhone.length === 0) {
+    toast('None of the selected accounts have phone numbers', 'error');
+    return;
+  }
+
+  const recipientList = withPhone.map(a =>
+    `<li>${esc(a.Name)} &mdash; ${esc(formatPhone(a.Phone))}</li>`
+  ).join('');
+  const warningHtml = withoutPhone.length > 0
+    ? `<div style="margin-bottom:12px;padding:8px 12px;background:#fff3e0;border-radius:6px;border:1px solid #ffe0b2">
+        <strong class="text-sm">Note:</strong>
+        <span class="text-sm">${withoutPhone.length} account${withoutPhone.length > 1 ? 's' : ''} skipped (no phone):
+          ${withoutPhone.map(a => esc(a.Name)).join(', ')}
+        </span>
+      </div>`
+    : '';
+
+  const formHtml = `
+    ${warningHtml}
+    <div class="form-group">
+      <label>Recipients (${withPhone.length} account${withPhone.length !== 1 ? 's' : ''})</label>
+      <ul class="text-sm" style="max-height:120px;overflow-y:auto;margin:4px 0;padding-left:20px;color:var(--text-secondary)">
+        ${recipientList}
+      </ul>
+    </div>
+    ${inventoryHelperHtml()}
+    <div class="form-group">
+      <label>Message <span class="required">*</span></label>
+      <textarea class="form-control" id="f-sms-body" rows="6" placeholder="Type your message..." oninput="updateSmsCharCount()"></textarea>
+      <span class="text-sm text-muted" id="sms-char-count">0 characters</span>
+    </div>`;
+
+  modal.open('Send Bulk SMS', formHtml, async () => {
+    const body = val('f-sms-body');
+    if (!body) { toast('Message is required', 'error'); return; }
+
+    const recipients = withPhone.map(a => ({
+      phone:       a.Phone,
+      accountId:   a.ID,
+      accountName: a.Name,
+    }));
+
+    try {
+      const result = await api.post('/api/sms/bulk', { recipients, body });
+      modal.close();
+      let msg = `SMS sent to ${result.sent} account${result.sent !== 1 ? 's' : ''}`;
+      if (result.failed > 0) msg += ` (${result.failed} failed)`;
+      toast(msg);
+      document.querySelectorAll('.acct-select:checked').forEach(cb => { cb.checked = false; });
+      updateBulkEmailBar();
+    } catch (err) {
+      toast('Failed to send SMS: ' + (err.message || 'Unknown error'), 'error');
+    }
+  }, 'Send');
 }
 
 // ── Merge Account ─────────────────────────────────────────────────

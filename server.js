@@ -45,6 +45,7 @@ const creditsRoutes        = require('./routes/credits');
 const apiWebhooksRoutes    = require('./routes/api-webhooks');
 const inboundEmailRoutes   = require('./routes/inbound-emails');
 const inboundEmailService  = require('./inbound-email-service');
+const smsRoutes            = require('./routes/sms');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -73,6 +74,7 @@ app.use(helmet({
 // ── Rate limiting ────────────────────────────────────────────────────────
 app.use('/auth',      rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api/email', rateLimit({ windowMs: 60_000, max: 20,  standardHeaders: true, legacyHeaders: false }));
+app.use('/api/sms',   rateLimit({ windowMs: 60_000, max: 20,  standardHeaders: true, legacyHeaders: false }));
 app.use('/api',      rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false }));
 
 // ── Body parsing ──────────────────────────────────────────────────────────
@@ -168,6 +170,7 @@ app.use('/api/forecast',      requireAuth, forecastRoutes);
 app.use('/api/credits',        requireAuth, creditsRoutes);
 app.use('/api/webhooks',       requireAuth, apiWebhooksRoutes);
 app.use('/api/inbound-emails', requireAuth, inboundEmailRoutes);
+app.use('/api/sms',            requireAuth, smsRoutes);
 
 // Status endpoint (public – used by the frontend before auth).
 app.get('/api/status', (req, res) => {
