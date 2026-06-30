@@ -36,20 +36,26 @@ router.get('/', async (req, res) => {
     // Sort: open todos first (by due date ASC — next up at the top), then
     // completed todos (by CompletedAt DESC — most recently done at the top
     // so users can quickly see "when did I last do this?", especially for
-    // recurring todos). Legacy completed rows without CompletedAt fall back
-    // to DueDate so they sort in a stable, predictable order at the bottom.
+    // recurring todos). Completed rows without a CompletedAt value (legacy
+    // data from before #414) sink to the bottom of the completed group —
+    // we know they're older but we don't know when, so we shouldn't claim
+    // they're newest just because their empty string sorts high.
     items.sort((a, b) => {
       const aDone = a.Completed === 'true' ? 1 : 0;
       const bDone = b.Completed === 'true' ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
       if (aDone === 0) {
-        // Both open
+        // Both open: due soonest first.
         return (a.DueDate || '').localeCompare(b.DueDate || '');
       }
-      // Both completed: newest completion first.
-      const aKey = a.CompletedAt || a.DueDate || '';
-      const bKey = b.CompletedAt || b.DueDate || '';
-      return bKey.localeCompare(aKey);
+      // Both completed.
+      const aHas = !!a.CompletedAt;
+      const bHas = !!b.CompletedAt;
+      if (aHas !== bHas) return aHas ? -1 : 1;  // dated rows first
+      if (aHas) return b.CompletedAt.localeCompare(a.CompletedAt);  // newest first
+      // Neither has CompletedAt — keep a stable fallback by DueDate desc
+      // so two undated rows don't shuffle randomly between requests.
+      return (b.DueDate || '').localeCompare(a.DueDate || '');
     });
     res.json(items);
   } catch (err) {
