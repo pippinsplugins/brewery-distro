@@ -456,13 +456,22 @@ async function loadAccountProfile(accountId) {
   const acctOutreach = outreach
     .filter(o => o.AccountID === accountId)
     .sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+  // Mirrors routes/reminders.js sort: open todos first (due-soonest first),
+  // then completed with CompletedAt DESC, then any legacy completed rows
+  // without CompletedAt at the bottom (sorted by DueDate desc as a stable
+  // fallback).
   const acctTodos = todos
     .filter(t => t.AccountID === accountId)
     .sort((a, b) => {
       const aDone = a.Completed === 'true' ? 1 : 0;
       const bDone = b.Completed === 'true' ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
-      return (a.DueDate || '').localeCompare(b.DueDate || '');
+      if (aDone === 0) return (a.DueDate || '').localeCompare(b.DueDate || '');
+      const aHas = !!a.CompletedAt;
+      const bHas = !!b.CompletedAt;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      if (aHas) return b.CompletedAt.localeCompare(a.CompletedAt);
+      return (b.DueDate || '').localeCompare(a.DueDate || '');
     });
   const acctOrders = orders
     .filter(s => s.AccountID === accountId)
