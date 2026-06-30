@@ -180,7 +180,7 @@ function renderTodos() {
           ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No todos found.</td></tr>` :
             pg.rows.map(r => `<tr>
               <td><input type="checkbox" class="todo-row-checkbox" data-id="${esc(r.ID)}" ${_todoSelection.has(r.ID) ? 'checked' : ''} onchange="toggleTodoSelection('${esc(r.ID)}', this.checked)" /></td>
-              <td>${formatDate(r.DueDate)}${r.Completed === 'true' && r.CompletedAt ? `<br><span class="text-muted text-sm">Done ${formatDate(r.CompletedAt)}</span>` : ''}</td>
+              <td>${formatDate(r.DueDate)}${r.Completed === 'true' ? `<br><span class="text-muted text-sm">${r.CompletedAt ? 'Done ' + formatDate(r.CompletedAt) : 'Done (date unknown)'}</span>` : ''}</td>
               <td class="mobile-hide">${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
               <td class="mobile-hide text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
