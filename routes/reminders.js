@@ -33,12 +33,23 @@ router.get('/', async (req, res) => {
       items = items.filter(r => r.Completed === 'true');
     }
 
-    // Sort: open todos first, then by due date ascending
+    // Sort: open todos first (by due date ASC — next up at the top), then
+    // completed todos (by CompletedAt DESC — most recently done at the top
+    // so users can quickly see "when did I last do this?", especially for
+    // recurring todos). Legacy completed rows without CompletedAt fall back
+    // to DueDate so they sort in a stable, predictable order at the bottom.
     items.sort((a, b) => {
       const aDone = a.Completed === 'true' ? 1 : 0;
       const bDone = b.Completed === 'true' ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
-      return (a.DueDate || '').localeCompare(b.DueDate || '');
+      if (aDone === 0) {
+        // Both open
+        return (a.DueDate || '').localeCompare(b.DueDate || '');
+      }
+      // Both completed: newest completion first.
+      const aKey = a.CompletedAt || a.DueDate || '';
+      const bKey = b.CompletedAt || b.DueDate || '';
+      return bKey.localeCompare(aKey);
     });
     res.json(items);
   } catch (err) {
