@@ -444,21 +444,32 @@ document.addEventListener('click', () => {
   document.querySelectorAll('.mobile-actions-menu.open').forEach(m => m.classList.remove('open'));
 });
 
-function accountOptions(selectedId = '', location = '') {
-  const active = state.accounts
-    .filter(a => a.Status !== 'Inactive')
-    .sort((a, b) => a.Name.localeCompare(b.Name));
-  if (!location) {
-    return active
-      .map(a => `<option value="${esc(a.ID)}" ${a.ID === selectedId ? 'selected' : ''}>${esc(a.Name)}</option>`)
-      .join('');
-  }
-  const serviced = active.filter(a => a.ServicedBy === location || !a.ServicedBy);
-  const other = active.filter(a => a.ServicedBy && a.ServicedBy !== location);
+// Render <option>s for a select of accounts.
+// - selectedId: preselect this ID
+// - location: when provided, splits active accounts into Serviced-here /
+//   Other optgroups.
+// - opts.includeInactive: when true, appends an "Inactive Accounts" optgroup
+//   after the active options. Off by default — most callers (order form,
+//   outreach, kegs, etc.) shouldn't allow assigning to closed accounts.
+function accountOptions(selectedId = '', location = '', opts = {}) {
+  const includeInactive = !!opts.includeInactive;
+  const sorted = state.accounts.slice().sort((a, b) => a.Name.localeCompare(b.Name));
+  const active   = sorted.filter(a => a.Status !== 'Inactive');
+  const inactive = sorted.filter(a => a.Status === 'Inactive');
   const optHtml = list => list.map(a => `<option value="${esc(a.ID)}" ${a.ID === selectedId ? 'selected' : ''}>${esc(a.Name)}</option>`).join('');
+
   let html = '';
-  if (serviced.length) html += `<optgroup label="Serviced by ${esc(location)}">${optHtml(serviced)}</optgroup>`;
-  if (other.length) html += `<optgroup label="Other accounts">${optHtml(other)}</optgroup>`;
+  if (!location) {
+    html += optHtml(active);
+  } else {
+    const serviced = active.filter(a => a.ServicedBy === location || !a.ServicedBy);
+    const other    = active.filter(a => a.ServicedBy && a.ServicedBy !== location);
+    if (serviced.length) html += `<optgroup label="Serviced by ${esc(location)}">${optHtml(serviced)}</optgroup>`;
+    if (other.length)    html += `<optgroup label="Other accounts">${optHtml(other)}</optgroup>`;
+  }
+  if (includeInactive && inactive.length) {
+    html += `<optgroup label="Inactive Accounts">${optHtml(inactive)}</optgroup>`;
+  }
   return html;
 }
 

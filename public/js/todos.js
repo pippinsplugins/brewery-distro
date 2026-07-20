@@ -41,7 +41,7 @@ function todoForm(todo = {}) {
         <label>Linked Account (optional)</label>
         <select class="form-control" id="f-account">
           <option value="">-- None --</option>
-          ${accountOptions(todo.AccountID)}
+          ${accountOptions(todo.AccountID, '', { includeInactive: true })}
         </select>
       </div>
     </div>
