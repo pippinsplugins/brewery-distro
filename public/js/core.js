@@ -396,9 +396,9 @@ const modal = {
 
 document.getElementById('modal-close-btn').addEventListener('click', modal.close);
 document.getElementById('modal-cancel-btn').addEventListener('click', modal.close);
-document.getElementById('modal-overlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('modal-overlay')) modal.close();
-});
+// Intentionally no click-outside-to-close handler: on wider modals like the
+// email composer, an accidental click on the darkened backdrop would discard
+// the in-progress message. Users still close via the X, Cancel, or Escape.
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !document.getElementById('modal-overlay').classList.contains('hidden')) modal.close();
 });
