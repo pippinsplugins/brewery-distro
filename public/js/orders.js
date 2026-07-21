@@ -299,6 +299,7 @@ function preSaleForm(ps = {}, presetAccountId = '') {
     </div>
     <hr class="form-divider" />
     <div class="form-section-title">Requested Products</div>
+    <div id="presale-legacy-text-banner"></div>
     <div id="order-products-wrap">
       <p class="text-muted text-sm">Loading products...</p>
     </div>
@@ -984,6 +985,44 @@ function refreshOrderAccounts() {
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- Select Account --</option>' + accountOptions(current, location);
+}
+
+// Render a warning banner on the pre-sale form showing the original
+// RequestedProducts text for legacy pre-sales that pre-date real line items
+// (issue #295). Visible until the user clears it — lets them see the raw
+// text while manually re-entering the products in the picker so nothing
+// gets lost in translation. Also flags partial parses (some lines matched
+// inventory, others didn't).
+function _renderPresaleLegacyBanner(rawText, matchedCount) {
+  const slot = document.getElementById('presale-legacy-text-banner');
+  if (!slot) return;
+  if (!rawText || !rawText.trim()) { slot.innerHTML = ''; return; }
+  const lines = rawText.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean);
+  const noneMatched = matchedCount === 0;
+  const partial = matchedCount > 0 && matchedCount < lines.length;
+  const headline = noneMatched
+    ? 'The original request couldn\'t be matched to any inventory items. Add matching products below and remove this note.'
+    : partial
+    ? `Only ${matchedCount} of ${lines.length} original items matched inventory. Review the picker and add anything missing.`
+    : 'Original request (from a text-only pre-sale). Verify the picker below matches and remove this note when done.';
+  slot.innerHTML = `
+    <div style="margin:8px 0 12px;padding:10px 12px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div class="text-sm" style="flex:1">
+          <strong>${esc(headline)}</strong>
+          <pre style="margin:6px 0 0;font-family:inherit;font-size:13px;white-space:pre-wrap;color:var(--text-secondary)">${esc(rawText)}</pre>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="_dismissPresaleLegacyBanner()">Dismiss</button>
+      </div>
+    </div>`;
+}
+
+function _dismissPresaleLegacyBanner() {
+  const slot = document.getElementById('presale-legacy-text-banner');
+  if (slot) slot.innerHTML = '';
+  // Also clear the pre-sale row's RequestedProducts on next save by leaving
+  // it to collectOrderProducts() to rewrite from the picker — which is
+  // what happens anyway on the save path. No extra flag needed.
 }
 
 async function refreshOrderProducts(existingProducts = '', readOnly = false) {
@@ -1839,6 +1878,15 @@ async function openEditPreSale(id) {
     await refreshOrderProductsFromItems(existingItems);
   } else {
     await refreshOrderProducts(ps.RequestedProducts);
+    // Legacy pre-sale: parseRequestedProducts silently drops any lines that
+    // don't exactly match inventory (Name / "Name (Format)" case-sensitive),
+    // so users can't tell why the picker looks empty or under-populated.
+    // Show the raw text so they can fill in the picker to match.
+    if (ps.RequestedProducts) {
+      const matchedIds = parseRequestedProducts(ps.RequestedProducts, _orderFormInventory);
+      const matchedCount = Object.keys(matchedIds).length;
+      _renderPresaleLegacyBanner(ps.RequestedProducts, matchedCount);
+    }
   }
 }
 
