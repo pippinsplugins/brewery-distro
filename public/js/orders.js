@@ -297,14 +297,16 @@ function preSaleForm(ps = {}, presetAccountId = '') {
         <input class="form-control" id="f-expected-date" type="date" value="${esc(ps.DeliveryDate)}" />
       </div>
     </div>
-    <div class="form-group">
-      <label>Requested Products <span class="required">*</span></label>
-      <textarea class="form-control" id="f-requested-products" rows="3" placeholder="List the products being requested, e.g.:\n2x Cascade IPA (1/6 keg)\n1x Porter (1/4 keg)">${esc(ps.RequestedProducts)}</textarea>
+    <hr class="form-divider" />
+    <div class="form-section-title">Requested Products</div>
+    <div id="order-products-wrap">
+      <p class="text-muted text-sm">Loading products...</p>
     </div>
+    <hr class="form-divider" />
     <div class="form-row">
       <div class="form-group">
         <label>Estimated Amount ($)</label>
-        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(ps.OrderAmount || '')}" placeholder="0.00" />
+        <input class="form-control" id="f-amount" type="number" step="0.01" min="0" value="${esc(ps.OrderAmount || '')}" placeholder="0.00" readonly style="background:#f5f5f5;cursor:default;color:var(--text-muted)" />
       </div>
     </div>
     <div class="form-group">
@@ -1776,12 +1778,13 @@ async function openAddPreSale(presetAccountId = '') {
   modal.open('Add Pre-Sale', preSaleForm({}, presetAccountId), async () => {
     const accountId = presetAccountId || val('f-account');
     if (!accountId) { toast('Please select an account', 'error'); return; }
-    const requestedProducts = val('f-requested-products');
-    if (!requestedProducts) { toast('Requested products are required', 'error'); return; }
+    const items = collectOrderItems();
+    if (items.length === 0) { toast('Add at least one product', 'error'); return; }
+    const requestedProducts = collectOrderProducts();
     const accountName = (state.accounts.find(a => a.ID === accountId) || {}).Name || '';
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-    await api.post('/api/orders', {
+    const order = await api.post('/api/orders', {
       AccountID: accountId, AccountName: accountName,
       Location: val('f-location') || state.location,
       StaffID: staffId, StaffName: staffName,
@@ -1791,12 +1794,16 @@ async function openAddPreSale(presetAccountId = '') {
       Notes: val('f-notes'),
       Status: 'Pre-Sale',
     });
+    await saveOrderItems(order.ID);
     modal.close();
     toast('Pre-sale created');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
   setTimeout(() => initMentions('f-notes'), 0);
+  // Pre-sales use the same line-item builder as orders (issue #295). Auto-
+  // calc'd Estimated Amount = sum of line totals, non-taxable.
+  await refreshOrderProducts();
 }
 
 async function openEditPreSale(id) {
@@ -1805,8 +1812,9 @@ async function openEditPreSale(id) {
   if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
   modal.open('Edit Pre-Sale', preSaleForm(ps, ps.AccountID), async () => {
-    const requestedProducts = val('f-requested-products');
-    if (!requestedProducts) { toast('Requested products are required', 'error'); return; }
+    const items = collectOrderItems();
+    if (items.length === 0) { toast('Add at least one product', 'error'); return; }
+    const requestedProducts = collectOrderProducts();
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
     await api.put(`/api/orders/${id}`, {
@@ -1817,12 +1825,21 @@ async function openEditPreSale(id) {
       OrderAmount: val('f-amount') || '0',
       Notes: val('f-notes'),
     });
+    await saveOrderItems(id);
     modal.close();
     toast('Pre-sale updated');
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
   setTimeout(() => initMentions('f-notes'), 0);
+  // Seed the picker from existing line items when present; otherwise fall
+  // back to the legacy text field parse so historical pre-sales still work.
+  const existingItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+  if (existingItems && existingItems.length > 0) {
+    await refreshOrderProductsFromItems(existingItems);
+  } else {
+    await refreshOrderProducts(ps.RequestedProducts);
+  }
 }
 
 async function convertPreSale(id) {
@@ -1831,9 +1848,14 @@ async function convertPreSale(id) {
   if (state.staff.length === 0) state.staff = await api.get('/api/staff');
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
-  // Build notes that include requested products for reference
+  // For pre-sales with real line items (issue #295), the picker below is
+  // seeded from those items so appending "Requested products: ..." to the
+  // notes would just duplicate what's on-screen. Only include it as a
+  // fallback for legacy text-only pre-sales.
+  const existingItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
+  const hasLineItems = existingItems && existingItems.length > 0;
   const noteParts = [];
-  if (ps.RequestedProducts) noteParts.push('Requested products: ' + ps.RequestedProducts);
+  if (!hasLineItems && ps.RequestedProducts) noteParts.push('Requested products: ' + ps.RequestedProducts);
   if (ps.Notes) noteParts.push(ps.Notes);
   const combinedNotes = noteParts.join('\n');
 
@@ -1876,7 +1898,13 @@ async function convertPreSale(id) {
     promptQboSync(id, reloadFn);
   });
   setTimeout(() => initMentions('f-notes'), 0);
-  await refreshOrderProducts(ps.RequestedProducts);
+  // Seed the order picker from the pre-sale's line items when present;
+  // fall back to parsing the legacy RequestedProducts text otherwise.
+  if (hasLineItems) {
+    await refreshOrderProductsFromItems(existingItems);
+  } else {
+    await refreshOrderProducts(ps.RequestedProducts);
+  }
   initOrderDepositCheckbox(ps.AccountID);
   initOrderTaxCheckbox(ps.AccountID);
 }
