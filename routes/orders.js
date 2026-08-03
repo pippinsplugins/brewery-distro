@@ -138,6 +138,143 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/orders/:id/merge-presales
+ * Merge one or more pre-sale orders into the target pre-sale. All ORDER_ITEMS
+ * from the sources are moved onto the target, deduplicating lines that share
+ * InventoryID + PriceTier by summing their quantities. Notes are appended
+ * with a separator. Source rows are deleted.
+ *
+ * Guards: target and all sources must exist, have Status='Pre-Sale', and
+ * share the same AccountID.
+ *
+ * @body {{ sourceIds: string[] }}
+ * @returns {{ success: true, target: object, mergedSourceIds: string[] }}
+ */
+router.post('/:id/merge-presales', async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const { sourceIds } = req.body || {};
+    if (!Array.isArray(sourceIds) || sourceIds.length === 0) {
+      return res.status(400).json({ error: 'sourceIds must be a non-empty array' });
+    }
+    if (sourceIds.includes(targetId)) {
+      return res.status(400).json({ error: 'sourceIds cannot include the target order' });
+    }
+
+    const orders = await getAllRows('ORDERS');
+    const target = orders.find(o => o.ID === targetId);
+    if (!target) return res.status(404).json({ error: 'Target order not found' });
+    if (target.Status !== 'Pre-Sale') return res.status(400).json({ error: 'Target is not a pre-sale' });
+
+    const sources = [];
+    for (const sid of sourceIds) {
+      const s = orders.find(o => o.ID === sid);
+      if (!s) return res.status(404).json({ error: `Source ${sid} not found` });
+      if (s.Status !== 'Pre-Sale') return res.status(400).json({ error: `Source ${sid} is not a pre-sale` });
+      if (s.AccountID !== target.AccountID) return res.status(400).json({ error: 'All pre-sales must belong to the same account' });
+      sources.push(s);
+    }
+
+    const allItems = await getAllRows('ORDER_ITEMS');
+    const targetItems = allItems.filter(i => i.OrderID === targetId);
+
+    // Build a dedupe key so the same InventoryID + PriceTier (or, for custom
+    // items with no InventoryID, ProductName + Format) collapse into one row
+    // rather than showing two lines of the same beer with different qty.
+    const keyFor = (it) => it.InventoryID
+      ? `inv:${it.InventoryID}|${it.PriceTier || ''}`
+      : `custom:${(it.ProductName || '').toLowerCase().trim()}|${(it.Format || '').toLowerCase().trim()}|${it.PriceTier || ''}`;
+
+    const byKey = new Map();
+    for (const it of targetItems) byKey.set(keyFor(it), { ...it });
+
+    for (const src of sources) {
+      const srcItems = allItems.filter(i => i.OrderID === src.ID);
+      for (const it of srcItems) {
+        // Skip Account Credit rows — they're payment plumbing, not products,
+        // and don't belong on merged pre-sales.
+        if (it.ProductName === 'Account Credit') continue;
+        const k = keyFor(it);
+        if (byKey.has(k)) {
+          const existing = byKey.get(k);
+          const combinedQty = (parseInt(existing.Quantity) || 0) + (parseInt(it.Quantity) || 0);
+          const unitPrice = parseFloat(existing.UnitPrice || it.UnitPrice || 0);
+          existing.Quantity  = String(combinedQty);
+          existing.LineTotal = (combinedQty * unitPrice).toFixed(2);
+        } else {
+          byKey.set(k, { ...it });
+        }
+      }
+    }
+
+    // Replace target's ORDER_ITEMS wholesale with the merged set, and drop
+    // all source ORDER_ITEMS.
+    for (const it of targetItems) await deleteRow('ORDER_ITEMS', it.ID);
+    for (const src of sources) {
+      const srcItems = allItems.filter(i => i.OrderID === src.ID);
+      for (const it of srcItems) await deleteRow('ORDER_ITEMS', it.ID);
+    }
+    const now = new Date().toISOString();
+    const mergedItems = [];
+    for (const it of byKey.values()) {
+      const row = {
+        ID: uuidv4(),
+        OrderID: targetId,
+        InventoryID: it.InventoryID || '',
+        ProductName: it.ProductName || '',
+        Format: it.Format || '',
+        PriceTier: it.PriceTier || '',
+        Quantity: String(it.Quantity || '0'),
+        UnitPrice: String(it.UnitPrice || '0'),
+        LineTotal: String(it.LineTotal || '0'),
+        Taxable: it.Taxable || '',
+        EndCustomerAccountID: it.EndCustomerAccountID || '',
+        EndCustomerName: it.EndCustomerName || '',
+        CreatedAt: now,
+      };
+      await addRow('ORDER_ITEMS', row);
+      mergedItems.push(row);
+    }
+
+    // Recompute the target order's summary fields from the merged items.
+    const newOrderAmount = mergedItems
+      .reduce((sum, it) => sum + (parseFloat(it.LineTotal) || 0), 0)
+      .toFixed(2);
+    const requestedText = mergedItems
+      .map(it => {
+        const qty = parseInt(it.Quantity) || 0;
+        if (qty <= 0) return '';
+        let label = it.Format ? `${it.ProductName} (${it.Format})` : it.ProductName;
+        if (it.PriceTier) label += ` [${it.PriceTier}]`;
+        return `${qty}x ${label}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+
+    // Append source notes with a separator so nothing is silently lost.
+    const noteParts = [target.Notes || ''].filter(Boolean);
+    for (const src of sources) {
+      if (src.Notes) noteParts.push(`--- Merged from pre-sale ${src.ID.slice(0, 8)}:\n${src.Notes}`);
+    }
+
+    await updateRow('ORDERS', targetId, {
+      OrderAmount: newOrderAmount,
+      RequestedProducts: requestedText,
+      Notes: noteParts.join('\n'),
+    });
+
+    // Delete source orders.
+    for (const src of sources) await deleteRow('ORDERS', src.ID);
+
+    const updatedTarget = getRow('ORDERS', targetId);
+    res.json({ success: true, target: updatedTarget, mergedSourceIds: sources.map(s => s.ID) });
+  } catch (err) {
+    console.error(`[orders] merge-presales: ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const id = req.params.id;

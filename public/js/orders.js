@@ -1478,7 +1478,7 @@ function renderOrders() {
                 <td class="td-actions">
                   <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                   <div class="mobile-actions-menu">
-                  ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
+                  ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button>${_presaleHasMergePeers(s) ? `<button class="btn btn-ghost btn-sm" onclick="openMergePresales('${esc(s.ID)}')">Merge</button>` : ''}<button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' || s.Status === 'Draft' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
@@ -1965,6 +1965,117 @@ async function cancelPreSale(id) {
     if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
     else loadOrders();
   });
+}
+
+// True when this pre-sale has at least one other pre-sale peer for the same
+// account — used to decide whether to show the Merge action.
+function _presaleHasMergePeers(presale) {
+  if (!presale || presale.Status !== 'Pre-Sale' || !presale.AccountID) return false;
+  const source = _profilePresaleSource() || _ordersCache;
+  return source.some(o =>
+    o.ID !== presale.ID
+    && o.Status === 'Pre-Sale'
+    && o.AccountID === presale.AccountID
+  );
+}
+
+// When rendering from the account profile, the pre-sales list lives in
+// _profileOrdersCache (accounts.js). Try that first, then fall back to the
+// main orders cache. Both are set on the page they belong to.
+function _profilePresaleSource() {
+  if (typeof _profileOrdersCache !== 'undefined' && Array.isArray(_profileOrdersCache) && _profileOrdersCache.length) {
+    return _profileOrdersCache;
+  }
+  return null;
+}
+
+// Merge two or more of an account's pre-sales into one. Opens a modal with
+// the target row highlighted and every other pre-sale for the account
+// listed with a checkbox. On confirm, calls POST /api/orders/:id/merge-presales
+// which combines line items, sums matching InventoryID+PriceTier lines,
+// rewrites RequestedProducts, appends notes, and deletes the source rows.
+async function openMergePresales(targetId) {
+  const source = _profilePresaleSource() || _ordersCache;
+  const target = source.find(o => o.ID === targetId);
+  if (!target) return;
+  const peers = source.filter(o =>
+    o.ID !== targetId
+    && o.Status === 'Pre-Sale'
+    && o.AccountID === target.AccountID
+  );
+  if (peers.length === 0) { toast('No other pre-sales to merge for this account', 'error'); return; }
+
+  const summarize = (o) => {
+    const parts = [];
+    if (o.DeliveryDate) parts.push(`Expected ${formatDate(o.DeliveryDate)}`);
+    if (o.OrderAmount && parseFloat(o.OrderAmount) > 0) parts.push(fmtMoney(o.OrderAmount));
+    const rp = (o.RequestedProducts || '').trim();
+    if (rp) parts.push(rp.length > 80 ? rp.slice(0, 80) + '…' : rp);
+    return parts.join(' · ');
+  };
+
+  const peerRows = peers.map(p => `
+    <label class="dropdown-multi-item" style="display:flex;gap:10px;align-items:flex-start;padding:8px 4px;border-bottom:1px solid var(--border-light);cursor:pointer">
+      <input type="checkbox" class="merge-presale-src" data-id="${esc(p.ID)}" data-staff="${esc(p.StaffID || '')}" data-location="${esc(p.Location || '')}" data-date="${esc(p.DeliveryDate || '')}" style="margin-top:3px" />
+      <div style="flex:1;min-width:0">
+        <div class="fw-600">${esc(summarize(p)) || 'Pre-sale ' + esc(p.ID.slice(0, 8))}</div>
+      </div>
+    </label>`).join('');
+
+  modal.open('Merge Pre-Sales', `
+    <p class="text-sm text-muted" style="margin-bottom:12px">
+      Combine other pre-sales for <strong>${esc(target.AccountName || 'this account')}</strong> into the one you started from.
+      Line items with the same product and price tier will be summed; other lines are appended. The source pre-sales are deleted after merging.
+    </p>
+    <div class="form-group">
+      <label>Keep this pre-sale (target)</label>
+      <div class="text-sm" style="padding:8px 10px;background:#f7f7f8;border-radius:6px">
+        ${esc(summarize(target)) || 'Pre-sale ' + esc(target.ID.slice(0, 8))}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Merge these into it</label>
+      <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px 10px">
+        ${peerRows}
+      </div>
+    </div>
+    <div id="merge-presale-warning" class="text-sm" style="margin-top:8px"></div>`,
+    async () => {
+      const checked = Array.from(document.querySelectorAll('.merge-presale-src:checked'));
+      if (checked.length === 0) { toast('Select at least one pre-sale to merge', 'error'); return; }
+      const sourceIds = checked.map(cb => cb.dataset.id);
+      try {
+        await api.post(`/api/orders/${encodeURIComponent(targetId)}/merge-presales`, { sourceIds });
+        modal.close();
+        toast(`Merged ${sourceIds.length} pre-sale${sourceIds.length !== 1 ? 's' : ''}`);
+        if (state.view === 'account-profile') loadAccountProfile(state.accountProfileId);
+        else loadOrders();
+      } catch (err) {
+        toast('Merge failed: ' + (err.message || 'unknown error'), 'error');
+      }
+    }, 'Merge');
+
+  // After render, wire the checkboxes to surface a warning when any selected
+  // source's StaffID/Location/DeliveryDate differs from the target's — the
+  // merge will keep the target's values, so the user should sanity-check.
+  const targetStaff = target.StaffID || '';
+  const targetLoc = target.Location || '';
+  const targetDate = target.DeliveryDate || '';
+  const warnEl = document.getElementById('merge-presale-warning');
+  const refreshWarn = () => {
+    const checked = Array.from(document.querySelectorAll('.merge-presale-src:checked'));
+    const diffs = new Set();
+    for (const cb of checked) {
+      if ((cb.dataset.staff || '') !== targetStaff) diffs.add('sales rep');
+      if ((cb.dataset.location || '') !== targetLoc) diffs.add('location');
+      if ((cb.dataset.date || '') !== targetDate) diffs.add('expected date');
+    }
+    if (diffs.size === 0) { warnEl.innerHTML = ''; return; }
+    warnEl.innerHTML = `<div style="padding:8px 10px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;color:#c46900">
+      <strong>Heads up:</strong> the target keeps its own ${[...diffs].join(', ')}. Selected pre-sales with different values won't preserve those fields.
+    </div>`;
+  };
+  document.querySelectorAll('.merge-presale-src').forEach(cb => cb.addEventListener('change', refreshWarn));
 }
 
 async function openPaymentModal(id, onComplete) {
