@@ -886,7 +886,7 @@ function renderProfileOrders() {
           <td class="td-actions">
             <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
             <div class="mobile-actions-menu">
-            ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="profileEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button><button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
+            ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="profileEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="profileConvertPreSale('${esc(s.ID)}')">Convert</button>${_presaleHasMergePeers(s) ? `<button class="btn btn-ghost btn-sm" onclick="openMergePresales('${esc(s.ID)}')">Merge</button>` : ''}<button class="btn btn-ghost btn-sm text-danger" onclick="profileCancelPreSale('${esc(s.ID)}')">Cancel</button>`
             : `${s.Status === 'Pending' ? `<button class="btn btn-ghost btn-sm text-success" onclick="profileMarkOrderPaid('${esc(s.ID)}')">Mark Paid</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="profileEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
             <button class="btn btn-ghost btn-sm text-danger" onclick="profileDeleteOrder('${esc(s.ID)}')">Del</button>`}
