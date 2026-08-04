@@ -34,6 +34,7 @@ const _pagination = {
   gallonage:   { page: 1, perPage: 25 },
   salesExport: { page: 1, perPage: 25 },
   forecast:    { page: 1, perPage: 25 },
+  presaleDemand: { page: 1, perPage: 25 },
   profileOutreach: { page: 1, perPage: 10 },
   profileTodos:    { page: 1, perPage: 10 },
   profileOrders:   { page: 1, perPage: 10 },
