@@ -58,10 +58,31 @@ router.get('/', async (req, res) => {
       if (!invId) continue;
       allocMap[invId] = (allocMap[invId] || 0) + parseInt(oi.Quantity || '0');
     }
+
+    // Compute pre-sale demand per SKU — separate from Allocated so the Stock
+    // Levels page can surface upcoming pre-sold volume without changing what
+    // Available means. Undelivered, uncancelled pre-sales only.
+    const presaleIds = new Set(
+      orders
+        .filter(o => o.Status === 'Pre-Sale' && o.Delivered !== 'true')
+        .map(o => o.ID)
+    );
+    const preSaleQtyMap = {};
+    const preSaleOrderMap = {}; // invId -> Set of orderIds (for count)
+    for (const oi of orderItems) {
+      if (!presaleIds.has(oi.OrderID)) continue;
+      const invId = oi.InventoryID;
+      if (!invId) continue;
+      preSaleQtyMap[invId] = (preSaleQtyMap[invId] || 0) + parseInt(oi.Quantity || '0');
+      (preSaleOrderMap[invId] ||= new Set()).add(oi.OrderID);
+    }
+
     for (const item of items) {
       const allocated = allocMap[item.ID] || 0;
       item.Allocated = String(allocated);
       item.Available = String(Math.max(0, parseInt(item.Units || '0') - allocated));
+      item.PreSaleDemand = String(preSaleQtyMap[item.ID] || 0);
+      item.PreSaleOrderCount = String((preSaleOrderMap[item.ID] || new Set()).size);
     }
 
     res.json(items);
@@ -110,6 +131,56 @@ router.get('/:id/allocations', async (req, res) => {
     });
     allocations.sort((a, b) => (a.DeliveryDate || a.OrderDate || '').localeCompare(b.DeliveryDate || b.OrderDate || ''));
     res.json(allocations);
+  } catch (err) {
+    console.error(`[inventory] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/inventory/:id/pre-sales — pre-sales demanding this inventory item.
+// Same shape as /allocations but scoped to Status='Pre-Sale' (excluded from
+// the main Allocated view). Used by the Stock Levels badge drill-down and
+// the Pre-Sales report row drill-down.
+router.get('/:id/pre-sales', async (req, res) => {
+  try {
+    const item = await getRow('INVENTORY', req.params.id);
+    if (!item) return res.status(404).json({ error: 'Inventory item not found' });
+
+    const [orders, orderItems] = await Promise.all([
+      getAllRows('ORDERS'),
+      getAllRows('ORDER_ITEMS'),
+    ]);
+    const orderMap = Object.fromEntries(orders.map(o => [o.ID, o]));
+
+    const qtyByOrder = {};
+    for (const oi of orderItems) {
+      if (oi.InventoryID !== req.params.id) continue;
+      const order = orderMap[oi.OrderID];
+      if (!order) continue;
+      if (order.Status !== 'Pre-Sale') continue;
+      if (order.Delivered === 'true') continue;
+      qtyByOrder[order.ID] = (qtyByOrder[order.ID] || 0) + parseInt(oi.Quantity || '0');
+    }
+
+    const rows = Object.entries(qtyByOrder).map(([orderId, quantity]) => {
+      const order = orderMap[orderId];
+      return {
+        OrderID: orderId,
+        AccountID: order.AccountID || '',
+        AccountName: order.AccountName || '',
+        OrderDate: order.OrderDate || '',
+        DeliveryDate: order.DeliveryDate || '',
+        Notes: order.Notes || '',
+        Quantity: String(quantity),
+      };
+    });
+    // Sort by expected date (undated rows sink to the bottom).
+    rows.sort((a, b) => {
+      const aHas = !!a.DeliveryDate, bHas = !!b.DeliveryDate;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      return (a.DeliveryDate || '').localeCompare(b.DeliveryDate || '');
+    });
+    res.json(rows);
   } catch (err) {
     console.error(`[inventory] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

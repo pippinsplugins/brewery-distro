@@ -153,7 +153,11 @@ function renderInventory() {
                 <td class="mobile-hide">${parseInt(item.Allocated || '0') > 0
                   ? `<a href="#" class="action-link" onclick="event.preventDefault(); openInventoryAllocations('${esc(item.ID)}')">${esc(item.Allocated)}</a>`
                   : esc(item.Allocated || '0')}</td>
-                <td>${esc(item.Available || item.Units || '0')}</td>
+                <td>${esc(item.Available || item.Units || '0')}${parseInt(item.PreSaleDemand || '0') > 0
+                  ? `<br><a href="#" class="text-muted text-sm action-link" onclick="event.preventDefault(); openInventoryPreSales('${esc(item.ID)}')" title="Open pre-sale demand for this product">
+                      ${esc(item.PreSaleOrderCount || '0')} pre-sale${parseInt(item.PreSaleOrderCount || '0') !== 1 ? 's' : ''} · ${esc(item.PreSaleDemand)}u
+                    </a>`
+                  : ''}</td>
                 <td class="mobile-hide">${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
@@ -461,4 +465,18 @@ async function openInventoryAllocations(id) {
         <tbody>${rows}</tbody>
       </table>
     </div>`, () => { modal.close(); }, 'Close');
+}
+
+// Drill-down for the Stock Levels pre-sale badge. Reuses the same rendering
+// helper the Pre-Sales report uses so both surfaces show identical tables.
+async function openInventoryPreSales(id) {
+  const item = (state.inventory || []).find(i => i.ID === id);
+  const label = item ? (item.Format ? `${item.Name} — ${item.Format}` : item.Name) : 'Stock';
+  modal.open(`Pre-Sales — ${esc(label)}`, `<p class="text-muted">Loading…</p>`, () => modal.close(), 'Close');
+  try {
+    const rows = await api.get(`/api/inventory/${encodeURIComponent(id)}/pre-sales`);
+    document.getElementById('modal-body').innerHTML = _renderPresaleDrilldownRows(rows);
+  } catch (err) {
+    document.getElementById('modal-body').innerHTML = `<p class="text-danger">Error: ${esc(err.message)}</p>`;
+  }
 }
