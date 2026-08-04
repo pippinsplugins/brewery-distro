@@ -767,6 +767,11 @@ tbody td {
 .badge-low-stock { background: var(--danger-bg); color: var(--danger-text); }
 .badge-ok-stock  { background: var(--success-bg); color: var(--success-text); }
 
+.badge-clickable { cursor: pointer; text-decoration: none; text-transform: none; }
+.badge-clickable:hover { filter: brightness(0.95); }
+
+.cell-available { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+
 /* Order status badges */
 .badge-draft     { background: #f5f5f5; color: #616161; }
 .badge-pre-sale  { background: #f3e5f5; color: #7b1fa2; }

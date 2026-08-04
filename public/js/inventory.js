@@ -153,11 +153,13 @@ function renderInventory() {
                 <td class="mobile-hide">${parseInt(item.Allocated || '0') > 0
                   ? `<a href="#" class="action-link" onclick="event.preventDefault(); openInventoryAllocations('${esc(item.ID)}')">${esc(item.Allocated)}</a>`
                   : esc(item.Allocated || '0')}</td>
-                <td>${esc(item.Available || item.Units || '0')}${parseInt(item.PreSaleDemand || '0') > 0
-                  ? `<br><a href="#" class="text-muted text-sm action-link" onclick="event.preventDefault(); openInventoryPreSales('${esc(item.ID)}')" title="Open pre-sale demand for this product">
-                      ${esc(item.PreSaleOrderCount || '0')} pre-sale${parseInt(item.PreSaleOrderCount || '0') !== 1 ? 's' : ''} · ${esc(item.PreSaleDemand)}u
-                    </a>`
-                  : ''}</td>
+                <td><div class="cell-available">
+                  <span>${esc(item.Available || item.Units || '0')}</span>
+                  ${parseInt(item.PreSaleDemand || '0') > 0 ? (() => {
+                    const cnt = parseInt(item.PreSaleOrderCount || '0');
+                    return `<a href="#" class="badge badge-pre-sale badge-clickable" onclick="event.preventDefault(); openInventoryPreSales('${esc(item.ID)}')" title="${cnt} pre-sale${cnt !== 1 ? 's' : ''} · ${esc(item.PreSaleDemand)} unit${parseInt(item.PreSaleDemand) !== 1 ? 's' : ''} pre-sold — click to view">${esc(item.PreSaleDemand)}u</a>`;
+                  })() : ''}
+                </div></td>
                 <td class="mobile-hide">${item.PricePerUnit ? '$' + esc(item.PricePerUnit) : '—'}</td>
                 <td><span class="badge ${low ? 'badge-low-stock' : 'badge-ok-stock'}">${out ? 'Out' : low ? 'Low' : 'OK'}</span></td>
                 <td class="td-actions">
