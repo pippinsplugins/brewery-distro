@@ -43,12 +43,16 @@ router.get('/', async (req, res) => {
     if (location) items = items.filter(i => i.Location === location);
     items = await enrichInventory(items);
 
-    // Compute allocated units from non-cancelled, undelivered orders
+    // Compute allocated units from non-cancelled, undelivered orders.
+    // Pre-sales are intentionally excluded (issue #451): they often sit on
+    // the books weeks out and shouldn't consume inventory available for
+    // current orders. Draft is included since it usually represents a
+    // near-term order still being finalized.
     const orders = await getAllRows('ORDERS');
     const orderItems = await getAllRows('ORDER_ITEMS');
     const activeOrderIds = new Set(
       orders
-        .filter(o => o.Status !== 'Cancelled' && o.Delivered !== 'true')
+        .filter(o => o.Status !== 'Cancelled' && o.Status !== 'Pre-Sale' && o.Delivered !== 'true')
         .map(o => o.ID)
     );
     const allocMap = {};
@@ -94,7 +98,8 @@ router.get('/', async (req, res) => {
 
 // GET /api/inventory/:id/allocations — orders allocating this inventory item
 // Returns orders that contribute to the Allocated count: non-cancelled,
-// undelivered orders with at least one line item referencing this inventory.
+// non-pre-sale, undelivered orders with at least one line item referencing
+// this inventory. Guards must mirror the aggregate above.
 router.get('/:id/allocations', async (req, res) => {
   try {
     const item = await getRow('INVENTORY', req.params.id);
@@ -112,6 +117,7 @@ router.get('/:id/allocations', async (req, res) => {
       const order = orderMap[oi.OrderID];
       if (!order) continue;
       if (order.Status === 'Cancelled') continue;
+      if (order.Status === 'Pre-Sale') continue;
       if (order.Delivered === 'true') continue;
       qtyByOrder[order.ID] = (qtyByOrder[order.ID] || 0) + parseInt(oi.Quantity || '0');
     }
