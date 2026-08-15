@@ -28,6 +28,7 @@ const TABLES = {
   ACCOUNT_CREDITS: 'AccountCredits',
   WEBHOOK_LOG:     'WebhookLog',
   INBOUND_EMAILS:  'InboundEmails',
+  SMS_LOG:         'SmsLog',
 };
 
 // HEADERS defines every column each table should have.
@@ -54,6 +55,7 @@ const HEADERS = {
   ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],
   WEBHOOK_LOG:     ['ID', 'ApiKeyName', 'Action', 'Payload', 'Status', 'Error', 'CreatedAt'],
   INBOUND_EMAILS:  ['ID', 'GmailMessageId', 'GmailThreadId', 'From', 'FromName', 'To', 'Subject', 'Body', 'ReceivedAt', 'Status', 'ParsedData', 'OrderID', 'Error', 'CreatedAt'],
+  SMS_LOG:         ['ID', 'SenderName', 'SenderEmail', 'Recipient', 'Body', 'Type', 'AccountID', 'AccountName', 'TwilioSid', 'Status', 'Error', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────
