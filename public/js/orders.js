@@ -1671,7 +1671,11 @@ async function openEditOrder(id) {
       if (becomingPaid && !val('f-payment-method')) {
         toast('Please select a payment method', 'error'); return;
       }
+      const newAccountId = val('f-account') || order.AccountID;
+      if (!newAccountId) { toast('Please select an account', 'error'); return; }
+      const newAccountName = (state.accounts.find(a => a.ID === newAccountId) || {}).Name || order.AccountName || '';
       const updateData = {
+        AccountID: newAccountId, AccountName: newAccountName,
         Location: val('f-location') || state.location,
         StaffID: staffId, StaffName: staffName,
         OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
