@@ -1111,94 +1111,13 @@ function profileDeleteTodo(id) {
   });
 }
 
-function profileEditOrder(id) {
-  api.get('/api/orders').then(async items => {
-    const order = items.find(s => s.ID === id);
-    if (!order) return;
-    const isPaid = order.Status === 'Paid';
-    if (isPaid) {
-      // Mirror the orders-list paid view: surface a 'Mark Delivered' button
-      // inside the view-only modal (#404) so users don't have to close the
-      // modal and reopen the row's overflow menu.
-      const notDelivered = order.Delivered !== 'true';
-      const deliveryBanner = notDelivered ? `
-        <div class="info-banner" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span class="fw-600">This order has not been delivered yet.</span>
-          <button type="button" class="btn btn-primary btn-sm" style="margin-left:auto" onclick="profileMarkDeliveredFromView('${esc(id)}')">Mark Delivered</button>
-        </div>` : '';
-      modal.open('View Order', deliveryBanner + orderForm(order, '', true), async () => {
-        await api.put(`/api/orders/${id}`, {
-          InvoiceNumber: val('f-invoice'),
-          Notes: val('f-notes'),
-        });
-        modal.close();
-        toast('Order updated');
-        loadAccountProfile(state.accountProfileId);
-      }, 'Save');
-    } else {
-      modal.open('Edit Order', orderForm(order), async () => {
-        const staffId = val('f-staff');
-        const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-        const products = collectOrderProducts();
-        const creditApplied = _orderCreditApplied;
-        const orderAmount = parseFloat(val('f-amount')) || 0;
-        const finalAmount = creditApplied > 0 ? Math.max(0, orderAmount - creditApplied).toFixed(2) : val('f-amount');
-        // Reverse any previously applied credits for this order
-        const existingCredits = await api.get(`/api/credits?accountId=${order.AccountID}`);
-        const oldApplied = existingCredits.filter(c => c.Type === 'applied' && c.OrderID === id);
-        for (const oc of oldApplied) {
-          await api.del(`/api/credits/${oc.ID}`);
-        }
-        await api.put(`/api/orders/${id}`, {
-          StaffID: staffId, StaffName: staffName,
-          OrderDate: val('f-order-date'), DeliveryDate: val('f-delivery-date'),
-          InvoiceNumber: val('f-invoice'), Status: val('f-status'),
-          OrderAmount: finalAmount, TaxAmount: val('f-tax'),
-          Notes: val('f-notes'),
-          RequestedProducts: products || order.RequestedProducts || '',
-        });
-        await saveOrderItems(id);
-        if (creditApplied > 0) {
-          const accountName = (state.accounts.find(a => a.ID === order.AccountID) || {}).Name || order.AccountName;
-          await api.post('/api/credits', {
-            accountId: order.AccountID, accountName, type: 'applied',
-            amount: creditApplied.toFixed(2), orderId: id,
-            reason: 'Applied to order',
-          });
-          const currentItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
-          const creditItems = currentItems.filter(i => i.ProductName === 'Account Credit');
-          for (const ci of creditItems) {
-            await api.del(`/api/order-items/${ci.ID}`);
-          }
-          await api.post('/api/order-items/bulk', {
-            items: [{
-              OrderID: id, InventoryID: '', ProductName: 'Account Credit',
-              Format: '', Quantity: '1',
-              UnitPrice: (-creditApplied).toFixed(2),
-              LineTotal: (-creditApplied).toFixed(2),
-            }],
-          });
-        }
-        modal.close();
-        toast('Order updated');
-        loadAccountProfile(state.accountProfileId);
-      });
-    }
-    setTimeout(() => initMentions('f-notes'), 0);
-    const orderItems = await api.get(`/api/order-items?orderId=${encodeURIComponent(id)}`);
-    if (orderItems && orderItems.length > 0) {
-      await refreshOrderProductsFromItems(orderItems, isPaid);
-    } else {
-      await refreshOrderProducts(order.RequestedProducts, isPaid);
-    }
-    if (!isPaid) initOrderCredit(order.AccountID, id);
-    if (order.Delivered === 'true' && typeof loadOrderKegReturns === 'function') {
-      loadOrderKegReturns(id);
-    }
-    if (typeof loadOrderQboPaymentSummary === 'function') {
-      loadOrderQboPaymentSummary(order.AccountID);
-    }
-  });
+// Delegate to openEditOrder to avoid divergence between the Orders view and
+// Account profile view. openEditOrder reads the order from _ordersCache and
+// its trailing reload branches on state.view === 'account-profile', so we
+// just need to seed the cache with account-scoped orders before delegating.
+async function profileEditOrder(id) {
+  _ordersCache = await api.get(`/api/orders?accountId=${encodeURIComponent(state.accountProfileId)}`);
+  return openEditOrder(id);
 }
 
 function profileDeleteOrder(id) {
