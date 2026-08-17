@@ -1755,13 +1755,13 @@ async function openEditOrder(id) {
       // Pre-Sale and Cancelled aren't real receivables and shouldn't trigger
       // an invoice — moving to those statuses is a no-op for QBO.
       const leavingDraft = order.Status === 'Draft' && (newStatus === 'Pending' || newStatus === 'Paid');
+      const reloadFn = state.view === 'account-profile'
+        ? () => loadAccountProfile(state.accountProfileId)
+        : () => loadOrders();
       if (leavingDraft && !order.QboInvoiceId) {
-        const reloadFn = state.view === 'account-profile'
-          ? () => loadAccountProfile(state.accountProfileId)
-          : () => loadOrders();
         promptQboSync(id, reloadFn);
       } else {
-        loadOrders();
+        reloadFn();
       }
     });
   }
@@ -2139,7 +2139,10 @@ async function markOrderPaid(id) {
 async function toggleDelivered(id) {
   const order = _ordersCache.find(s => s.ID === id);
   if (!order) return;
-  await openDeliveryConfirmModal(id, order, loadOrders);
+  const reload = state.view === 'account-profile'
+    ? () => loadAccountProfile(state.accountProfileId)
+    : loadOrders;
+  await openDeliveryConfirmModal(id, order, reload);
 }
 
 // Invoked from the 'Mark Delivered' banner inside the view-only paid-order
