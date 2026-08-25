@@ -2100,6 +2100,16 @@ th input[type="checkbox"] {
     justify-content: center;
     font-size: 18px;
   }
+  /* Primary row action (e.g. Todos "Done") stays visible next to the ... toggle
+     on mobile so the completing action isn't buried in an overflow menu. */
+  .td-actions > .todo-inline-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 6px 14px;
+    font-weight: 600;
+  }
 
   /* ── Profile header: keep actions top-right, collapse into ... menu ── */
   .view-header:has(.profile-header-actions) {

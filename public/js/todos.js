@@ -171,7 +171,7 @@ function renderTodos() {
       <table>
         <thead>
           <tr>
-            <th style="width:32px"><input type="checkbox" id="todo-select-all" ${allFilteredSelected ? 'checked' : ''} onchange="toggleAllTodoSelection(this.checked)" title="Select all filtered" /></th>
+            <th class="mobile-hide" style="width:32px"><input type="checkbox" id="todo-select-all" ${allFilteredSelected ? 'checked' : ''} onchange="toggleAllTodoSelection(this.checked)" title="Select all filtered" /></th>
             <th>Due</th><th class="mobile-hide">Status</th><th>Title</th><th class="mobile-hide">Account</th>
             <th class="mobile-hide">Type</th><th class="mobile-hide">Assigned To</th><th class="mobile-hide">Priority</th><th>Actions</th>
           </tr>
@@ -179,7 +179,7 @@ function renderTodos() {
         <tbody>
           ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No todos found.</td></tr>` :
             pg.rows.map(r => `<tr>
-              <td><input type="checkbox" class="todo-row-checkbox" data-id="${esc(r.ID)}" ${_todoSelection.has(r.ID) ? 'checked' : ''} onchange="toggleTodoSelection('${esc(r.ID)}', this.checked)" /></td>
+              <td class="mobile-hide"><input type="checkbox" class="todo-row-checkbox" data-id="${esc(r.ID)}" ${_todoSelection.has(r.ID) ? 'checked' : ''} onchange="toggleTodoSelection('${esc(r.ID)}', this.checked)" /></td>
               <td>${formatDate(r.DueDate)}${r.Completed === 'true' ? `<br><span class="text-muted text-sm">${r.CompletedAt ? 'Done ' + formatDate(r.CompletedAt) : 'Done (date unknown)'}</span>` : ''}</td>
               <td class="mobile-hide">${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
@@ -188,12 +188,12 @@ function renderTodos() {
               <td class="mobile-hide text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td class="mobile-hide">${priorityBadge(r.Priority)}</td>
               <td class="td-actions">
+                ${r.Completed !== 'true'
+                  ? `<button class="btn btn-secondary btn-sm text-success todo-inline-done" onclick="completeTodo('${esc(r.ID)}')" title="Mark done">Done</button>`
+                  : `<button class="btn btn-secondary btn-sm todo-inline-done" onclick="reopenTodo('${esc(r.ID)}')" title="Reopen">Reopen</button>`
+                }
                 <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
                 <div class="mobile-actions-menu">
-                ${r.Completed !== 'true'
-                  ? `<button class="btn btn-ghost btn-sm text-success" onclick="completeTodo('${esc(r.ID)}')">Done</button>`
-                  : `<button class="btn btn-ghost btn-sm" onclick="reopenTodo('${esc(r.ID)}')">Reopen</button>`
-                }
                 <button class="btn btn-ghost btn-sm" onclick="openEditTodo('${esc(r.ID)}')">Edit</button>
                 <button class="btn btn-ghost btn-sm text-danger" onclick="deleteTodo('${esc(r.ID)}')">Del</button>
                 </div>
