@@ -235,6 +235,28 @@ function renderSettings() {
         </div>
       </div>
 
+      <div class="card" id="twilio-settings-card">
+        <div class="card-header"><h3>SMS / Twilio</h3></div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Send SMS messages to accounts via Twilio. Add your Twilio credentials to enable individual and bulk texting.
+          </p>
+          <div class="form-group">
+            <label>Account SID</label>
+            <input class="form-control" id="settings-twilio-sid" type="password" value="" placeholder="${s.twilioConfigured ? '••••••••  (saved)' : 'Enter Twilio Account SID'}" />
+          </div>
+          <div class="form-group">
+            <label>Auth Token</label>
+            <input class="form-control" id="settings-twilio-token" type="password" value="" placeholder="${s.twilioConfigured ? '••••••••  (saved)' : 'Enter Twilio Auth Token'}" />
+          </div>
+          <div class="form-group">
+            <label>From Number</label>
+            <input class="form-control" id="settings-twilio-from" type="tel" value="${esc(s.twilioFromNumber || '')}" placeholder="+15551234567" />
+          </div>
+          <button class="btn btn-primary" onclick="saveTwilioSettings()">Save</button>
+        </div>
+      </div>
+
       <div class="card" id="qbo-settings-card">
         <div class="card-header"><h3>QuickBooks Online</h3></div>
         <div style="padding:0 18px 18px" id="qbo-settings-body">
@@ -656,6 +678,33 @@ async function disconnectQbo() {
       toast(err.message, 'error');
     }
   });
+}
+
+// ── Twilio SMS ────────────────────────────────────────────────────
+
+async function saveTwilioSettings() {
+  const settings = {};
+  const sid   = val('settings-twilio-sid');
+  const token = val('settings-twilio-token');
+  const from  = val('settings-twilio-from');
+
+  if (sid)   settings.twilioAccountSid = sid;
+  if (token) settings.twilioAuthToken  = token;
+  if (from !== undefined) settings.twilioFromNumber = from;
+
+  if (Object.keys(settings).length === 0) {
+    toast('No changes to save', 'error');
+    return;
+  }
+
+  try {
+    const updated = await api.put('/api/settings', settings);
+    state.settings = updated;
+    state.smsConfigured = !!updated.twilioConfigured;
+    toast('Twilio settings saved');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 // ── Inbound Email Order Requests ──────────────────────────────────
