@@ -8,15 +8,26 @@ async function openRefundModal(orderId) {
   if (!canIssueRefunds()) { toast('Refunds are limited to Account Managers', 'error'); return; }
   const order = _ordersCache.find(o => o.ID === orderId);
   if (!order) { toast('Order not found in cache', 'error'); return; }
-  let items, existing;
+  let items, existing, kegs;
   try {
-    [items, existing] = await Promise.all([
+    [items, existing, kegs] = await Promise.all([
       api.get(`/api/order-items?orderId=${encodeURIComponent(orderId)}`),
       api.get(`/api/refunds?orderId=${encodeURIComponent(orderId)}`),
+      api.get(`/api/keg-tracking?orderId=${encodeURIComponent(orderId)}`).catch(() => []),
     ]);
   } catch (err) {
     toast('Failed to load order data: ' + err.message, 'error'); return;
   }
+  const isDelivered = order.Delivered === 'true';
+  // Inventory IDs with outstanding keg tracking on this order (customer
+  // still holds the kegs / their deposit). Used to warn the operator that
+  // a refund alone won't reconcile the keg return — the existing Keg
+  // Returns workflow still owns that side of the transaction.
+  const outstandingKegInvIds = new Set(
+    (kegs || [])
+      .filter(k => (parseInt(k.Quantity || '0') - parseInt(k.ReturnedQuantity || '0')) > 0)
+      .map(k => k.InventoryID)
+  );
 
   // Aggregate already-refunded qty per original OrderItemID so the modal
   // can cap each line's stepper at (original - already refunded).
@@ -44,11 +55,12 @@ async function openRefundModal(orderId) {
     </p>
 
     ${!anyRefundable ? '<div class="info-banner warn" style="margin-bottom:12px">All line items on this order have been fully refunded.</div>' : ''}
+    ${!isDelivered ? '<div class="info-banner warn" style="margin-bottom:12px">This order was never marked delivered — no inventory was ever decremented, so restock options are disabled.</div>' : ''}
 
     <div class="table-wrap" style="margin-bottom:14px">
       <table>
         <thead>
-          <tr><th>Product</th><th>Format</th><th class="text-right">Original</th><th class="text-right">Refunded</th><th class="text-right" style="width:110px">Refund Qty</th><th class="text-right">Unit</th><th class="text-right">Line</th></tr>
+          <tr><th>Product</th><th>Format</th><th class="text-right">Original</th><th class="text-right">Refunded</th><th class="text-right" style="width:110px">Refund Qty</th><th class="text-right">Unit</th><th class="text-right">Line</th><th style="width:80px">Restock</th></tr>
         </thead>
         <tbody>
           ${refundable.map(i => {
@@ -56,7 +68,9 @@ async function openRefundModal(orderId) {
             const already = alreadyByItem[i.ID] || 0;
             const remaining = Math.max(0, origQty - already);
             const unit = parseFloat(i.UnitPrice || 0);
-            return `<tr data-item-id="${esc(i.ID)}" data-taxable="${i.Taxable === 'true' ? '1' : '0'}" data-unit="${unit.toFixed(2)}">
+            const canRestock = isDelivered && !!i.InventoryID;
+            const isKeg = (i.Format || '').toLowerCase().includes('keg');
+            return `<tr data-item-id="${esc(i.ID)}" data-taxable="${i.Taxable === 'true' ? '1' : '0'}" data-unit="${unit.toFixed(2)}" data-inv-id="${esc(i.InventoryID || '')}" data-keg="${isKeg ? '1' : '0'}">
               <td class="fw-600">${esc(i.ProductName)}</td>
               <td>${esc(i.Format || '—')}</td>
               <td class="text-right">${origQty}</td>
@@ -69,10 +83,19 @@ async function openRefundModal(orderId) {
               </td>
               <td class="text-right">$${unit.toFixed(2)}</td>
               <td class="text-right refund-line-total">$0.00</td>
+              <td class="text-center">
+                ${canRestock
+                  ? `<input type="checkbox" class="refund-restock" checked title="Add ${esc(i.ProductName)} back to inventory" />`
+                  : '<span class="text-muted text-sm">—</span>'}
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>
+    </div>
+
+    <div id="f-refund-keg-warning" class="info-banner warn" style="display:none;margin-bottom:12px">
+      ⚠️ Kegs on this order haven't been fully returned yet. Refunding here reverses the sale but does <strong>not</strong> reconcile the keg deposit — record the return via <em>Keg Returns</em> if the customer is bringing the kegs back.
     </div>
 
     <div class="form-row">
@@ -115,9 +138,13 @@ async function openRefundModal(orderId) {
       · <span style="font-size:18px">Total: <span id="f-refund-total">$0.00</span></span>
     </div>
     <p class="text-sm text-muted" style="margin-top:8px">
-      Note: this records the refund; QuickBooks push, inventory restock, and store-credit issuance are not yet wired.
+      Note: QuickBooks refund push is not yet wired — for card/ACH refunds, also issue the refund in QuickBooks.
     </p>
   `;
+
+  // Keep the outstanding-keg lookup available to _refundRecomputeTotals,
+  // which is invoked from oninput handlers with no closure over this scope.
+  window._refundOutstandingKegs = outstandingKegInvIds;
 
   modal.open('Issue Refund', html, async () => {
     await submitRefund(orderId);
@@ -130,11 +157,15 @@ function _refundCollectItems() {
   const rows = Array.from(document.querySelectorAll('#modal-body tr[data-item-id]'));
   return rows.map(tr => {
     const qty = parseInt(tr.querySelector('.refund-qty').value || '0');
+    const restockCb = tr.querySelector('.refund-restock');
     return {
       orderItemId: tr.dataset.itemId,
       quantity: qty,
       unitPrice: parseFloat(tr.dataset.unit),
       taxable: tr.dataset.taxable === '1',
+      restock: !!(restockCb && restockCb.checked),
+      isKeg: tr.dataset.keg === '1',
+      invId: tr.dataset.invId,
     };
   }).filter(x => x.quantity > 0);
 }
@@ -142,6 +173,8 @@ function _refundCollectItems() {
 function _refundRecomputeTotals() {
   const rate = typeof getTaxRate === 'function' ? getTaxRate() : 0;
   let subtotal = 0, tax = 0;
+  let anyOutstandingKegRefunded = false;
+  const outstanding = window._refundOutstandingKegs || new Set();
   const rows = Array.from(document.querySelectorAll('#modal-body tr[data-item-id]'));
   for (const tr of rows) {
     const qty = parseInt(tr.querySelector('.refund-qty').value || '0');
@@ -150,11 +183,16 @@ function _refundRecomputeTotals() {
     tr.querySelector('.refund-line-total').textContent = '$' + line.toFixed(2);
     subtotal += line;
     if (tr.dataset.taxable === '1') tax += line * rate;
+    if (qty > 0 && tr.dataset.keg === '1' && outstanding.has(tr.dataset.invId)) {
+      anyOutstandingKegRefunded = true;
+    }
   }
   const $ = id => document.getElementById(id);
   if ($('f-refund-subtotal')) $('f-refund-subtotal').textContent = '$' + subtotal.toFixed(2);
   if ($('f-refund-tax'))      $('f-refund-tax').textContent      = '$' + tax.toFixed(2);
   if ($('f-refund-total'))    $('f-refund-total').textContent    = '$' + (subtotal + tax).toFixed(2);
+  const warn = $('f-refund-keg-warning');
+  if (warn) warn.style.display = anyOutstandingKegRefunded ? '' : 'none';
 }
 
 function _refundToggleMethodHints() {
@@ -168,8 +206,8 @@ function _refundToggleMethodHints() {
     hint.innerHTML = '⚠️ QuickBooks refund push is not yet wired — you\'ll need to issue the actual card/ACH refund in QuickBooks separately for now.';
     hint.className = 'text-sm text-warning';
   } else if (isStoreCredit) {
-    hint.innerHTML = '⚠️ Automatic account-credit creation is not yet wired — record the credit manually on the account for now.';
-    hint.className = 'text-sm text-warning';
+    hint.innerHTML = 'A matching account credit will be created automatically and appear on the account\'s credit balance.';
+    hint.className = 'text-sm text-muted';
   } else {
     hint.textContent = '';
     hint.className = 'text-sm text-muted';
@@ -202,8 +240,10 @@ async function submitRefund(orderId) {
   try {
     await api.post('/api/refunds', {
       orderId, refundDate, method, reference, reason, notes,
-      restockInventory: false,
-      items: items.map(i => ({ orderItemId: i.orderItemId, quantity: i.quantity, unitPrice: i.unitPrice })),
+      restockInventory: items.some(i => i.restock),
+      items: items.map(i => ({
+        orderItemId: i.orderItemId, quantity: i.quantity, unitPrice: i.unitPrice, restock: i.restock,
+      })),
       amount: subtotal.toFixed(2),
       taxAmount: tax.toFixed(2),
       depositAmount: '0',

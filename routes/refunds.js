@@ -8,7 +8,7 @@
 
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getAllRows, getRow, addRow } = require('../db');
+const { getAllRows, getRow, addRow, updateRow } = require('../db');
 const requireRefundPermission = require('../middleware/requireRefundPermission');
 
 const router = express.Router();
@@ -148,10 +148,44 @@ router.post('/', requireRefundPermission, async (req, res) => {
     };
     await addRow('REFUNDS', refund);
 
+    // Restock is a per-line opt-in that only makes sense for orders that
+    // were actually delivered (i.e. previously produced a 'sale' stock
+    // movement). For undelivered orders we silently skip — nothing to
+    // return to inventory — and mark the refund's RestockInventory flag
+    // false so history stays honest.
+    const canRestock = order.Delivered === 'true';
+    const inventoryRows = canRestock ? await getAllRows('INVENTORY') : [];
+    const inventoryById = Object.fromEntries(inventoryRows.map(i => [i.ID, i]));
+
     for (const it of items) {
       const src = orderItemMap[it.orderItemId];
       const qty = parseInt(it.quantity);
       const unitPrice = parseFloat(it.unitPrice ?? src.UnitPrice ?? 0);
+      const wantsRestock = !!it.restock && canRestock && !!src.InventoryID && inventoryById[src.InventoryID];
+      let restockedFlag = 'false';
+
+      if (wantsRestock) {
+        const inv = inventoryById[src.InventoryID];
+        const invName = inv.ProductName || inv.Name || src.ProductName || '';
+        const invFormat = inv.Format || src.Format || '';
+        await addRow('STOCK_MOVEMENTS', {
+          ID: uuidv4(),
+          InventoryID: src.InventoryID,
+          InventoryName: [invName, invFormat].filter(Boolean).join(' — '),
+          OrderID: orderId,
+          Type: 'refund-restock',
+          Quantity: String(qty),
+          Notes: `Refund ${refundId}${reason ? ' — ' + reason : ''}`,
+          Date: refund.RefundDate,
+          CreatedAt: now,
+        });
+        await updateRow('INVENTORY', src.InventoryID, {
+          Units: String(parseInt(inv.Units || '0') + qty),
+          LastUpdated: refund.RefundDate,
+        });
+        restockedFlag = 'true';
+      }
+
       await addRow('REFUND_ITEMS', {
         ID: uuidv4(),
         RefundID: refundId,
@@ -163,9 +197,31 @@ router.post('/', requireRefundPermission, async (req, res) => {
         UnitPrice: String(unitPrice.toFixed(2)),
         LineTotal: String((qty * unitPrice).toFixed(2)),
         Taxable: src.Taxable || 'false',
-        Restocked: 'false',
+        Restocked: restockedFlag,
         CreatedAt: now,
       });
+    }
+
+    // Store Credit method: issue a matching ACCOUNT_CREDITS 'credit' row so
+    // the account's credit balance widget and the existing apply-credit
+    // flow pick it up automatically. Stash the ID on REFUNDS.CreditID so
+    // a future void can reverse it cleanly.
+    if (method === 'Store Credit') {
+      const total = amt + tax + dep;
+      const credit = {
+        ID: uuidv4(),
+        AccountID: order.AccountID || '',
+        AccountName: order.AccountName || '',
+        Type: 'credit',
+        Amount: String(total.toFixed(2)),
+        OrderID: orderId,
+        Reason: `Refund on order ${order.InvoiceNumber || orderId.slice(0, 8)}`,
+        Notes: notes || '',
+        CreatedAt: now,
+      };
+      await addRow('ACCOUNT_CREDITS', credit);
+      await updateRow('REFUNDS', refundId, { CreditID: credit.ID });
+      refund.CreditID = credit.ID;
     }
 
     const savedItems = (await getAllRows('REFUND_ITEMS')).filter(ri => ri.RefundID === refundId);
