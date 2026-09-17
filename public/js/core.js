@@ -8,6 +8,15 @@ const FORMATS = ['1/6 Keg', '1/4 Keg', '1/2 Keg', '12oz Can (case/24)', '16oz Ca
 const DEFAULT_STYLES = ['IPA', 'Double IPA', 'Pale Ale', 'Lager', 'Pilsner', 'Wheat', 'Hefeweizen', 'Stout', 'Porter', 'Sour', 'Saison', 'Amber', 'Brown Ale', 'Barleywine', 'Scottish', 'English Mild', 'Kölsch', 'Golden Ale', 'Other'];
 let STYLES = [...DEFAULT_STYLES]; // Populated from settings on init
 const PAYMENT_METHODS = ['Check', 'Cash', 'ACH', 'Credit Card', 'Other'];
+// Refund methods intentionally mirror PAYMENT_METHODS plus 'Store Credit'.
+// Later PRs wire Credit Card/ACH to QBO and Store Credit to ACCOUNT_CREDITS;
+// this slice records the choice locally without side effects.
+const REFUND_METHODS = ['Cash', 'Check', 'Credit Card', 'ACH', 'Store Credit', 'Other'];
+const REFUND_REASONS = ['Damaged', 'Wrong Product', 'Customer Request', 'Overpayment', 'Excess Inventory', 'Other'];
+
+function canIssueRefunds() {
+  return state.userRole === 'Account Manager';
+}
 
 const state = {
   view: 'dashboard',

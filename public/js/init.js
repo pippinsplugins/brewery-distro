@@ -155,6 +155,7 @@ async function init() {
       state.userEmail  = user.email || '';
       state.userName   = user.name  || '';
       state.userEmails = user.staffEmails || [user.email];
+      state.userRole   = user.staffRole || '';
       const panel = document.getElementById('sidebar-user');
       if (panel) {
         document.getElementById('sidebar-user-name').textContent  = user.name  || '';

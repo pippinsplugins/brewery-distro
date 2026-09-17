@@ -1481,6 +1481,7 @@ function renderOrders() {
                   ${isPreSale ? `<button class="btn btn-ghost btn-sm" onclick="openEditPreSale('${esc(s.ID)}')">Edit</button><button class="btn btn-ghost btn-sm text-success" onclick="convertPreSale('${esc(s.ID)}')">Convert</button>${_presaleHasMergePeers(s) ? `<button class="btn btn-ghost btn-sm" onclick="openMergePresales('${esc(s.ID)}')">Merge</button>` : ''}<button class="btn btn-ghost btn-sm text-danger" onclick="cancelPreSale('${esc(s.ID)}')">Cancel</button>`
                   : `${s.Status === 'Pending' || s.Status === 'Draft' ? `<button class="btn btn-ghost btn-sm text-success" onclick="markOrderPaid('${esc(s.ID)}')">Paid</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="openEditOrder('${esc(s.ID)}')">${s.Status === 'Paid' ? 'View' : 'Edit'}</button>
+                  ${s.Status === 'Paid' && canIssueRefunds() ? `<button class="btn btn-ghost btn-sm text-danger" onclick="openRefundModal('${esc(s.ID)}')">Refund</button>` : ''}
                   <button class="btn btn-ghost btn-sm text-danger" onclick="deleteOrder('${esc(s.ID)}')">Del</button>
                   ${s.Delivered === 'true'
                     ? `<button class="btn btn-ghost btn-sm mobile-only" disabled>&#10003; Delivered</button>`
@@ -1632,7 +1633,15 @@ async function openEditOrder(id) {
         <span class="fw-600">This order has not been delivered yet.</span>
         <button type="button" class="btn btn-primary btn-sm" style="margin-left:auto" onclick="markDeliveredFromView('${esc(id)}')">Mark Delivered</button>
       </div>` : '';
-    modal.open('View Order', deliveryBanner + orderForm(order, '', true), async () => {
+    const refundsSection = `
+      <hr class="form-divider" />
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="form-section-title" style="margin:0">Refunds</div>
+        ${canIssueRefunds() ? `<button type="button" class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="openRefundModal('${esc(id)}')">Issue Refund</button>` : ''}
+      </div>
+      <div id="order-refunds-slot"><p class="text-sm text-muted">Loading refunds…</p></div>
+    `;
+    modal.open('View Order', deliveryBanner + orderForm(order, '', true) + refundsSection, async () => {
       await api.put(`/api/orders/${id}`, {
         InvoiceNumber: val('f-invoice'), PONumber: val('f-po'),
         Notes: val('f-notes'),
@@ -1641,6 +1650,7 @@ async function openEditOrder(id) {
       toast('Order updated');
       loadOrders();
     }, 'Save');
+    loadOrderRefundsIntoSlot(id);
   } else {
     // Snapshot the order's current line items + material signature so the save
     // handler can detect line item / amount / recipient changes and push them
