@@ -28,6 +28,8 @@ const TABLES = {
   ACCOUNT_CREDITS: 'AccountCredits',
   WEBHOOK_LOG:     'WebhookLog',
   INBOUND_EMAILS:  'InboundEmails',
+  REFUNDS:         'Refunds',
+  REFUND_ITEMS:    'RefundItems',
 };
 
 // HEADERS defines every column each table should have.
@@ -54,6 +56,16 @@ const HEADERS = {
   ACCOUNT_CREDITS: ['ID', 'AccountID', 'AccountName', 'Type', 'Amount', 'OrderID', 'Reason', 'Notes', 'CreatedAt'],
   WEBHOOK_LOG:     ['ID', 'ApiKeyName', 'Action', 'Payload', 'Status', 'Error', 'CreatedAt'],
   INBOUND_EMAILS:  ['ID', 'GmailMessageId', 'GmailThreadId', 'From', 'FromName', 'To', 'Subject', 'Body', 'ReceivedAt', 'Status', 'ParsedData', 'OrderID', 'Error', 'CreatedAt'],
+  // REFUNDS: one row per refund event on an order. Financial totals are
+  // stored (not computed) so historical figures stay stable if the source
+  // order is later edited. QboRefundType is 'RefundReceipt' (paid orders)
+  // or 'CreditMemo' (unpaid orders). CreditID links to ACCOUNT_CREDITS
+  // when Method='Store Credit'.
+  REFUNDS:         ['ID', 'OrderID', 'AccountID', 'AccountName', 'RefundDate', 'Amount', 'TaxAmount', 'DepositAmount', 'TotalAmount', 'Method', 'Reference', 'Reason', 'Notes', 'RestockInventory', 'Status', 'QboRefundId', 'QboRefundType', 'QboSyncStatus', 'QboSyncError', 'StaffID', 'StaffName', 'CreditID', 'CreatedAt'],
+  // REFUND_ITEMS: per-line detail for a refund. OrderItemID points back to
+  // the original ORDER_ITEMS row; InventoryID is captured separately so a
+  // later product rename or deletion doesn't orphan the refund history.
+  REFUND_ITEMS:    ['ID', 'RefundID', 'OrderItemID', 'InventoryID', 'ProductName', 'Format', 'Quantity', 'UnitPrice', 'LineTotal', 'Taxable', 'Restocked', 'CreatedAt'],
 };
 
 // ── Database connection ───────────────────────────────────────────────

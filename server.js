@@ -43,6 +43,7 @@ const salesExportRoutes    = require('./routes/sales-export');
 const forecastRoutes       = require('./routes/forecast');
 const presaleDemandRoutes  = require('./routes/presale-demand');
 const creditsRoutes        = require('./routes/credits');
+const refundsRoutes        = require('./routes/refunds');
 const apiWebhooksRoutes    = require('./routes/api-webhooks');
 const inboundEmailRoutes   = require('./routes/inbound-emails');
 const inboundEmailService  = require('./inbound-email-service');
@@ -168,6 +169,7 @@ app.use('/api/sales-export',  requireAuth, salesExportRoutes);
 app.use('/api/forecast',      requireAuth, forecastRoutes);
 app.use('/api/presale-demand', requireAuth, presaleDemandRoutes);
 app.use('/api/credits',        requireAuth, creditsRoutes);
+app.use('/api/refunds',        requireAuth, refundsRoutes);
 app.use('/api/webhooks',       requireAuth, apiWebhooksRoutes);
 app.use('/api/inbound-emails', requireAuth, inboundEmailRoutes);
 

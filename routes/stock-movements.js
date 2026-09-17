@@ -134,7 +134,7 @@ router.post('/', async (req, res) => {
     const { inventoryId, type, quantity, notes, date } = req.body;
     if (!inventoryId) return res.status(400).json({ error: 'inventoryId is required' });
 
-    const VALID_TYPES = ['received', 'write-off', 'adjustment', 'recount'];
+    const VALID_TYPES = ['received', 'write-off', 'adjustment', 'recount', 'refund-restock'];
     if (!VALID_TYPES.includes(type)) return res.status(400).json({ error: `type must be one of: ${VALID_TYPES.join(', ')}` });
 
     const qty = parseInt(quantity);
@@ -151,9 +151,10 @@ router.post('/', async (req, res) => {
     const invName = inv.ProductName || product.Name || inv.Name || '';
     const invFormat = inv.Format || product.Format || '';
 
-    // received = add stock; write-off and adjustment = remove stock; recount = set absolute
+    // received / refund-restock = add stock; write-off and adjustment = remove stock; recount = set absolute
     const currentUnits = parseInt(inv.Units || '0');
-    const delta     = type === 'recount' ? (qty - currentUnits) : (type === 'received' ? qty : -qty);
+    const addsStock = type === 'received' || type === 'refund-restock';
+    const delta     = type === 'recount' ? (qty - currentUnits) : (addsStock ? qty : -qty);
     const movDate   = date || new Date().toISOString().split('T')[0];
     const createdAt = new Date().toISOString();
 
