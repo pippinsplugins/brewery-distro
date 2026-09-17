@@ -438,7 +438,7 @@ async function loadAccountProfile(accountId) {
   });
   showLoading();
 
-  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits, allOrderItems, kegReturnRecords] = await Promise.all([
+  const [outreach, todos, orders, kegRecords, tapHandleRecords, acctCredits, allOrderItems, kegReturnRecords, acctRefunds] = await Promise.all([
     api.get('/api/outreach'),
     api.get('/api/reminders?status=all'),
     api.get('/api/orders'),
@@ -447,6 +447,7 @@ async function loadAccountProfile(accountId) {
     api.get(`/api/credits?accountId=${accountId}`),
     api.get('/api/order-items'),
     api.get(`/api/keg-returns?accountId=${accountId}`),
+    api.get(`/api/refunds?accountId=${encodeURIComponent(accountId)}`),
   ]);
   if (state.accounts.length === 0) state.accounts = await api.get('/api/accounts');
 
@@ -745,6 +746,35 @@ async function loadAccountProfile(accountId) {
       </div>
     </div>
 
+    ${(() => {
+      const refunds = (acctRefunds || []).slice().sort((a, b) => (b.RefundDate || b.CreatedAt || '').localeCompare(a.RefundDate || a.CreatedAt || ''));
+      const totalRefunded = refunds.reduce((s, r) => s + parseFloat(r.TotalAmount || 0), 0);
+      if (refunds.length === 0) return '';
+      return `
+      <div class="profile-section">
+        <div class="profile-section-header">
+          <h3>Refunds <span class="text-muted text-sm">(${refunds.length} · ${fmtMoney(totalRefunded)})</span></h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Method</th><th>Reason</th><th class="mobile-hide">Reference</th><th class="mobile-hide">Staff</th><th class="mobile-hide">QBO</th><th>Order</th><th class="text-right">Total</th></tr></thead>
+            <tbody>
+              ${refunds.map(r => `<tr>
+                <td class="text-sm">${formatDate(r.RefundDate)}</td>
+                <td>${esc(r.Method)}</td>
+                <td>${esc(r.Reason)}</td>
+                <td class="mobile-hide text-sm">${esc(r.Reference || '—')}</td>
+                <td class="mobile-hide text-sm">${esc(r.StaffName || '—')}</td>
+                <td class="mobile-hide">${typeof _refundQboBadgeHtml === 'function' ? _refundQboBadgeHtml(r) : ''}</td>
+                <td class="text-sm">${r.OrderID ? `<span class="td-link" onclick="profileEditOrder('${esc(r.OrderID)}')">View</span>` : '—'}</td>
+                <td class="text-right fw-600 text-danger">${fmtMoney(r.TotalAmount)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    })()}
+
     <div class="profile-section">
       <div class="profile-section-header">
         <h3>Keg Tracking <span class="text-muted text-sm">(${outstandingKegs} outstanding)</span></h3>
@@ -878,7 +908,7 @@ function renderProfileOrders() {
           <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}</td>
           <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
           <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
-          <td>${orderStatusBadge(s.Status)}</td>
+          <td>${orderStatusBadge(s.Status)}${typeof refundStatusBadgeHtml === 'function' ? refundStatusBadgeHtml(s) : ''}</td>
           <td class="mobile-hide text-center">${isPreSale ? '—'
             : s.Delivered === 'true'
             ? '<input type="checkbox" checked disabled />'

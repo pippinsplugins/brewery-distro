@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     const taxableOnly = req.query.taxableOnly === '1' || req.query.taxableOnly === 'true';
     if (!start || !end) return res.status(400).json({ error: 'start and end query params required' });
 
-    let [orders, orderItems, stockMovements, accounts, inventory, staff, products] = await Promise.all([
+    let [orders, orderItems, stockMovements, accounts, inventory, staff, products, refunds] = await Promise.all([
       getAllRows('ORDERS'),
       getAllRows('ORDER_ITEMS'),
       getAllRows('STOCK_MOVEMENTS'),
@@ -32,6 +32,7 @@ router.get('/', async (req, res) => {
       getAllRows('INVENTORY'),
       getAllRows('STAFF'),
       getAllRows('PRODUCTS'),
+      getAllRows('REFUNDS'),
     ]);
 
     // Location filter
@@ -84,6 +85,7 @@ router.get('/', async (req, res) => {
           orderCount: 0, orderAmount: 0, taxAmount: 0, depositAmount: 0,
           paidOrderCount: 0, pendingOrderCount: 0,
           paidAmount: 0, pendingAmount: 0,
+          refundCount: 0, refundedAmount: 0, refundedTax: 0, refundedDeposit: 0,
         };
       }
       const b = salesBuckets[key];
@@ -105,6 +107,42 @@ router.get('/', async (req, res) => {
       else        { totalPendingAmount += amt; totalPendingCount++; }
     }
 
+    // Refunds are attributed by RefundDate (not OrderDate) — accrual by
+    // RefundDate mirrors QBO's own sales-tax treatment for refunds and
+    // avoids rewriting a prior period's booked figures when a refund is
+    // issued weeks or months later. See project memory: reporting basis.
+    let totalRefundCount = 0, totalRefundedAmount = 0, totalRefundedTax = 0, totalRefundedDeposit = 0;
+    const orderLocation = Object.fromEntries(orders.map(o => [o.ID, o.Location || '']));
+    for (const r of refunds) {
+      const rDate = (r.RefundDate || '').substring(0, 10);
+      if (rDate < start || rDate > end) continue;
+      // Respect the location filter applied above: skip refunds on orders
+      // outside the selected location.
+      if (location && orderLocation[r.OrderID] !== location) continue;
+      const key = bucketKey(r.RefundDate, granularity);
+      if (!salesBuckets[key]) {
+        salesBuckets[key] = {
+          bucket: key,
+          orderCount: 0, orderAmount: 0, taxAmount: 0, depositAmount: 0,
+          paidOrderCount: 0, pendingOrderCount: 0,
+          paidAmount: 0, pendingAmount: 0,
+          refundCount: 0, refundedAmount: 0, refundedTax: 0, refundedDeposit: 0,
+        };
+      }
+      const b = salesBuckets[key];
+      const rAmt = parseFloat(r.Amount || 0);
+      const rTax = parseFloat(r.TaxAmount || 0);
+      const rDep = parseFloat(r.DepositAmount || 0);
+      b.refundCount++;
+      b.refundedAmount  += rAmt;
+      b.refundedTax     += rTax;
+      b.refundedDeposit += rDep;
+      totalRefundCount++;
+      totalRefundedAmount  += rAmt;
+      totalRefundedTax     += rTax;
+      totalRefundedDeposit += rDep;
+    }
+
     const salesSummary = {
       buckets: Object.values(salesBuckets).sort((a, b) => a.bucket.localeCompare(b.bucket)),
       granularity,
@@ -117,6 +155,12 @@ router.get('/', async (req, res) => {
         pendingOrderCount: totalPendingCount,
         paidAmount: totalPaidAmount,
         pendingAmount: totalPendingAmount,
+        refundCount: totalRefundCount,
+        refundedAmount: totalRefundedAmount,
+        refundedTax: totalRefundedTax,
+        refundedDeposit: totalRefundedDeposit,
+        netAmount: totalAmount - totalRefundedAmount,
+        netTax:    totalTax    - totalRefundedTax,
       },
     };
 

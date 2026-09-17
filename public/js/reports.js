@@ -110,6 +110,11 @@ function renderReports() {
         <div class="stat-value">${fmtMoney(s.depositAmount)}</div>
         <div class="stat-label">Deposits</div>
       </div>
+      ${s.refundCount ? `
+      <div class="stat-card">
+        <div class="stat-value text-danger">${fmtMoney(-(s.refundedAmount || 0))}</div>
+        <div class="stat-label">Refunded<br><span class="text-sm text-muted">${s.refundCount} refund${s.refundCount !== 1 ? 's' : ''} · net ${fmtMoney(s.netAmount || 0)}</span></div>
+      </div>` : ''}
     </div>
 
     <div class="reports-grid">
@@ -181,7 +186,7 @@ function _renderSalesChart(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Period</th><th>Orders</th><th>Paid Revenue</th><th>Pending Revenue</th><th>Total Revenue</th><th>Tax</th><th>Deposits</th></tr></thead>
+            <thead><tr><th>Period</th><th>Orders</th><th>Paid Revenue</th><th>Pending Revenue</th><th>Total Revenue</th><th>Tax</th><th>Deposits</th><th>Refunds</th></tr></thead>
             <tbody>
               ${buckets.map(b => `<tr>
                 <td>${esc(b.bucket)}</td>
@@ -190,6 +195,7 @@ function _renderSalesChart(data) {
                 <td>${fmtMoney(b.pendingAmount || 0)}</td>
                 <td class="fw-600">${fmtMoney(b.orderAmount)}</td>
                 <td>${fmtMoney(b.taxAmount)}</td><td>${fmtMoney(b.depositAmount)}</td>
+                <td class="${(b.refundedAmount || 0) > 0 ? 'text-danger' : 'text-muted'}">${(b.refundedAmount || 0) > 0 ? fmtMoney(-(b.refundedAmount || 0)) : '—'}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -448,9 +454,9 @@ function _reportsExportCsv() {
 
   // Sales Summary
   lines.push('--- Sales Summary ---');
-  lines.push('Period,Orders,Paid Orders,Pending Orders,Paid Revenue,Pending Revenue,Total Revenue,Tax,Deposits');
+  lines.push('Period,Orders,Paid Orders,Pending Orders,Paid Revenue,Pending Revenue,Total Revenue,Tax,Deposits,Refund Count,Refunded Amount,Refunded Tax');
   for (const b of d.salesSummary.buckets) {
-    lines.push(`${b.bucket},${b.orderCount},${b.paidOrderCount || 0},${b.pendingOrderCount || 0},${(b.paidAmount || 0).toFixed(2)},${(b.pendingAmount || 0).toFixed(2)},${b.orderAmount.toFixed(2)},${b.taxAmount.toFixed(2)},${b.depositAmount.toFixed(2)}`);
+    lines.push(`${b.bucket},${b.orderCount},${b.paidOrderCount || 0},${b.pendingOrderCount || 0},${(b.paidAmount || 0).toFixed(2)},${(b.pendingAmount || 0).toFixed(2)},${b.orderAmount.toFixed(2)},${b.taxAmount.toFixed(2)},${b.depositAmount.toFixed(2)},${b.refundCount || 0},${(b.refundedAmount || 0).toFixed(2)},${(b.refundedTax || 0).toFixed(2)}`);
   }
   lines.push('');
 

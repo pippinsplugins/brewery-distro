@@ -124,6 +124,7 @@ function renderSalesExport() {
         <table>
           <thead>
             <tr>
+              <th>Type</th>
               <th class="sortable" onclick="_seSortBy('orderDate')" style="cursor:pointer">Date${sortIcon('orderDate')}</th>
               <th class="sortable" onclick="_seSortBy('invoiceNumber')" style="cursor:pointer">Invoice #${sortIcon('invoiceNumber')}</th>
               <th class="sortable" onclick="_seSortBy('accountName')" style="cursor:pointer">Customer${sortIcon('accountName')}</th>
@@ -136,8 +137,9 @@ function renderSalesExport() {
           </thead>
           <tbody>
             ${pg.rows.length === 0
-              ? '<tr><td colspan="8" class="empty-state">No orders found</td></tr>'
-              : pg.rows.map(o => `<tr>
+              ? '<tr><td colspan="9" class="empty-state">No orders found</td></tr>'
+              : pg.rows.map(o => `<tr${o.type === 'Refund' ? ' class="text-danger"' : ''}>
+                <td>${o.type === 'Refund' ? '<span class="badge badge-danger">Refund</span>' : '<span class="text-muted text-sm">Sale</span>'}</td>
                 <td>${esc(formatDate(o.orderDate))}</td>
                 <td>${esc(o.invoiceNumber)}</td>
                 <td>${esc(o.accountName)}</td>
@@ -150,7 +152,7 @@ function renderSalesExport() {
           </tbody>
           ${pg.rows.length > 0 ? `<tfoot>
             <tr style="font-weight:bold">
-              <td colspan="5">Totals</td>
+              <td colspan="6">Totals (net)</td>
               <td>${fmtMoney(t.subtotal)}</td>
               <td>${fmtMoney(t.tax)}</td>
               <td>${fmtMoney(t.total)}</td>
@@ -240,10 +242,11 @@ function _seExportCsv() {
   const d = _seData;
   const lines = [];
 
-  lines.push('Invoice Date,Invoice ID,Customer Name,ABC License #,Address,Subtotal,Tax,Total');
+  lines.push('Type,Invoice Date,Invoice ID,Customer Name,ABC License #,Address,Subtotal,Tax,Total');
   for (const o of d.orders) {
     const addr = [o.address, o.city, o.state, o.zip].filter(Boolean).join(', ');
     lines.push([
+      o.type || 'Sale',
       o.orderDate,
       `"${o.invoiceNumber}"`,
       `"${o.accountName}"`,
@@ -254,7 +257,7 @@ function _seExportCsv() {
       o.total.toFixed(2),
     ].join(','));
   }
-  lines.push(`,,,,,${d.totals.subtotal.toFixed(2)},${d.totals.tax.toFixed(2)},${d.totals.total.toFixed(2)}`);
+  lines.push(`,,,,,,${d.totals.subtotal.toFixed(2)},${d.totals.tax.toFixed(2)},${d.totals.total.toFixed(2)}`);
 
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);

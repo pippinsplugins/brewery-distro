@@ -56,6 +56,7 @@ async function openRefundModal(orderId) {
 
     ${!anyRefundable ? '<div class="info-banner warn" style="margin-bottom:12px">All line items on this order have been fully refunded.</div>' : ''}
     ${!isDelivered ? '<div class="info-banner warn" style="margin-bottom:12px">This order was never marked delivered — no inventory was ever decremented, so restock options are disabled.</div>' : ''}
+    ${_refundWindowWarningHtml(order)}
 
     <div class="table-wrap" style="margin-bottom:14px">
       <table>
@@ -149,8 +150,13 @@ async function openRefundModal(orderId) {
   modal.open('Issue Refund', html, async () => {
     await submitRefund(orderId);
   }, 'Issue Refund');
-  // Compute initial totals + method hint after DOM insertion.
-  setTimeout(() => { _refundRecomputeTotals(); _refundToggleMethodHints(); }, 0);
+  // Compute initial totals + method hint after DOM insertion; also disable
+  // the submit button if the refund-window override is showing but unchecked.
+  setTimeout(() => {
+    _refundRecomputeTotals();
+    _refundToggleMethodHints();
+    _refundToggleOverrideButton();
+  }, 0);
 }
 
 function _refundCollectItems() {
@@ -258,6 +264,25 @@ async function submitRefund(orderId) {
   }
 }
 
+// Derived refund status label ('Refunded' if sum(refunds) covers the order
+// total, 'Partially Refunded' otherwise). Empty string when nothing has
+// been refunded. Uses the RefundedTotal/RefundCount fields the /api/orders
+// enrichment adds. Callers render it as a small muted line under the
+// amount so the primary Status badge (Paid/Pending/etc.) stays authoritative.
+function refundStatusLabel(order) {
+  const refunded = parseFloat(order.RefundedTotal || '0');
+  if (refunded <= 0) return '';
+  const orderTotal = parseFloat(order.OrderAmount || 0) + parseFloat(order.TaxAmount || 0) + parseFloat(order.DepositAmount || 0);
+  return refunded + 0.005 >= orderTotal ? 'Refunded' : 'Partially Refunded';
+}
+
+function refundStatusBadgeHtml(order) {
+  const label = refundStatusLabel(order);
+  if (!label) return '';
+  const cls = label === 'Refunded' ? 'badge-danger' : 'badge-neutral';
+  return ` <span class="badge ${cls}" title="Refunded $${parseFloat(order.RefundedTotal || 0).toFixed(2)}">${label}</span>`;
+}
+
 // Rendered into the #order-refunds-slot inside the View Order modal.
 function renderRefundListHtml(refunds) {
   if (!refunds || refunds.length === 0) return '<p class="text-sm text-muted">No refunds on this order yet.</p>';
@@ -278,6 +303,36 @@ function renderRefundListHtml(refunds) {
         </tbody>
       </table>
     </div>`;
+}
+
+// Render a soft-warning banner + override checkbox when the order is older
+// than the configured refund window (defaults to 90 days). Empty string if
+// the order is within window — no visual noise for the common case.
+function _refundWindowWarningHtml(order) {
+  const windowDays = parseInt(state.settings && state.settings.refundWindowDays) || 90;
+  if (windowDays <= 0) return '';
+  const orderDate = (order.OrderDate || '').substring(0, 10);
+  if (!orderDate) return '';
+  const ageDays = Math.floor((Date.now() - new Date(orderDate + 'T00:00:00').getTime()) / 86400000);
+  if (ageDays <= windowDays) return '';
+  return `
+    <div class="info-banner warn" style="margin-bottom:12px">
+      ⚠️ This order is <strong>${ageDays} days old</strong> — beyond the ${windowDays}-day standard refund window.
+      Confirm below to proceed.
+      <label style="display:block;margin-top:6px;font-weight:600;cursor:pointer">
+        <input type="checkbox" id="f-refund-override-window" onchange="_refundToggleOverrideButton()" />
+        I understand this order is outside the standard refund window
+      </label>
+    </div>`;
+}
+
+// Enable/disable the modal's confirm button based on the override checkbox.
+function _refundToggleOverrideButton() {
+  const cb = document.getElementById('f-refund-override-window');
+  const btn = document.getElementById('modal-submit-btn');
+  if (!btn) return;
+  if (!cb) return; // no warning present → nothing to toggle
+  btn.disabled = !cb.checked;
 }
 
 function _refundQboBadgeHtml(refund) {

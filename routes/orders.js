@@ -61,6 +61,26 @@ router.get('/', async (req, res) => {
     }
     // Sort newest first by OrderDate, then by CreatedAt as tiebreaker
     orders.sort((a, b) => (b.OrderDate || '').localeCompare(a.OrderDate || '') || (b.CreatedAt || '').localeCompare(a.CreatedAt || ''));
+
+    // Enrich with a refund summary so the orders list can render the
+    // "Refunded / Partially Refunded" sub-badge without an N+1 fetch.
+    // Aggregation is cheap and unbounded lists of refunds per order are
+    // vanishingly rare — no reason to paginate refunds here.
+    const refunds = await getAllRows('REFUNDS');
+    const refundSummary = {};
+    for (const r of refunds) {
+      const k = r.OrderID;
+      if (!k) continue;
+      const s = refundSummary[k] ||= { count: 0, total: 0 };
+      s.count++;
+      s.total += parseFloat(r.TotalAmount || '0');
+    }
+    for (const o of orders) {
+      const s = refundSummary[o.ID];
+      o.RefundedTotal = s ? String(s.total.toFixed(2)) : '0';
+      o.RefundCount   = s ? String(s.count) : '0';
+    }
+
     res.json(orders);
   } catch (err) {
     console.error(`[orders] ${err.message}`);

@@ -1470,7 +1470,7 @@ function renderOrders() {
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
                 <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
-                <td>${orderStatusBadge(s.Status)}${s.PaymentMethod ? `<br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span>` : ''}</td>
+                <td>${orderStatusBadge(s.Status)}${refundStatusBadgeHtml(s)}${s.PaymentMethod ? `<br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span>` : ''}</td>
                 <td class="mobile-hide text-center">${isPreSale || s.Status === 'Draft' ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
