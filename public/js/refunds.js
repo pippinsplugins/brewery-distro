@@ -138,7 +138,7 @@ async function openRefundModal(orderId) {
       · <span style="font-size:18px">Total: <span id="f-refund-total">$0.00</span></span>
     </div>
     <p class="text-sm text-muted" style="margin-top:8px">
-      Note: QuickBooks refund push is not yet wired — for card/ACH refunds, also issue the refund in QuickBooks.
+      A ${(order.QboPaymentId ? 'RefundReceipt' : (order.QboInvoiceId ? 'CreditMemo' : 'refund'))} will be pushed to QuickBooks after saving.
     </p>
   `;
 
@@ -203,8 +203,8 @@ function _refundToggleMethodHints() {
   const isCard = method === 'Credit Card' || method === 'ACH';
   const isStoreCredit = method === 'Store Credit';
   if (isCard) {
-    hint.innerHTML = '⚠️ QuickBooks refund push is not yet wired — you\'ll need to issue the actual card/ACH refund in QuickBooks separately for now.';
-    hint.className = 'text-sm text-warning';
+    hint.innerHTML = 'A RefundReceipt will be created in QuickBooks. For QBO Payments card/ACH refunds, verify the money movement in QuickBooks — some card refunds still need to be initiated from the Payments dashboard.';
+    hint.className = 'text-sm text-muted';
   } else if (isStoreCredit) {
     hint.innerHTML = 'A matching account credit will be created automatically and appear on the account\'s credit balance.';
     hint.className = 'text-sm text-muted';
@@ -264,7 +264,7 @@ function renderRefundListHtml(refunds) {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Method</th><th>Reason</th><th>Reference</th><th>Staff</th><th class="text-right">Total</th></tr></thead>
+        <thead><tr><th>Date</th><th>Method</th><th>Reason</th><th>Reference</th><th>Staff</th><th>QBO</th><th class="text-right">Total</th></tr></thead>
         <tbody>
           ${refunds.map(r => `<tr>
             <td>${formatDate(r.RefundDate) || '—'}</td>
@@ -272,11 +272,34 @@ function renderRefundListHtml(refunds) {
             <td>${esc(r.Reason)}</td>
             <td class="text-sm">${esc(r.Reference || '—')}</td>
             <td class="text-sm">${esc(r.StaffName || '—')}</td>
+            <td>${_refundQboBadgeHtml(r)}</td>
             <td class="text-right fw-600">$${parseFloat(r.TotalAmount || 0).toFixed(2)}</td>
           </tr>`).join('')}
         </tbody>
       </table>
     </div>`;
+}
+
+function _refundQboBadgeHtml(refund) {
+  const s = refund.QboSyncStatus || '';
+  if (s === 'synced')   return `<span class="badge badge-success" title="${esc(refund.QboRefundType || 'Synced')} ${esc(refund.QboRefundId || '')}">Synced</span>`;
+  if (s === 'disabled') return '<span class="badge badge-neutral" title="QuickBooks is not connected">Off</span>';
+  if (s === 'failed')   return `<span class="badge badge-danger" title="${esc(refund.QboSyncError || 'Sync failed')}">Failed</span>${canIssueRefunds() ? ` <button class="btn btn-ghost btn-sm" onclick="retryRefundQboSync('${esc(refund.ID)}')">Retry</button>` : ''}`;
+  return '<span class="badge badge-neutral">Pending</span>';
+}
+
+async function retryRefundQboSync(refundId) {
+  const slot = document.getElementById('order-refunds-slot');
+  if (slot) slot.innerHTML = '<p class="text-sm text-muted">Retrying QuickBooks sync…</p>';
+  try {
+    const updated = await api.post(`/api/refunds/${encodeURIComponent(refundId)}/sync`);
+    if (updated.QboSyncStatus === 'synced') toast('QuickBooks sync succeeded');
+    else if (updated.QboSyncStatus === 'failed') toast('QuickBooks sync failed: ' + (updated.QboSyncError || 'unknown'), 'error');
+    // Reload the list for the current order (derived from the refund).
+    if (updated.OrderID) loadOrderRefundsIntoSlot(updated.OrderID);
+  } catch (err) {
+    toast('Retry failed: ' + err.message, 'error');
+  }
 }
 
 async function loadOrderRefundsIntoSlot(orderId) {

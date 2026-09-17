@@ -10,6 +10,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getAllRows, getRow, addRow, updateRow } = require('../db');
 const requireRefundPermission = require('../middleware/requireRefundPermission');
+const { syncRefundToQbo } = require('../qbo-service');
 
 const router = express.Router();
 
@@ -225,7 +226,29 @@ router.post('/', requireRefundPermission, async (req, res) => {
     }
 
     const savedItems = (await getAllRows('REFUND_ITEMS')).filter(ri => ri.RefundID === refundId);
+
+    // Fire QBO sync asynchronously — the local refund already happened
+    // and returning early keeps the UI responsive. Result surfaces via
+    // REFUNDS.QboSyncStatus, which the refund list badge reads.
+    syncRefundToQbo(refundId).catch(err => console.error('[refunds] sync:', err.message));
+
     res.status(201).json({ ...refund, items: savedItems });
+  } catch (err) {
+    console.error(`[refunds] ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/refunds/:id/sync — manual retry of QBO sync for a refund whose
+// initial push failed. Same role gate as create. Fires sync synchronously
+// so the response reflects the outcome and the UI can toast accordingly.
+router.post('/:id/sync', requireRefundPermission, async (req, res) => {
+  try {
+    const refund = await getRow('REFUNDS', req.params.id);
+    if (!refund) return res.status(404).json({ error: 'Refund not found' });
+    await syncRefundToQbo(req.params.id);
+    const updated = await getRow('REFUNDS', req.params.id);
+    res.json(updated);
   } catch (err) {
     console.error(`[refunds] ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
