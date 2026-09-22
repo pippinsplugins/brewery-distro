@@ -5,6 +5,10 @@ async function loadSettings() {
   const settings = await api.get('/api/settings');
   state.settings = settings;
   renderSettings();
+  // Populate the refund deposit account picker in the background so the
+  // rest of the settings page renders instantly. The picker slot shows
+  // its own loading state.
+  loadRefundDepositAccountPicker();
 }
 
 function getKegDeposits() {
@@ -191,6 +195,18 @@ function renderSettings() {
             </div>
           </div>
           <button class="btn btn-primary" onclick="saveRefundWindow()">Save</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Refund Deposit Account</h3></div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            The QuickBooks account refunds are drawn from by default. Operators can override this per-refund. Requires an active QuickBooks connection.
+          </p>
+          <div id="settings-refund-deposit-account-slot">
+            <p class="text-sm text-muted">Loading QuickBooks accounts…</p>
+          </div>
         </div>
       </div>
     </div>
@@ -388,6 +404,43 @@ function saveRefundWindow() {
   api.put('/api/settings', { refundWindowDays: String(days) }).then(updated => {
     state.settings = updated;
     toast('Refund window saved');
+  }).catch(err => toast(err.message, 'error'));
+}
+
+// ── Refund Deposit Account (QBO) ─────────────────────────────────
+
+async function loadRefundDepositAccountPicker() {
+  const slot = document.getElementById('settings-refund-deposit-account-slot');
+  if (!slot) return;
+  let accounts;
+  try {
+    accounts = await api.get('/api/qbo/refund-accounts');
+  } catch (err) {
+    slot.innerHTML = `<p class="text-sm text-muted">QuickBooks is not connected. Connect it in the Integrations tab first.</p>`;
+    return;
+  }
+  if (!accounts || accounts.length === 0) {
+    slot.innerHTML = `<p class="text-sm text-warning">No eligible accounts found in QuickBooks. Add a Bank or Undeposited Funds account first.</p>`;
+    return;
+  }
+  const current = state.settings?.qboRefundDepositAccountId || '';
+  slot.innerHTML = `
+    <div class="form-row" style="align-items:center;margin-bottom:8px">
+      <div style="flex:1">
+        <select id="settings-refund-deposit-account" class="form-control">
+          <option value="">-- Auto (first Bank account) --</option>
+          ${accounts.map(a => `<option value="${esc(a.id)}"${a.id === current ? ' selected' : ''}>${esc(a.name)}${a.subType ? ' (' + esc(a.subType.replace(/([A-Z])/g, ' $1').trim()) + ')' : ''}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveRefundDepositAccount()">Save</button>`;
+}
+
+function saveRefundDepositAccount() {
+  const value = val('settings-refund-deposit-account') || '';
+  api.put('/api/settings', { qboRefundDepositAccountId: value }).then(updated => {
+    state.settings = updated;
+    toast('Refund deposit account saved');
   }).catch(err => toast(err.message, 'error'));
 }
 

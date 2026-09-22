@@ -8,16 +8,24 @@ async function openRefundModal(orderId) {
   if (!canIssueRefunds()) { toast('Refunds are limited to Account Managers', 'error'); return; }
   const order = _ordersCache.find(o => o.ID === orderId);
   if (!order) { toast('Order not found in cache', 'error'); return; }
-  let items, existing, kegs;
+  let items, existing, kegs, refundAccounts;
   try {
-    [items, existing, kegs] = await Promise.all([
+    [items, existing, kegs, refundAccounts] = await Promise.all([
       api.get(`/api/order-items?orderId=${encodeURIComponent(orderId)}`),
       api.get(`/api/refunds?orderId=${encodeURIComponent(orderId)}`),
       api.get(`/api/keg-tracking?orderId=${encodeURIComponent(orderId)}`).catch(() => []),
+      // Refund accounts only meaningful when QBO is connected; silently
+      // treat any failure (401, no tokens, etc.) as "no picker".
+      api.get('/api/qbo/refund-accounts').catch(() => []),
     ]);
   } catch (err) {
     toast('Failed to load order data: ' + err.message, 'error'); return;
   }
+  // Default account: settings-configured default, then first Bank, then first.
+  const defaultDepositAcctId = state.settings?.qboRefundDepositAccountId || '';
+  const firstBank = (refundAccounts || []).find(a => a.type === 'Bank');
+  const preferredAcctId = defaultDepositAcctId
+    || (firstBank ? firstBank.id : (refundAccounts?.[0]?.id || ''));
   const isDelivered = order.Delivered === 'true';
   // Inventory IDs with outstanding keg tracking on this order (customer
   // still holds the kegs / their deposit). Used to warn the operator that
@@ -132,6 +140,15 @@ async function openRefundModal(orderId) {
         <input type="date" id="f-refund-date" class="form-control" value="${today()}" />
       </div>
     </div>
+
+    ${(refundAccounts || []).length > 0 ? `
+    <div class="form-group">
+      <label>Deposit From <span class="required">*</span></label>
+      <select id="f-refund-qbo-account" class="form-control">
+        ${refundAccounts.map(a => `<option value="${esc(a.id)}"${a.id === preferredAcctId ? ' selected' : ''}>${esc(a.name)}${a.subType ? ' (' + esc(a.subType.replace(/([A-Z])/g, ' $1').trim()) + ')' : ''}</option>`).join('')}
+      </select>
+      <div class="text-sm text-muted" style="margin-top:4px">The QuickBooks account this refund is drawn from. Only used for RefundReceipt-path methods; ignored on CreditMemo (unpaid orders).</div>
+    </div>` : ''}
 
     <div class="form-group">
       <label>Notes</label>
@@ -255,6 +272,8 @@ async function submitRefund(orderId) {
     if (it.taxable) tax += line * rate;
   }
 
+  const qboDepositAccountId = val('f-refund-qbo-account') || '';
+
   try {
     await api.post('/api/refunds', {
       orderId, refundDate, method, reference, reason, notes,
@@ -262,6 +281,7 @@ async function submitRefund(orderId) {
       items: items.map(i => ({
         orderItemId: i.orderItemId, quantity: i.quantity, unitPrice: i.unitPrice, restock: i.restock,
       })),
+      qboDepositAccountId,
       amount: subtotal.toFixed(2),
       taxAmount: tax.toFixed(2),
       depositAmount: '0',

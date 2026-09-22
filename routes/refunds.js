@@ -63,6 +63,7 @@ router.post('/', requireRefundPermission, async (req, res) => {
       orderId, refundDate, method, reference = '', reason,
       notes = '', restockInventory = false, items = [],
       amount, taxAmount = 0, depositAmount = 0,
+      qboDepositAccountId = '',
     } = req.body || {};
 
     if (!orderId) return res.status(400).json({ error: 'orderId is required' });
@@ -142,6 +143,7 @@ router.post('/', requireRefundPermission, async (req, res) => {
       QboRefundType: '',
       QboSyncStatus: '',
       QboSyncError: '',
+      QboDepositAccountId: qboDepositAccountId ? String(qboDepositAccountId) : '',
       StaffID: staffRow ? staffRow.ID : '',
       StaffName: staffRow ? staffRow.Name : ((req.user && req.user.name) || ''),
       CreditID: '',

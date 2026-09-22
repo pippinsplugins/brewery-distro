@@ -61,7 +61,7 @@ const HEADERS = {
   // order is later edited. QboRefundType is 'RefundReceipt' (paid orders)
   // or 'CreditMemo' (unpaid orders). CreditID links to ACCOUNT_CREDITS
   // when Method='Store Credit'.
-  REFUNDS:         ['ID', 'OrderID', 'AccountID', 'AccountName', 'RefundDate', 'Amount', 'TaxAmount', 'DepositAmount', 'TotalAmount', 'Method', 'Reference', 'Reason', 'Notes', 'RestockInventory', 'Status', 'QboRefundId', 'QboRefundType', 'QboSyncStatus', 'QboSyncError', 'StaffID', 'StaffName', 'CreditID', 'CreatedAt'],
+  REFUNDS:         ['ID', 'OrderID', 'AccountID', 'AccountName', 'RefundDate', 'Amount', 'TaxAmount', 'DepositAmount', 'TotalAmount', 'Method', 'Reference', 'Reason', 'Notes', 'RestockInventory', 'Status', 'QboRefundId', 'QboRefundType', 'QboSyncStatus', 'QboSyncError', 'QboDepositAccountId', 'StaffID', 'StaffName', 'CreditID', 'CreatedAt'],
   // REFUND_ITEMS: per-line detail for a refund. OrderItemID points back to
   // the original ORDER_ITEMS row; InventoryID is captured separately so a
   // later product rename or deletion doesn't orphan the refund history.
