@@ -1290,6 +1290,165 @@ async function resyncOrderToQbo(orderId) {
   }
 }
 
+/**
+ * Push a refund to QuickBooks. Branches on order state:
+ *   - Paid order → RefundReceipt, PaymentMethodRef matching the refund method.
+ *     For QBO Payments cards this creates the bookkeeping entry; the actual
+ *     card/ACH void may still need to be initiated from QBO Payments
+ *     (surfaced in the UI hint).
+ *   - Unpaid order (Pending) with a QBO invoice → CreditMemo. QBO holds it
+ *     as customer credit which can be applied to the outstanding invoice
+ *     through the standard receive-payment flow.
+ *   - Store Credit method → RefundReceipt with a "Store Credit" PaymentMethod
+ *     lookup (falls back to logging a warning without failing the sync if
+ *     the QBO PaymentMethod doesn't exist yet).
+ *
+ * On success updates REFUNDS.QboRefundId / QboRefundType / QboSyncStatus.
+ * On failure sets QboSyncStatus='failed' with the error message. Never
+ * throws — the local refund already happened and the UI surfaces a Retry.
+ *
+ * @param {string} refundId
+ */
+async function syncRefundToQbo(refundId) {
+  try {
+    const refund = getRow('REFUNDS', refundId);
+    if (!refund) { console.error(`[qbo] Refund ${refundId} not found`); return; }
+
+    if (!isQboConfigured()) {
+      await updateRow('REFUNDS', refundId, { QboSyncStatus: 'disabled' });
+      return;
+    }
+
+    const tokens = await getValidToken();
+    if (!tokens) {
+      await updateRow('REFUNDS', refundId, {
+        QboSyncStatus: 'failed',
+        QboSyncError:  'Not connected to QuickBooks — reconnect in Settings',
+      });
+      return;
+    }
+
+    const order = getRow('ORDERS', refund.OrderID);
+    if (!order) throw new Error(`Order ${refund.OrderID} not found`);
+    const account = getRow('ACCOUNTS', refund.AccountID);
+    if (!account) throw new Error(`Account ${refund.AccountID} not found`);
+
+    const allItems = await getAllRows('REFUND_ITEMS');
+    const items = allItems.filter(i => i.RefundID === refundId);
+    if (items.length === 0) throw new Error('Refund has no line items');
+
+    // For unpaid orders without an invoice pushed to QBO we have nothing
+    // to reference — skip and let the user re-run once the invoice syncs.
+    const isPaidInQbo = !!order.QboPaymentId;
+    const hasQboInvoice = !!order.QboInvoiceId;
+    const useCreditMemo = !isPaidInQbo && hasQboInvoice;
+    if (!isPaidInQbo && !hasQboInvoice) {
+      await updateRow('REFUNDS', refundId, {
+        QboSyncStatus: 'failed',
+        QboSyncError:  'Original order has not been synced to QuickBooks yet — sync the invoice first',
+      });
+      return;
+    }
+
+    const customerId = await findOrCreateCustomer(account);
+    const productItemId = await getOrCreateProductItem();
+    const taxInfo = await getTaxInfo();
+    const taxAmount = parseFloat(refund.TaxAmount || 0);
+    const hasTax = taxAmount > 0 && taxInfo;
+
+    const lines = items.map((it, idx) => {
+      const line = {
+        DetailType: 'SalesItemLineDetail',
+        Amount: parseFloat(it.LineTotal || 0),
+        Description: [it.ProductName, it.Format].filter(Boolean).join(' — ') + ' (refund)',
+        SalesItemLineDetail: {
+          ItemRef:   { value: productItemId },
+          UnitPrice: parseFloat(it.UnitPrice || 0),
+          Qty:       parseFloat(it.Quantity  || 0),
+        },
+        LineNum: idx + 1,
+      };
+      if (hasTax) {
+        line.SalesItemLineDetail.TaxCodeRef = { value: it.Taxable === 'true' ? 'TAX' : 'NON' };
+      }
+      return line;
+    });
+
+    const txnBody = {
+      CustomerRef: { value: customerId },
+      Line: lines,
+      TxnDate: (refund.RefundDate || '').split('T')[0] || undefined,
+      PrivateNote: `Refund reason: ${refund.Reason || '—'}${refund.Notes ? ` | ${refund.Notes}` : ''}`,
+    };
+
+    if (hasTax) {
+      const netTaxable = lines
+        .filter(l => l.SalesItemLineDetail?.TaxCodeRef?.value === 'TAX')
+        .reduce((s, l) => s + (l.Amount || 0), 0);
+      txnBody.TxnTaxDetail = {
+        TxnTaxCodeRef: { value: taxInfo.taxCodeId },
+        TotalTax:      taxAmount,
+        TaxLine: [{
+          Amount:     taxAmount,
+          DetailType: 'TaxLineDetail',
+          TaxLineDetail: {
+            TaxRateRef:       { value: taxInfo.taxRateId },
+            PercentBased:     true,
+            TaxPercent:       taxInfo.taxPercent,
+            NetAmountTaxable: netTaxable,
+          },
+        }],
+      };
+    }
+
+    let endpoint, refundType;
+    if (useCreditMemo) {
+      endpoint = 'creditmemo';
+      refundType = 'CreditMemo';
+    } else {
+      endpoint = 'refundreceipt';
+      refundType = 'RefundReceipt';
+      // Attach the PaymentMethodRef so QBO categorizes the refund correctly.
+      // For 'Store Credit' this looks up the QBO PaymentMethod of the same
+      // name; if it's not configured we skip the ref rather than fail sync
+      // (the operator can add it later in QBO settings).
+      const methodLookup = refund.Method === 'Store Credit' ? 'store credit' : (refund.Method || '').toLowerCase();
+      if (methodLookup) {
+        try {
+          const methodMap = await getPaymentMethodMap();
+          const methodId = methodMap[methodLookup];
+          if (methodId) txnBody.PaymentMethodRef = { value: methodId };
+          else console.warn(`[qbo] No QBO PaymentMethod named "${refund.Method}" — RefundReceipt created without PaymentMethodRef`);
+        } catch (err) {
+          console.error('[qbo] PaymentMethod lookup failed:', err.message);
+        }
+      }
+    }
+
+    Object.keys(txnBody).forEach(k => txnBody[k] === undefined && delete txnBody[k]);
+
+    const result = await qboApiRequest('POST', endpoint, txnBody);
+    const created = result[refundType];
+    if (!created || !created.Id) throw new Error(`QBO returned a ${refundType} without an Id`);
+
+    await updateRow('REFUNDS', refundId, {
+      QboRefundId:   String(created.Id),
+      QboRefundType: refundType,
+      QboSyncStatus: 'synced',
+      QboSyncError:  '',
+    });
+    console.log(`[qbo] Refund ${refundId} synced → QBO ${refundType} ${created.Id}`);
+  } catch (err) {
+    console.error(`[qbo] Refund sync failed for ${refundId}:`, err.message);
+    try {
+      await updateRow('REFUNDS', refundId, {
+        QboSyncStatus: 'failed',
+        QboSyncError:  err.message || String(err) || 'Unexpected error',
+      });
+    } catch { /* ignore */ }
+  }
+}
+
 module.exports = {
   isQboConfigured,
   getOAuthClient,
@@ -1299,6 +1458,7 @@ module.exports = {
   getValidToken,
   syncOrderToQbo,
   resyncOrderToQbo,
+  syncRefundToQbo,
   fetchTaxCodes,
   clearTaxInfoCache,
   getPayment,

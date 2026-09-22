@@ -142,8 +142,10 @@ router.get('/me', (req, res) => {
     const { id, name, email, photo } = req.user;
 
     // Look up the STAFF row whose comma-separated Email field contains
-    // the authenticated user's email so we can expose all their addresses.
+    // the authenticated user's email so we can expose all their addresses
+    // plus their role (used to gate role-restricted UI like refunds).
     let staffEmails = [email];
+    let staffRole = '';
     const userLower = (email || '').toLowerCase();
     if (userLower) {
       const staffRows = getAllRows('STAFF');
@@ -152,12 +154,13 @@ router.get('/me', (req, res) => {
         const parsed = s.Email.split(',').map(e => e.trim()).filter(Boolean);
         if (parsed.some(e => e.toLowerCase() === userLower)) {
           staffEmails = parsed;
+          staffRole = s.Role || '';
           break;
         }
       }
     }
 
-    return res.json({ user: { id, name, email, photo, staffEmails } });
+    return res.json({ user: { id, name, email, photo, staffEmails, staffRole } });
   }
   res.status(401).json({ user: null });
 });

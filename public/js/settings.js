@@ -173,6 +173,26 @@ function renderSettings() {
           <button class="btn btn-primary" onclick="saveTaxRate()">Save</button>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Refund Window</h3></div>
+        <div style="padding:0 18px 18px">
+          <p class="text-sm text-muted" style="margin-bottom:12px">
+            Orders older than this cutoff show a warning in the refund modal that requires an explicit override to submit. Not a hard block — chargebacks and disputes can arrive months later.
+          </p>
+          <div class="form-row" style="align-items:center;margin-bottom:8px">
+            <div style="flex:1">
+              <div style="position:relative">
+                <input class="form-control" id="settings-refund-window"
+                  type="number" step="1" min="0" value="${esc(s.refundWindowDays || '90')}" placeholder="90"
+                  style="padding-right:50px" />
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text-muted)">days</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveRefundWindow()">Save</button>
+        </div>
+      </div>
     </div>
     </div>
 
@@ -356,6 +376,18 @@ function saveTaxRate() {
   api.put('/api/settings', { taxRate: value }).then(updated => {
     state.settings = updated;
     toast('Tax rate saved');
+  }).catch(err => toast(err.message, 'error'));
+}
+
+// ── Refund Window ─────────────────────────────────────────────────
+
+function saveRefundWindow() {
+  const v = val('settings-refund-window');
+  const days = parseInt(v);
+  if (isNaN(days) || days < 0) { toast('Refund window must be a non-negative integer', 'error'); return; }
+  api.put('/api/settings', { refundWindowDays: String(days) }).then(updated => {
+    state.settings = updated;
+    toast('Refund window saved');
   }).catch(err => toast(err.message, 'error'));
 }
 

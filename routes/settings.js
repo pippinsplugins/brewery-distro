@@ -79,7 +79,7 @@ router.get('/', async (req, res) => {
 // are managed through dedicated endpoints and cannot be overwritten here.
 const ALLOWED_SETTINGS_KEYS = new Set([
   'locations', 'accountTags', 'styles', 'kegDeposits', 'companyName',
-  'inboundEmail', 'geminiApiKey', 'qboTaxCodeId',
+  'inboundEmail', 'geminiApiKey', 'qboTaxCodeId', 'refundWindowDays',
 ]);
 
 // PUT /api/settings — accepts a key-value map, upserts each key
