@@ -772,6 +772,18 @@ tbody td {
 
 .cell-available { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 
+/* Refund modal line-items table.
+   Desktop: tight, single-row-per-line. Refund Qty input capped narrow so
+   all 7 columns fit inside the modal on typical widths.
+   Mobile: rows become cards via the "responsive table" pattern — each td
+   stacks with its data-label as a leading tag, thead is hidden, restock
+   gets an inline label so the checkbox reads as a real control. */
+.refund-lines-table th,
+.refund-lines-table td { padding: 6px 8px; }
+.refund-lines-table .refund-qty { min-width: 70px; }
+.refund-restock-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.mobile-only-inline { display: none; }
+
 /* Order status badges */
 .badge-draft     { background: #f5f5f5; color: #616161; }
 .badge-pre-sale  { background: #f3e5f5; color: #7b1fa2; }
@@ -2002,6 +2014,62 @@ th input[type="checkbox"] {
 
   /* ── Hide non-essential table columns ── */
   .mobile-hide { display: none !important; }
+
+  /* ── Refund line-items: table → cards (responsive-table pattern) ──
+     Rows collapse into bordered blocks; each td is a labeled row inside
+     the card. Keeps a single DOM (no double render / double read) so the
+     existing _refundRecomputeTotals / _refundCollectItems selectors work
+     unchanged. */
+  .refund-lines-wrap { overflow-x: visible; }
+  .refund-lines-table,
+  .refund-lines-table thead,
+  .refund-lines-table tbody,
+  .refund-lines-table tr,
+  .refund-lines-table td { display: block; width: 100%; }
+  .refund-lines-table thead { display: none; }
+  .refund-lines-table tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--card-bg, #fff);
+  }
+  .refund-lines-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: right !important;
+    padding: 6px 0;
+    border: none;
+    gap: 12px;
+  }
+  .refund-lines-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  /* Product cell reads as the card title. */
+  .refund-lines-table td[data-label="Product"] {
+    justify-content: flex-start;
+    text-align: left !important;
+    font-size: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light, #eee);
+    margin-bottom: 6px;
+  }
+  .refund-lines-table td[data-label="Product"]::before { display: none; }
+  .refund-lines-table .refund-qty {
+    min-width: 90px;
+    text-align: right;
+  }
+  /* Restock: show its text label so the checkbox reads as a real control. */
+  .mobile-only-inline { display: inline; }
+  .refund-lines-table td[data-label="Restock"]::before { display: none; }
+  .refund-lines-table td[data-label="Restock"] { justify-content: flex-start; text-align: left !important; }
 
   /* ── Action buttons: collapse into ... menu ── */
   .td-actions {

@@ -58,10 +58,18 @@ async function openRefundModal(orderId) {
     ${!isDelivered ? '<div class="info-banner warn" style="margin-bottom:12px">This order was never marked delivered — no inventory was ever decremented, so restock options are disabled.</div>' : ''}
     ${_refundWindowWarningHtml(order)}
 
-    <div class="table-wrap" style="margin-bottom:14px">
-      <table>
+    <div class="table-wrap refund-lines-wrap" style="margin-bottom:14px">
+      <table class="refund-lines-table">
         <thead>
-          <tr><th>Product</th><th>Format</th><th class="text-right">Original</th><th class="text-right">Refunded</th><th class="text-right" style="width:110px">Refund Qty</th><th class="text-right">Unit</th><th class="text-right">Line</th><th style="width:80px">Restock</th></tr>
+          <tr>
+            <th>Product</th>
+            <th>Format</th>
+            <th class="text-right" title="Ordered qty (already refunded)">Ordered</th>
+            <th class="text-right" style="width:100px">Refund Qty</th>
+            <th class="text-right">Unit</th>
+            <th class="text-right">Line</th>
+            <th class="text-center" style="width:70px">Restock</th>
+          </tr>
         </thead>
         <tbody>
           ${refundable.map(i => {
@@ -71,22 +79,22 @@ async function openRefundModal(orderId) {
             const unit = parseFloat(i.UnitPrice || 0);
             const canRestock = isDelivered && !!i.InventoryID;
             const isKeg = (i.Format || '').toLowerCase().includes('keg');
+            const orderedCell = already > 0 ? `${origQty} <span class="text-muted text-sm">(${already} refunded)</span>` : String(origQty);
             return `<tr data-item-id="${esc(i.ID)}" data-taxable="${i.Taxable === 'true' ? '1' : '0'}" data-unit="${unit.toFixed(2)}" data-inv-id="${esc(i.InventoryID || '')}" data-keg="${isKeg ? '1' : '0'}">
-              <td class="fw-600">${esc(i.ProductName)}</td>
-              <td>${esc(i.Format || '—')}</td>
-              <td class="text-right">${origQty}</td>
-              <td class="text-right">${already || '—'}</td>
-              <td class="text-right">
+              <td class="fw-600" data-label="Product">${esc(i.ProductName)}</td>
+              <td data-label="Format">${esc(i.Format || '—')}</td>
+              <td class="text-right" data-label="Ordered">${orderedCell}</td>
+              <td class="text-right" data-label="Refund Qty">
                 <input type="number" class="form-control refund-qty" min="0" max="${remaining}" value="0"
                   ${remaining === 0 ? 'disabled' : ''}
-                  style="width:90px;text-align:right"
+                  style="width:90px;text-align:right;display:inline-block"
                   oninput="_refundRecomputeTotals()" />
               </td>
-              <td class="text-right">$${unit.toFixed(2)}</td>
-              <td class="text-right refund-line-total">$0.00</td>
-              <td class="text-center">
+              <td class="text-right" data-label="Unit">$${unit.toFixed(2)}</td>
+              <td class="text-right refund-line-total" data-label="Line">$0.00</td>
+              <td class="text-center" data-label="Restock">
                 ${canRestock
-                  ? `<input type="checkbox" class="refund-restock" checked title="Add ${esc(i.ProductName)} back to inventory" />`
+                  ? `<label class="refund-restock-label"><input type="checkbox" class="refund-restock" checked title="Add ${esc(i.ProductName)} back to inventory" /><span class="mobile-only-inline"> Restock to inventory</span></label>`
                   : '<span class="text-muted text-sm">—</span>'}
               </td>
             </tr>`;
@@ -150,6 +158,10 @@ async function openRefundModal(orderId) {
   modal.open('Issue Refund', html, async () => {
     await submitRefund(orderId);
   }, 'Issue Refund');
+  // Widen the modal so the multi-column line-items table fits without
+  // horizontal clipping. modal.open() strips this class on close.
+  const modalEl = document.getElementById('modal-box');
+  if (modalEl) modalEl.classList.add('modal-wide');
   // Compute initial totals + method hint after DOM insertion; also disable
   // the submit button if the refund-window override is showing but unchecked.
   setTimeout(() => {
