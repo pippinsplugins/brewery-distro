@@ -177,7 +177,7 @@ function _refundCollectItems() {
 }
 
 function _refundRecomputeTotals() {
-  const rate = typeof getTaxRate === 'function' ? getTaxRate() : 0;
+  const rate = (typeof getTaxRate === 'function' ? getTaxRate() : 0) / 100;
   let subtotal = 0, tax = 0;
   let anyOutstandingKegRefunded = false;
   const outstanding = window._refundOutstandingKegs || new Set();
@@ -235,7 +235,7 @@ async function submitRefund(orderId) {
 
   if (method === 'Check' && !reference) { toast('Check number is required for check refunds', 'error'); return; }
 
-  const rate = typeof getTaxRate === 'function' ? getTaxRate() : 0;
+  const rate = (typeof getTaxRate === 'function' ? getTaxRate() : 0) / 100;
   let subtotal = 0, tax = 0;
   for (const it of items) {
     const line = it.quantity * it.unitPrice;
