@@ -554,23 +554,36 @@ async function getPaymentMethodMap() {
 // active Bank account, which covers the common single-checking-account
 // setup out of the box. Cached per-process; cleared with clearAllCaches.
 
-let _qboRefundDepositAccountId = null;
+// Query QBO for accounts that can serve as the DepositToAccountRef target
+// on a RefundReceipt. Includes Bank (checking / savings) plus Other Current
+// Asset (which is where "Undeposited Funds" lives) — matches the accounts
+// QBO's own refund UI exposes in the "Deposit to" dropdown. Not cached so
+// operators see freshly-added accounts immediately in the picker.
+async function fetchRefundAccounts() {
+  const query = "SELECT Id, Name, AccountType, AccountSubType, CurrentBalance FROM Account WHERE Active = true AND AccountType IN ('Bank', 'Other Current Asset') MAXRESULTS 200";
+  const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
+  const accounts = result.QueryResponse?.Account || [];
+  return accounts.map(a => ({
+    id: String(a.Id),
+    name: a.Name || '',
+    type: a.AccountType || '',
+    subType: a.AccountSubType || '',
+  }));
+}
 
+// Resolve the fallback deposit account for RefundReceipt when the refund
+// itself doesn't carry one. Not cached: reads from a mutable setting, and
+// a stale cache would silently push refunds to the wrong account after a
+// change.
 async function getRefundDepositAccountId() {
-  if (_qboRefundDepositAccountId) return _qboRefundDepositAccountId;
-  // Explicit override via settings takes precedence.
   const settings = await getAllRows('SETTINGS');
   const override = settings.find(s => s.Key === 'qboRefundDepositAccountId');
-  if (override && override.Value) {
-    _qboRefundDepositAccountId = String(override.Value);
-    return _qboRefundDepositAccountId;
-  }
+  if (override && override.Value) return String(override.Value);
   const query = "SELECT * FROM Account WHERE AccountType = 'Bank' AND Active = true MAXRESULTS 10";
   const result = await qboApiRequest('GET', `query?query=${encodeURIComponent(query)}`);
   const accounts = result.QueryResponse?.Account || [];
   if (accounts.length === 0) return null;
-  _qboRefundDepositAccountId = String(accounts[0].Id);
-  return _qboRefundDepositAccountId;
+  return String(accounts[0].Id);
 }
 
 // ── Clear all in-memory caches (used on 610 retry) ──────────────
@@ -580,7 +593,6 @@ function clearAllCaches() {
   _qboTaxInfo = null;
   _qboDepartments = null;
   _qboPaymentMethods = null;
-  _qboRefundDepositAccountId = null;
   if (typeof _qboPaymentSummaryCache !== 'undefined') _qboPaymentSummaryCache.clear();
 }
 
@@ -1435,14 +1447,14 @@ async function syncRefundToQbo(refundId) {
     } else {
       endpoint = 'refundreceipt';
       refundType = 'RefundReceipt';
-      // DepositToAccountRef is required by QBO — it's the account the
-      // refund is drawn from. Use the operator's configured account when
-      // set (qboRefundDepositAccountId setting), otherwise fall back to
-      // the first active Bank account. Fail sync loudly if neither is
-      // available so the operator knows to configure it.
-      const depositAcctId = await getRefundDepositAccountId();
+      // DepositToAccountRef is required by QBO — the account the refund is
+      // drawn from. Precedence: the refund's own QboDepositAccountId (chosen
+      // in the refund modal), then the settings-configured default, then the
+      // first active Bank account. Fail sync loudly if none is available so
+      // the operator knows what to configure.
+      const depositAcctId = refund.QboDepositAccountId || (await getRefundDepositAccountId());
       if (!depositAcctId) {
-        throw new Error('No QBO deposit account available for RefundReceipt — set qboRefundDepositAccountId in Settings or add a Bank account in QBO');
+        throw new Error('No QBO deposit account available for RefundReceipt — pick one in the refund modal, set a default in Settings, or add a Bank account in QBO');
       }
       txnBody.DepositToAccountRef = { value: depositAcctId };
       // Attach the PaymentMethodRef so QBO categorizes the refund correctly.
@@ -1497,6 +1509,7 @@ module.exports = {
   resyncOrderToQbo,
   syncRefundToQbo,
   fetchTaxCodes,
+  fetchRefundAccounts,
   clearTaxInfoCache,
   getPayment,
   getInvoice,

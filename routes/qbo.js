@@ -3,7 +3,7 @@
 const crypto      = require('crypto');
 const express     = require('express');
 const OAuthClient = require('intuit-oauth');
-const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, clearTaxInfoCache, createPayment, getCustomerPaymentSummary, refreshOrderInvoicePdf, QBO_APP_URL } = require('../qbo-service');
+const { isQboConfigured, getOAuthClient, getStoredTokens, storeTokens, clearTokens, syncOrderToQbo, resyncOrderToQbo, fetchTaxCodes, fetchRefundAccounts, clearTaxInfoCache, createPayment, getCustomerPaymentSummary, refreshOrderInvoicePdf, QBO_APP_URL } = require('../qbo-service');
 
 const authRouter = express.Router();
 const apiRouter  = express.Router();
@@ -112,6 +112,19 @@ apiRouter.get('/tax-codes', async (req, res) => {
   try {
     const codes = await fetchTaxCodes();
     res.json(codes);
+  } catch (err) {
+    console.error('[qbo]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/qbo/refund-accounts — accounts eligible as DepositToAccountRef
+// on a RefundReceipt. Used by the refund modal's account picker and the
+// Settings default-picker.
+apiRouter.get('/refund-accounts', async (req, res) => {
+  try {
+    const accounts = await fetchRefundAccounts();
+    res.json(accounts);
   } catch (err) {
     console.error('[qbo]', err.message);
     res.status(500).json({ error: err.message });
