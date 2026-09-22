@@ -80,6 +80,7 @@ router.get('/', async (req, res) => {
 const ALLOWED_SETTINGS_KEYS = new Set([
   'locations', 'accountTags', 'styles', 'kegDeposits', 'companyName',
   'inboundEmail', 'geminiApiKey', 'qboTaxCodeId', 'refundWindowDays',
+  'qboRefundDepositAccountId',
 ]);
 
 // PUT /api/settings — accepts a key-value map, upserts each key
