@@ -1701,6 +1701,24 @@ th input[type="checkbox"] {
     overflow-wrap: break-word;
   }
 
+  /* Orders list Date cell: keep it narrow so Account has room. Combined
+     with the compact date variant (formatDateShort) this fits "9/24/26"
+     in ~60px instead of ~90px. */
+  .orders-date-cell {
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 6px;
+  }
+
+  /* Actions header on tables that use .th-actions: only the "Actions"
+     text hides on mobile (via a nested mobile-hide span); the <th> stays
+     to hold column width for the row's ... button, kept compact. */
+  .th-actions {
+    width: 44px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
   /* ── Tag badges inside table cells: wrap tightly ── */
   td .tag-badges {
     display: flex;

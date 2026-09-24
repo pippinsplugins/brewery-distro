@@ -172,6 +172,18 @@ function formatDate(d) {
   return `${m}/${day}/${y}`;
 }
 
+// Compact date variant for tight table cells: strips leading zeros and
+// uses a 2-digit year. "09/24/2026" -> "9/24/26". Used alongside
+// formatDate in dense views (e.g. Orders list on mobile) via a
+// mobile-hide/mobile-only-inline swap.
+function formatDateShort(d) {
+  if (!d) return '—';
+  const ds = dateOnly(d);
+  const [y, m, day] = ds.split('-');
+  if (!y || !m || !day) return d;
+  return `${parseInt(m, 10)}/${parseInt(day, 10)}/${y.slice(-2)}`;
+}
+
 function formatPhone(p) {
   if (!p) return '';
   const digits = p.replace(/\D/g, '');
