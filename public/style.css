@@ -1719,6 +1719,25 @@ th input[type="checkbox"] {
     padding-right: 4px;
   }
 
+  /* Orders list Total column: shrink to fit content ($1,234.56 max ~85px).
+     nowrap so money isn't split across lines; tight padding buys width
+     for the Account column. */
+  .orders-total-cell {
+    white-space: nowrap;
+    width: 1%;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 13px;
+  }
+
+  /* Orders list Status column: cap width so the badge + hidden
+     PaymentMethod line don't hog space; give Account the remainder. */
+  .orders-status-cell {
+    width: 1%;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
   /* ── Tag badges inside table cells: wrap tightly ── */
   td .tag-badges {
     display: flex;
