@@ -1650,6 +1650,11 @@ async function openEditOrder(id) {
       toast('Order updated');
       loadOrders();
     }, 'Save');
+    // Widen the modal so the Refunds section (a multi-column table) doesn't
+    // force horizontal scroll inside the default 560px modal. modal.open()
+    // strips this class on close.
+    const modalEl = document.getElementById('modal-box');
+    if (modalEl) modalEl.classList.add('modal-wide');
     loadOrderRefundsIntoSlot(id);
   } else {
     // Snapshot the order's current line items + material signature so the save
@@ -2599,9 +2604,9 @@ function renderImportPreview() {
                     <td><input class="form-control form-control-sm" id="imp-li-name-${idx}-${liIdx}" value="${esc(li.productName)}" /></td>
                     <td class="text-sm">${esc(li.format) || '—'}</td>
                     <td class="text-sm">${matchBadge}</td>
-                    <td><input class="form-control form-control-sm" id="imp-li-qty-${idx}-${liIdx}" type="number" min="0" step="1" value="${esc(li.quantity)}" style="width:70px" /></td>
-                    <td><input class="form-control form-control-sm" id="imp-li-price-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.unitPrice)}" style="width:90px" /></td>
-                    <td><input class="form-control form-control-sm" id="imp-li-total-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.lineTotal)}" style="width:90px" /></td>
+                    <td><input class="form-control form-control-sm import-num-input" id="imp-li-qty-${idx}-${liIdx}" type="number" min="0" step="1" value="${esc(li.quantity)}" style="width:70px" /></td>
+                    <td><input class="form-control form-control-sm import-num-input" id="imp-li-price-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.unitPrice)}" style="width:90px" /></td>
+                    <td><input class="form-control form-control-sm import-num-input" id="imp-li-total-${idx}-${liIdx}" type="number" min="0" step="0.01" value="${esc(li.lineTotal)}" style="width:90px" /></td>
                     ${p.lineItems.some(l => l.inventoryMatch === 'none') ? (li.inventoryMatch === 'none' ? createCheck : '<td></td>') : ''}
                   </tr>`;
                 }).join('')}

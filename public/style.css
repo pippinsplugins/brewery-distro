@@ -1754,8 +1754,18 @@ th input[type="checkbox"] {
     overflow-x: hidden;
   }
 
+  /* Sticky header + footer on mobile. In portrait this is a no-op — the
+     body scrolls internally so header/footer already stay put outside the
+     scroll region. In landscape (see the max-height:500px block below)
+     the whole modal scrolls, and without sticky the Save button scrolls
+     off past long forms. Background is set explicitly so scrolling body
+     content doesn't bleed through. */
   .modal-header {
     padding: 14px 16px 12px;
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 2;
   }
 
   /* ── Modal close button: touch-friendly ── */
@@ -1770,6 +1780,10 @@ th input[type="checkbox"] {
 
   .modal-footer {
     padding: 12px 16px;
+    position: sticky;
+    bottom: 0;
+    background: var(--card-bg);
+    z-index: 2;
   }
 
   /* ── Modal footer buttons: touch-friendly ── */
@@ -1839,6 +1853,13 @@ th input[type="checkbox"] {
 
   .order-line-item-row .line-item-qty {
     width: 70px !important;
+  }
+
+  /* Custom-item price sits next to the qty input in custom-item rows.
+     Match line-item-qty sizing so the pair doesn't push the row wider
+     than the modal on narrow phones. */
+  .order-line-item-row .custom-item-price {
+    width: 80px !important;
   }
 
   /* Delivers-to picker: label on its own line above a full-width select on
@@ -2005,6 +2026,16 @@ th input[type="checkbox"] {
     font-size: 13px;
   }
 
+  /* ── Dashboard list items: touch-friendly rows ──
+     Non-clickable rows keep their compact 8px padding; clickable rows
+     (todos, overdue reminders, low-stock items) get a 44px min-height
+     so they're comfortable tap targets. */
+  .dash-list li.clickable {
+    min-height: 44px;
+    padding: 10px 6px;
+    align-items: center;
+  }
+
   .pagination-per-page select {
     min-height: 36px;
     padding: 6px 10px;
@@ -2082,6 +2113,19 @@ th input[type="checkbox"] {
   .mobile-only-inline { display: inline; }
   .refund-lines-table td[data-label="Restock"]::before { display: none; }
   .refund-lines-table td[data-label="Restock"] { justify-content: flex-start; text-align: left !important; }
+  /* Ordered cell: "12 (3 refunded)" runs together on narrow phones —
+     let the parenthetical drop onto its own line under the qty. */
+  .refund-lines-table td[data-label="Ordered"] { flex-wrap: wrap; }
+  .refund-lines-table .refund-ordered-note {
+    flex-basis: 100%;
+    text-align: right;
+    padding-left: 0;
+  }
+
+  /* Import Invoices per-line numeric inputs: the desktop-tuned pixel widths
+     (70–90px) sit in a wide table that scrolls awkwardly on phones. Full-
+     width the inputs so they align with the .form-control-sm sizing. */
+  .import-num-input { width: 100% !important; min-width: 0; }
 
   /* ── Action buttons: collapse into ... menu ── */
   .td-actions {
@@ -2089,9 +2133,18 @@ th input[type="checkbox"] {
     white-space: nowrap;
   }
 
-  /* ── Filter bar: stack vertically ── */
+  /* ── Filter bar: wrap into pairs instead of stacking vertically ──
+     Two selects share a row where they fit; the search input keeps its
+     min-width:200px so it takes a full row on its own. Reduces vertical
+     stack height on views like Orders that pack 5+ filters. Labels
+     (used only for date-range pair) sit at natural width. */
   .filter-bar {
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+  .filter-bar > input,
+  .filter-bar > select {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
   }
 
   /* ── Filter bar inputs: 16px to prevent iOS auto-zoom on focus (#403) ── */
@@ -2362,10 +2415,23 @@ th input[type="checkbox"] {
 
 @media (max-width: 400px) {
 
-  /* ── Profile stats: single column at very small sizes ── */
+  /* ── Profile stats: horizontal scroll strip on very small screens ──
+     With 10+ stat tiles a single-column grid was ~10 rows tall before
+     content started. Swipe-able strip fits 2.2 tiles at a time so the
+     partial third tile signals scrollability. Scroll snap for tidy
+     stopping points. */
   .profile-stats {
-    grid-template-columns: 1fr;
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
     gap: 8px;
+    padding-bottom: 4px; /* room for scroll shadow / avoid clipping shadow */
+  }
+  .profile-stat {
+    flex: 0 0 45%;
+    scroll-snap-align: start;
   }
 
   .profile-stat .stat-value {
