@@ -1394,10 +1394,10 @@ function renderOrders() {
       .map(([id, name]) => `<option value="${esc(id)}" ${staffFilter === id ? 'selected' : ''}>${esc(name)}</option>`)
       .join('');
 
-  const ordTh = (label, colKey) => {
+  const ordTh = (label, colKey, extraClass = '') => {
     const active = _ordersSort.col === colKey;
     const arrow = active ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return `<th class="sortable-th${active ? ' sorted' : ''}" onclick="sortOrders('${colKey}')">${label}${arrow}</th>`;
+    return `<th class="sortable-th${active ? ' sorted' : ''}${extraClass ? ' ' + extraClass : ''}" onclick="sortOrders('${colKey}')">${label}${arrow}</th>`;
   };
 
   // Email draft orders banner
@@ -1455,7 +1455,7 @@ function renderOrders() {
         <thead>
           <tr>
             ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th class="mobile-hide">Invoice #</th>
-            <th class="mobile-hide sortable-th${_ordersSort.col === 'Amount' ? ' sorted' : ''}" onclick="sortOrders('Amount')">Order Amt${_ordersSort.col === 'Amount' ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th class="mobile-hide">Delivered</th><th class="th-actions"><span class="mobile-hide">Actions</span></th>
+            <th class="mobile-hide sortable-th${_ordersSort.col === 'Amount' ? ' sorted' : ''}" onclick="sortOrders('Amount')">Order Amt${_ordersSort.col === 'Amount' ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Tax</th>${ordTh('Total','Total','orders-total-cell')}${ordTh('Status','Status','orders-status-cell')}<th class="mobile-hide">Delivered</th><th class="th-actions"><span class="mobile-hide">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -1469,8 +1469,8 @@ function renderOrders() {
                 <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${s.PONumber ? `<br><span class="text-muted text-sm">PO: ${esc(s.PONumber)}</span>` : ''}${(_orderItemSummary[s.ID]?.count) ? ` <span class="badge badge-items" title="${_orderItemSummary[s.ID].count} line item${_orderItemSummary[s.ID].count > 1 ? 's' : ''}">${_orderItemSummary[s.ID].count} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
-                <td class="fw-600">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
-                <td>${orderStatusBadge(s.Status)}${refundStatusBadgeHtml(s)}${s.PaymentMethod ? `<br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span>` : ''}</td>
+                <td class="fw-600 orders-total-cell">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(total)}</td>
+                <td class="orders-status-cell">${orderStatusBadge(s.Status)}${refundStatusBadgeHtml(s)}${s.PaymentMethod ? `<span class="mobile-hide"><br><span class="text-muted text-sm">${esc(s.PaymentMethod)}${s.PaymentReference ? ' · ' + esc(s.PaymentReference) : ''}</span></span>` : ''}</td>
                 <td class="mobile-hide text-center">${isPreSale || s.Status === 'Draft' ? '—'
                   : s.Delivered === 'true'
                   ? `<input type="checkbox" checked disabled title="${s.DeliveryDate ? formatDate(s.DeliveryDate) : 'Delivered'}" />`
