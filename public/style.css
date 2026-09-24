@@ -2112,9 +2112,18 @@ th input[type="checkbox"] {
     white-space: nowrap;
   }
 
-  /* ── Filter bar: stack vertically ── */
+  /* ── Filter bar: wrap into pairs instead of stacking vertically ──
+     Two selects share a row where they fit; the search input keeps its
+     min-width:200px so it takes a full row on its own. Reduces vertical
+     stack height on views like Orders that pack 5+ filters. Labels
+     (used only for date-range pair) sit at natural width. */
   .filter-bar {
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+  .filter-bar > input,
+  .filter-bar > select {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
   }
 
   /* ── Filter bar inputs: 16px to prevent iOS auto-zoom on focus (#403) ── */
@@ -2385,10 +2394,23 @@ th input[type="checkbox"] {
 
 @media (max-width: 400px) {
 
-  /* ── Profile stats: single column at very small sizes ── */
+  /* ── Profile stats: horizontal scroll strip on very small screens ──
+     With 10+ stat tiles a single-column grid was ~10 rows tall before
+     content started. Swipe-able strip fits 2.2 tiles at a time so the
+     partial third tile signals scrollability. Scroll snap for tidy
+     stopping points. */
   .profile-stats {
-    grid-template-columns: 1fr;
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
     gap: 8px;
+    padding-bottom: 4px; /* room for scroll shadow / avoid clipping shadow */
+  }
+  .profile-stat {
+    flex: 0 0 45%;
+    scroll-snap-align: start;
   }
 
   .profile-stat .stat-value {
