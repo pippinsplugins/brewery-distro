@@ -1650,6 +1650,11 @@ async function openEditOrder(id) {
       toast('Order updated');
       loadOrders();
     }, 'Save');
+    // Widen the modal so the Refunds section (a multi-column table) doesn't
+    // force horizontal scroll inside the default 560px modal. modal.open()
+    // strips this class on close.
+    const modalEl = document.getElementById('modal-box');
+    if (modalEl) modalEl.classList.add('modal-wide');
     loadOrderRefundsIntoSlot(id);
   } else {
     // Snapshot the order's current line items + material signature so the save
