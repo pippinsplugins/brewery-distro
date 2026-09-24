@@ -1750,8 +1750,18 @@ th input[type="checkbox"] {
     overflow-x: hidden;
   }
 
+  /* Sticky header + footer on mobile. In portrait this is a no-op — the
+     body scrolls internally so header/footer already stay put outside the
+     scroll region. In landscape (see the max-height:500px block below)
+     the whole modal scrolls, and without sticky the Save button scrolls
+     off past long forms. Background is set explicitly so scrolling body
+     content doesn't bleed through. */
   .modal-header {
     padding: 14px 16px 12px;
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 2;
   }
 
   /* ── Modal close button: touch-friendly ── */
@@ -1766,6 +1776,10 @@ th input[type="checkbox"] {
 
   .modal-footer {
     padding: 12px 16px;
+    position: sticky;
+    bottom: 0;
+    background: var(--card-bg);
+    z-index: 2;
   }
 
   /* ── Modal footer buttons: touch-friendly ── */
