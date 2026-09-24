@@ -1851,6 +1851,13 @@ th input[type="checkbox"] {
     width: 70px !important;
   }
 
+  /* Custom-item price sits next to the qty input in custom-item rows.
+     Match line-item-qty sizing so the pair doesn't push the row wider
+     than the modal on narrow phones. */
+  .order-line-item-row .custom-item-price {
+    width: 80px !important;
+  }
+
   /* Delivers-to picker: label on its own line above a full-width select on
      the narrowest phones so the customer name is actually readable. */
   .line-item-delivers-to {
@@ -2013,6 +2020,16 @@ th input[type="checkbox"] {
     min-width: 36px;
     padding: 6px 10px;
     font-size: 13px;
+  }
+
+  /* ── Dashboard list items: touch-friendly rows ──
+     Non-clickable rows keep their compact 8px padding; clickable rows
+     (todos, overdue reminders, low-stock items) get a 44px min-height
+     so they're comfortable tap targets. */
+  .dash-list li.clickable {
+    min-height: 44px;
+    padding: 10px 6px;
+    align-items: center;
   }
 
   .pagination-per-page select {
