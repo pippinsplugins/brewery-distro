@@ -63,7 +63,12 @@ function todoForm(todo = {}) {
     <div class="form-group">
       <label>Notes</label>
       <textarea class="form-control" id="f-notes" rows="2">${esc(todo.Notes)}</textarea>
-    </div>`;
+    </div>
+    ${todo.Completed === 'true' ? `
+    <div class="form-group">
+      <label>Completion note <span class="text-muted text-sm">(what happened when this was marked done)</span></label>
+      <textarea class="form-control" id="f-completion-notes" rows="2">${esc(todo.CompletionNotes || '')}</textarea>
+    </div>` : ''}`;
 }
 
 let _todosCache = [];
@@ -180,7 +185,7 @@ function renderTodos() {
           ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No todos found.</td></tr>` :
             pg.rows.map(r => `<tr>
               <td class="mobile-hide"><input type="checkbox" class="todo-row-checkbox" data-id="${esc(r.ID)}" ${_todoSelection.has(r.ID) ? 'checked' : ''} onchange="toggleTodoSelection('${esc(r.ID)}', this.checked)" /></td>
-              <td>${formatDate(r.DueDate)}${r.Completed === 'true' ? `<br><span class="text-muted text-sm">${r.CompletedAt ? 'Done ' + formatDate(r.CompletedAt) : 'Done (date unknown)'}</span>` : ''}</td>
+              <td>${formatDate(r.DueDate)}${r.Completed === 'true' ? `<br><span class="text-muted text-sm">${r.CompletedAt ? 'Done ' + formatDate(r.CompletedAt) : 'Done (date unknown)'}</span>${r.CompletionNotes ? `<br><span class="text-sm" style="white-space:normal;color:var(--text-secondary)" title="Completion note">${esc(r.CompletionNotes)}</span>` : ''}` : ''}</td>
               <td class="mobile-hide">${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
               <td class="mobile-hide text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
@@ -375,12 +380,16 @@ function openEditTodo(id) {
     const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-    await api.put(`/api/reminders/${id}`, {
+    const payload = {
       Title: title, DueDate: dueDate, Priority: val('f-priority'),
       Type: val('f-type'), AccountID: accountId, AccountName: accountName,
       StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
       Recurrence: val('f-recurrence'),
-    });
+    };
+    if (todo.Completed === 'true' && document.getElementById('f-completion-notes')) {
+      payload.CompletionNotes = val('f-completion-notes');
+    }
+    await api.put(`/api/reminders/${id}`, payload);
     modal.close();
     toast('Todo updated');
     loadTodos(true);
@@ -400,6 +409,10 @@ async function completeTodo(id) {
     <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px">
       Marking <strong>${esc(title) || 'this todo'}</strong> as done${acctName ? ` for <strong>${esc(acctName)}</strong>` : ''}.
     </p>
+    <div class="form-group">
+      <label>Completion note <span class="text-muted text-sm">(optional — visible on the completed todo)</span></label>
+      <textarea class="form-control" id="f-completion-notes" rows="2" placeholder="e.g. Full tear-down and clean; replaced two gaskets"></textarea>
+    </div>
     ${acctId ? `
     <div class="form-group">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
@@ -429,8 +442,12 @@ async function completeTodo(id) {
 
   modal.open('Complete Todo', formHtml, async () => {
     const logOutreach = acctId && document.getElementById('f-log-outreach')?.checked;
+    const completionNotes = val('f-completion-notes').trim();
 
-    const result = await api.put(`/api/reminders/${id}`, { Completed: 'true' });
+    const result = await api.put(`/api/reminders/${id}`, {
+      Completed: 'true',
+      CompletionNotes: completionNotes,
+    });
 
     if (logOutreach) {
       await api.post('/api/outreach', {

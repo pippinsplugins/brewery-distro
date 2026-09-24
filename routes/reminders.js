@@ -111,10 +111,16 @@ router.put('/:id', async (req, res) => {
     delete updates.CreatedAt;
     // Always control CompletedAt server-side based on the Completed transition
     // so single-row and bulk callers don't have to remember to set it.
+    // CompletionNotes is cleared on reopen (mirroring CompletedAt) so a
+    // reopened-then-recompleted todo doesn't carry a stale note from the
+    // previous completion. CompletionNotes on edits of already-completed
+    // todos is allowed to pass through so operators can fix a typo after
+    // the fact via openEditTodo.
     if (updates.Completed === 'true' && !wasCompleted) {
       updates.CompletedAt = new Date().toISOString();
     } else if (updates.Completed === 'false' && wasCompleted) {
       updates.CompletedAt = '';
+      updates.CompletionNotes = '';
     } else {
       // Don't let a caller override it on unrelated edits.
       delete updates.CompletedAt;
