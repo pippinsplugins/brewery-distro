@@ -1701,14 +1701,21 @@ th input[type="checkbox"] {
     overflow-wrap: break-word;
   }
 
-  /* Orders list Date cell: keep it narrow so Account has room. Combined
-     with the compact date variant (formatDateShort) this fits "9/24/26"
-     in ~60px instead of ~90px. */
-  .orders-date-cell {
-    white-space: nowrap;
-    width: 1%;
-    padding-right: 6px;
+  /* Orders list uses table-layout:fixed on mobile so columns respect the
+     widths below rather than auto-fitting to whichever header text is
+     widest. Without this Safari kept expanding the Total column to
+     match "TOTAL" (~62px) even though "$70.20" is much narrower, and
+     the ...  button on the far right kept getting clipped. Account is
+     left without a width so it absorbs the remaining space. */
+  .orders-table {
+    table-layout: fixed;
+    width: 100%;
   }
+  .orders-table .orders-date-cell   { width: 60px; white-space: nowrap; padding: 8px 4px; }
+  .orders-table .orders-total-cell  { width: 68px; white-space: nowrap; padding: 8px 4px; font-size: 13px; }
+  .orders-table .orders-status-cell { width: 82px; padding: 8px 4px; }
+  .orders-table .th-actions,
+  .orders-table .td-actions         { width: 40px; padding: 4px; }
 
   /* Actions header on tables that use .th-actions: only the "Actions"
      text hides on mobile (via a nested mobile-hide span); the <th> stays
@@ -1717,25 +1724,6 @@ th input[type="checkbox"] {
     width: 44px;
     padding-left: 4px;
     padding-right: 4px;
-  }
-
-  /* Orders list Total column: shrink to fit content ($1,234.56 max ~85px).
-     nowrap so money isn't split across lines; tight padding buys width
-     for the Account column. */
-  .orders-total-cell {
-    white-space: nowrap;
-    width: 1%;
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 13px;
-  }
-
-  /* Orders list Status column: cap width so the badge + hidden
-     PaymentMethod line don't hog space; give Account the remainder. */
-  .orders-status-cell {
-    width: 1%;
-    padding-left: 6px;
-    padding-right: 6px;
   }
 
   /* ── Tag badges inside table cells: wrap tightly ── */
