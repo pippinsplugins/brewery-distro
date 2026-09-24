@@ -87,7 +87,7 @@ async function openRefundModal(orderId) {
             const unit = parseFloat(i.UnitPrice || 0);
             const canRestock = isDelivered && !!i.InventoryID;
             const isKeg = (i.Format || '').toLowerCase().includes('keg');
-            const orderedCell = already > 0 ? `${origQty} <span class="text-muted text-sm">(${already} refunded)</span>` : String(origQty);
+            const orderedCell = already > 0 ? `${origQty}<span class="text-muted text-sm refund-ordered-note"> (${already} refunded)</span>` : String(origQty);
             return `<tr data-item-id="${esc(i.ID)}" data-taxable="${i.Taxable === 'true' ? '1' : '0'}" data-unit="${unit.toFixed(2)}" data-inv-id="${esc(i.InventoryID || '')}" data-keg="${isKeg ? '1' : '0'}">
               <td class="fw-600" data-label="Product">${esc(i.ProductName)}</td>
               <td data-label="Format">${esc(i.Format || '—')}</td>

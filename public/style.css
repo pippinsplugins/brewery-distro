@@ -2078,6 +2078,19 @@ th input[type="checkbox"] {
   .mobile-only-inline { display: inline; }
   .refund-lines-table td[data-label="Restock"]::before { display: none; }
   .refund-lines-table td[data-label="Restock"] { justify-content: flex-start; text-align: left !important; }
+  /* Ordered cell: "12 (3 refunded)" runs together on narrow phones —
+     let the parenthetical drop onto its own line under the qty. */
+  .refund-lines-table td[data-label="Ordered"] { flex-wrap: wrap; }
+  .refund-lines-table .refund-ordered-note {
+    flex-basis: 100%;
+    text-align: right;
+    padding-left: 0;
+  }
+
+  /* Import Invoices per-line numeric inputs: the desktop-tuned pixel widths
+     (70–90px) sit in a wide table that scrolls awkwardly on phones. Full-
+     width the inputs so they align with the .form-control-sm sizing. */
+  .import-num-input { width: 100% !important; min-width: 0; }
 
   /* ── Action buttons: collapse into ... menu ── */
   .td-actions {
