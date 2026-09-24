@@ -1455,7 +1455,7 @@ function renderOrders() {
         <thead>
           <tr>
             ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th class="mobile-hide">Invoice #</th>
-            <th class="mobile-hide sortable-th${_ordersSort.col === 'Amount' ? ' sorted' : ''}" onclick="sortOrders('Amount')">Order Amt${_ordersSort.col === 'Amount' ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th class="mobile-hide">Delivered</th><th>Actions</th>
+            <th class="mobile-hide sortable-th${_ordersSort.col === 'Amount' ? ' sorted' : ''}" onclick="sortOrders('Amount')">Order Amt${_ordersSort.col === 'Amount' ? (_ordersSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th><th class="mobile-hide">Tax</th>${ordTh('Total','Total')}${ordTh('Status','Status')}<th class="mobile-hide">Delivered</th><th class="th-actions"><span class="mobile-hide">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -1464,7 +1464,7 @@ function renderOrders() {
               const total = parseFloat(s.OrderAmount || 0) + parseFloat(s.TaxAmount || 0) + parseFloat(s.DepositAmount || 0);
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
-                <td>${formatDate(s.OrderDate)}</td>
+                <td class="orders-date-cell"><span class="mobile-hide">${formatDate(s.OrderDate)}</span><span class="mobile-only-inline">${formatDateShort(s.OrderDate)}</span></td>
                 <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span><span class="mobile-hide">${formatEndCustomers(s.ID)}${formatProductsSummary(s.RequestedProducts)}</span></td>
                 <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${s.PONumber ? `<br><span class="text-muted text-sm">PO: ${esc(s.PONumber)}</span>` : ''}${(_orderItemSummary[s.ID]?.count) ? ` <span class="badge badge-items" title="${_orderItemSummary[s.ID].count} line item${_orderItemSummary[s.ID].count > 1 ? 's' : ''}">${_orderItemSummary[s.ID].count} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
