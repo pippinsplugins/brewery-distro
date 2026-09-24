@@ -62,13 +62,8 @@ function todoForm(todo = {}) {
     </div>
     <div class="form-group">
       <label>Notes</label>
-      <textarea class="form-control" id="f-notes" rows="2">${esc(todo.Notes)}</textarea>
-    </div>
-    ${todo.Completed === 'true' ? `
-    <div class="form-group">
-      <label>Completion note <span class="text-muted text-sm">(what happened when this was marked done)</span></label>
-      <textarea class="form-control" id="f-completion-notes" rows="2">${esc(todo.CompletionNotes || '')}</textarea>
-    </div>` : ''}`;
+      <textarea class="form-control" id="f-notes" rows="${todo.Completed === 'true' && (todo.Notes || '').includes('--- Completed ') ? 4 : 2}">${esc(todo.Notes)}</textarea>
+    </div>`;
 }
 
 let _todosCache = [];
@@ -178,20 +173,21 @@ function renderTodos() {
           <tr>
             <th class="mobile-hide" style="width:32px"><input type="checkbox" id="todo-select-all" ${allFilteredSelected ? 'checked' : ''} onchange="toggleAllTodoSelection(this.checked)" title="Select all filtered" /></th>
             <th>Due</th><th class="mobile-hide">Status</th><th>Title</th><th class="mobile-hide">Account</th>
-            <th class="mobile-hide">Type</th><th class="mobile-hide">Assigned To</th><th class="mobile-hide">Priority</th><th>Actions</th>
+            <th class="mobile-hide">Type</th><th class="mobile-hide">Assigned To</th><th class="mobile-hide">Priority</th><th class="mobile-hide">Notes</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${pg.total === 0 ? `<tr><td colspan="9" class="empty-state">No todos found.</td></tr>` :
+          ${pg.total === 0 ? `<tr><td colspan="10" class="empty-state">No todos found.</td></tr>` :
             pg.rows.map(r => `<tr>
               <td class="mobile-hide"><input type="checkbox" class="todo-row-checkbox" data-id="${esc(r.ID)}" ${_todoSelection.has(r.ID) ? 'checked' : ''} onchange="toggleTodoSelection('${esc(r.ID)}', this.checked)" /></td>
-              <td>${formatDate(r.DueDate)}${r.Completed === 'true' ? `<br><span class="text-muted text-sm">${r.CompletedAt ? 'Done ' + formatDate(r.CompletedAt) : 'Done (date unknown)'}</span>${r.CompletionNotes ? `<br><span class="text-sm" style="white-space:normal;color:var(--text-secondary)" title="Completion note">${esc(r.CompletionNotes)}</span>` : ''}` : ''}</td>
+              <td>${formatDate(r.DueDate)}${r.Completed === 'true' ? `<br><span class="text-muted text-sm">${r.CompletedAt ? 'Done ' + formatDate(r.CompletedAt) : 'Done (date unknown)'}</span>` : ''}</td>
               <td class="mobile-hide">${urgencyBadge(r.DueDate, r.Completed)}</td>
               <td class="fw-600"><span class="td-link" onclick="openEditTodo('${esc(r.ID)}')">${esc(r.Title)}</span>${r.Recurrence && r.Recurrence !== 'none' ? ` <span class="badge badge-recurrence" title="${esc(RECURRENCE_OPTIONS.find(o => o.value === r.Recurrence)?.label || r.Recurrence)}">↻</span>` : ''}</td>
               <td class="mobile-hide text-sm">${r.AccountID ? `<span class="td-link" onclick="loadAccountProfile('${esc(r.AccountID)}')">${esc(r.AccountName)}</span>` : '—'}</td>
               <td class="mobile-hide text-sm">${typeBadge(r.Type)}</td>
               <td class="mobile-hide text-sm">${esc(r.StaffName) || '<span class="text-muted">—</span>'}</td>
               <td class="mobile-hide">${priorityBadge(r.Priority)}</td>
+              <td class="mobile-hide text-sm td-notes-content" style="max-width:260px;white-space:pre-wrap;word-break:break-word">${esc(r.Notes) || '<span class="text-muted">—</span>'}</td>
               <td class="td-actions">
                 ${r.Completed !== 'true'
                   ? `<button class="btn btn-secondary btn-sm text-success todo-inline-done" onclick="completeTodo('${esc(r.ID)}')" title="Mark done">Done</button>`
@@ -380,16 +376,12 @@ function openEditTodo(id) {
     const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
     const staffId = val('f-staff');
     const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-    const payload = {
+    await api.put(`/api/reminders/${id}`, {
       Title: title, DueDate: dueDate, Priority: val('f-priority'),
       Type: val('f-type'), AccountID: accountId, AccountName: accountName,
       StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
       Recurrence: val('f-recurrence'),
-    };
-    if (todo.Completed === 'true' && document.getElementById('f-completion-notes')) {
-      payload.CompletionNotes = val('f-completion-notes');
-    }
-    await api.put(`/api/reminders/${id}`, payload);
+    });
     modal.close();
     toast('Todo updated');
     loadTodos(true);
@@ -442,12 +434,18 @@ async function completeTodo(id) {
 
   modal.open('Complete Todo', formHtml, async () => {
     const logOutreach = acctId && document.getElementById('f-log-outreach')?.checked;
-    const completionNotes = val('f-completion-notes').trim();
+    const completionNote = val('f-completion-notes').trim();
 
-    const result = await api.put(`/api/reminders/${id}`, {
-      Completed: 'true',
-      CompletionNotes: completionNotes,
-    });
+    // Append the completion note to the existing Notes field with a
+    // dated marker. The server strips this marker before spawning a
+    // recurrence, so a recurring todo doesn't accumulate prior-run notes.
+    const payload = { Completed: 'true' };
+    if (completionNote) {
+      const existing = String(todo?.Notes || '').trimEnd();
+      const stamp = `--- Completed ${today()} ---\n${completionNote}`;
+      payload.Notes = existing ? `${existing}\n\n${stamp}` : stamp;
+    }
+    const result = await api.put(`/api/reminders/${id}`, payload);
 
     if (logOutreach) {
       await api.post('/api/outreach', {
