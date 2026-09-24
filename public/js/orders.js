@@ -1465,7 +1465,7 @@ function renderOrders() {
               const isPreSale = s.Status === 'Pre-Sale';
               return `<tr>
                 <td>${formatDate(s.OrderDate)}</td>
-                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span>${formatEndCustomers(s.ID)}${formatProductsSummary(s.RequestedProducts)}</td>
+                <td class="fw-600"><span class="td-link" onclick="loadAccountProfile('${esc(s.AccountID)}')">${esc(s.AccountName)}</span><span class="mobile-hide">${formatEndCustomers(s.ID)}${formatProductsSummary(s.RequestedProducts)}</span></td>
                 <td class="mobile-hide text-sm">${esc(s.InvoiceNumber) || '—'}${s.PONumber ? `<br><span class="text-muted text-sm">PO: ${esc(s.PONumber)}</span>` : ''}${(_orderItemSummary[s.ID]?.count) ? ` <span class="badge badge-items" title="${_orderItemSummary[s.ID].count} line item${_orderItemSummary[s.ID].count > 1 ? 's' : ''}">${_orderItemSummary[s.ID].count} items</span>` : ''}${qboSyncBadge(s)}</td>
                 <td class="mobile-hide">${isPreSale && !parseFloat(s.OrderAmount) ? '<span class="text-muted">—</span>' : fmtMoney(s.OrderAmount)}${s.DepositAmount && parseFloat(s.DepositAmount) > 0 ? `<br><span class="text-muted text-sm">+${fmtMoney(s.DepositAmount)} deposit</span>` : ''}</td>
                 <td class="mobile-hide">${s.TaxAmount && parseFloat(s.TaxAmount) > 0 ? fmtMoney(s.TaxAmount) : '—'}</td>
