@@ -111,16 +111,10 @@ router.put('/:id', async (req, res) => {
     delete updates.CreatedAt;
     // Always control CompletedAt server-side based on the Completed transition
     // so single-row and bulk callers don't have to remember to set it.
-    // CompletionNotes is cleared on reopen (mirroring CompletedAt) so a
-    // reopened-then-recompleted todo doesn't carry a stale note from the
-    // previous completion. CompletionNotes on edits of already-completed
-    // todos is allowed to pass through so operators can fix a typo after
-    // the fact via openEditTodo.
     if (updates.Completed === 'true' && !wasCompleted) {
       updates.CompletedAt = new Date().toISOString();
     } else if (updates.Completed === 'false' && wasCompleted) {
       updates.CompletedAt = '';
-      updates.CompletionNotes = '';
     } else {
       // Don't let a caller override it on unrelated edits.
       delete updates.CompletedAt;
@@ -135,8 +129,13 @@ router.put('/:id', async (req, res) => {
       processAssignment({ newStaffId: updated.StaffID, oldStaffId, entityType: 'todo', entityName: updated.Title, entityId: updated.ID, accountId: updated.AccountID, user: req.user, assignerName: req.user.name, baseUrl }).catch(err => console.error('[notifications]', err));
     }
 
-    // When completing a recurring reminder, spawn the next occurrence
+    // When completing a recurring reminder, spawn the next occurrence.
+    // Strip any completion-note block appended to Notes by completeTodo
+    // (marker: "\n\n--- Completed YYYY-MM-DD ---") so the next occurrence
+    // starts with only the original description, not the previous run's
+    // completion log.
     if (updates.Completed === 'true' && updated.Recurrence && RECURRENCE_VALUES.has(updated.Recurrence) && updated.Recurrence !== 'none') {
+      const originalNotes = String(updated.Notes || '').replace(/\n\n--- Completed \d{4}-\d{2}-\d{2} ---[\s\S]*$/, '');
       const next = {
         ID: uuidv4(),
         Type: updated.Type || 'Other',
@@ -145,7 +144,7 @@ router.put('/:id', async (req, res) => {
         Title: updated.Title,
         DueDate: nextDueDate(updated.DueDate, updated.Recurrence),
         Priority: updated.Priority || 'Medium',
-        Notes: updated.Notes || '',
+        Notes: originalNotes,
         Completed: 'false',
         StaffID: updated.StaffID || '',
         StaffName: updated.StaffName || '',

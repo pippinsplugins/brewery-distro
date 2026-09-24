@@ -865,9 +865,9 @@ function renderProfileTodos() {
     : pg.rows.map(t => `<tr class="${t.Completed === 'true' ? 'row-completed' : ''}">
         <td class="fw-600"><span class="td-link" onclick="profileEditTodo('${esc(t.ID)}')">${esc(t.Title)}</span>${t.Recurrence && t.Recurrence !== 'none' ? ' <span class="badge badge-recurrence" title="Recurring">↻</span>' : ''}</td>
         <td class="mobile-hide">${typeBadge(t.Type) || '—'}</td>
-        <td>${urgencyBadge(t.DueDate, t.Completed)}${t.Completed === 'true' ? `<br><span class="text-muted text-sm">${t.CompletedAt ? 'Done ' + formatDate(t.CompletedAt) : 'Done (date unknown)'}</span>${t.CompletionNotes ? `<br><span class="text-sm" style="white-space:normal;color:var(--text-secondary)" title="Completion note">${esc(t.CompletionNotes)}</span>` : ''}` : ''}</td>
+        <td>${urgencyBadge(t.DueDate, t.Completed)}${t.Completed === 'true' ? `<br><span class="text-muted text-sm">${t.CompletedAt ? 'Done ' + formatDate(t.CompletedAt) : 'Done (date unknown)'}</span>` : ''}</td>
         <td class="mobile-hide">${priorityBadge(t.Priority)}</td>
-        <td class="mobile-hide text-sm text-muted">${esc(t.Notes) || '—'}</td>
+        <td class="mobile-hide text-sm text-muted td-notes-content" style="max-width:260px;white-space:pre-wrap;word-break:break-word">${esc(t.Notes) || '—'}</td>
         <td class="td-actions">
           <button class="btn btn-ghost btn-sm mobile-actions-toggle" onclick="toggleMobileActions(event)">&#8230;</button>
           <div class="mobile-actions-menu">
@@ -1108,16 +1108,12 @@ function profileEditTodo(id) {
       const accountName = accountId ? (state.accounts.find(a => a.ID === accountId) || {}).Name || '' : '';
       const staffId = val('f-staff');
       const staffName = staffId ? (state.staff.find(s => s.ID === staffId) || {}).Name || '' : '';
-      const payload = {
+      await api.put(`/api/reminders/${id}`, {
         Title: title, DueDate: dueDate, Priority: val('f-priority'),
         Type: val('f-type'), AccountID: accountId, AccountName: accountName,
         StaffID: staffId, StaffName: staffName, Notes: val('f-notes'),
         Recurrence: val('f-recurrence'),
-      };
-      if (todo.Completed === 'true' && document.getElementById('f-completion-notes')) {
-        payload.CompletionNotes = val('f-completion-notes');
-      }
-      await api.put(`/api/reminders/${id}`, payload);
+      });
       modal.close();
       toast('Todo updated');
       loadAccountProfile(state.accountProfileId);

@@ -1185,6 +1185,14 @@ tr.row-completed button {
   opacity: 1;
 }
 
+/* Notes cells stay readable on completed rows — line-through renders
+   multi-line notes (including completion notes appended at complete-time)
+   as an unreadable stripe. */
+tr.row-completed td.td-notes-content {
+  text-decoration: none;
+  opacity: 0.85;
+}
+
 /* ── Pagination ──────────────────────────────────────── */
 
 .pagination-bar {
