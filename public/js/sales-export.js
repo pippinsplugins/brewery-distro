@@ -126,12 +126,12 @@ function renderSalesExport() {
             <tr>
               <th>Type</th>
               <th class="sortable" onclick="_seSortBy('orderDate')" style="cursor:pointer">Date${sortIcon('orderDate')}</th>
-              <th class="sortable" onclick="_seSortBy('invoiceNumber')" style="cursor:pointer">Invoice #${sortIcon('invoiceNumber')}</th>
+              <th class="sortable mobile-hide" onclick="_seSortBy('invoiceNumber')" style="cursor:pointer">Invoice #${sortIcon('invoiceNumber')}</th>
               <th class="sortable" onclick="_seSortBy('accountName')" style="cursor:pointer">Customer${sortIcon('accountName')}</th>
-              <th>ABC License</th>
-              <th>Address</th>
-              <th class="sortable" onclick="_seSortBy('subtotal')" style="cursor:pointer">Subtotal${sortIcon('subtotal')}</th>
-              <th class="sortable" onclick="_seSortBy('tax')" style="cursor:pointer">Tax${sortIcon('tax')}</th>
+              <th class="mobile-hide">ABC License</th>
+              <th class="mobile-hide">Address</th>
+              <th class="sortable mobile-hide" onclick="_seSortBy('subtotal')" style="cursor:pointer">Subtotal${sortIcon('subtotal')}</th>
+              <th class="sortable mobile-hide" onclick="_seSortBy('tax')" style="cursor:pointer">Tax${sortIcon('tax')}</th>
               <th class="sortable" onclick="_seSortBy('total')" style="cursor:pointer">Total${sortIcon('total')}</th>
             </tr>
           </thead>
@@ -141,20 +141,25 @@ function renderSalesExport() {
               : pg.rows.map(o => `<tr${o.type === 'Refund' ? ' class="text-danger"' : ''}>
                 <td>${o.type === 'Refund' ? '<span class="badge badge-danger">Refund</span>' : '<span class="text-muted text-sm">Sale</span>'}</td>
                 <td>${esc(formatDate(o.orderDate))}</td>
-                <td>${esc(o.invoiceNumber)}</td>
+                <td class="mobile-hide">${esc(o.invoiceNumber)}</td>
                 <td>${esc(o.accountName)}</td>
-                <td>${esc(o.abcLicense)}</td>
-                <td>${esc([o.address, o.city, o.state, o.zip].filter(Boolean).join(', '))}</td>
-                <td>${fmtMoney(o.subtotal)}</td>
-                <td>${fmtMoney(o.tax)}</td>
+                <td class="mobile-hide">${esc(o.abcLicense)}</td>
+                <td class="mobile-hide">${esc([o.address, o.city, o.state, o.zip].filter(Boolean).join(', '))}</td>
+                <td class="mobile-hide">${fmtMoney(o.subtotal)}</td>
+                <td class="mobile-hide">${fmtMoney(o.tax)}</td>
                 <td>${fmtMoney(o.total)}</td>
               </tr>`).join('')}
           </tbody>
           ${pg.rows.length > 0 ? `<tfoot>
             <tr style="font-weight:bold">
-              <td colspan="6">Totals (net)</td>
-              <td>${fmtMoney(t.subtotal)}</td>
-              <td>${fmtMoney(t.tax)}</td>
+              <td>Totals (net)</td>
+              <td></td>
+              <td class="mobile-hide"></td>
+              <td></td>
+              <td class="mobile-hide"></td>
+              <td class="mobile-hide"></td>
+              <td class="mobile-hide">${fmtMoney(t.subtotal)}</td>
+              <td class="mobile-hide">${fmtMoney(t.tax)}</td>
               <td>${fmtMoney(t.total)}</td>
             </tr>
           </tfoot>` : ''}

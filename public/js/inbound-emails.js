@@ -55,9 +55,9 @@ function renderInboundEmailQueue(emails, total) {
 
     return `<tr>
       <td>${esc(date)}<br><span class="text-sm text-muted">${esc(time)}</span></td>
-      <td>${esc(e.FromName || e.From)}</td>
+      <td class="mobile-hide">${esc(e.FromName || e.From)}</td>
       <td>${esc(e.Subject)}</td>
-      <td>${badges}<div class="text-sm" style="margin-top:4px">${links.join(' &middot; ')}</div></td>
+      <td>${badges}<div class="text-sm" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:6px 10px">${links.join('<span class="text-muted">&middot;</span>')}</div></td>
     </tr>`;
   }).join('');
 
@@ -101,7 +101,7 @@ function renderInboundEmailQueue(emails, total) {
     ${emails.length === 0
       ? '<p class="empty-state">No emails found' + (_inboundEmailFilter ? ' with this status' : '') + '.</p>'
       : `<div class="table-wrap"><table class="data-table">
-          <thead><tr><th>Date</th><th>From</th><th>Subject</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th class="mobile-hide">From</th><th>Subject</th><th>Status</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`
     }
@@ -200,7 +200,7 @@ async function viewInboundEmailDetail(id) {
     }
     btns.push(`<button class="btn btn-sm btn-ghost" onclick="loadInboundEmails()">Back to Queue</button>`);
     if (btns.length > 0) {
-      detailActions = `<div style="margin-top:16px;display:flex;gap:8px">${btns.join('')}</div>`;
+      detailActions = `<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>`;
     }
 
     const html = `
