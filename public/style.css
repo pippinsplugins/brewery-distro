@@ -1694,7 +1694,11 @@ th input[type="checkbox"] {
   }
 
   .td-link {
-    word-break: break-word;
+    /* Prefer breaks at word boundaries; only break mid-word when a single
+       word is genuinely wider than the cell. `word-break: break-word` is
+       the deprecated aggressive alias that split account names mid-word
+       (e.g. "Hutchins" | "on") — this is the conservative modern rule. */
+    overflow-wrap: break-word;
   }
 
   /* ── Tag badges inside table cells: wrap tightly ── */
