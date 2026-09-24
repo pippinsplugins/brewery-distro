@@ -757,12 +757,12 @@ async function loadAccountProfile(accountId) {
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Method</th><th>Reason</th><th class="mobile-hide">Reference</th><th class="mobile-hide">Staff</th><th class="mobile-hide">QBO</th><th>Order</th><th class="text-right">Total</th></tr></thead>
+            <thead><tr><th>Date</th><th class="mobile-hide">Method</th><th class="mobile-hide">Reason</th><th class="mobile-hide">Reference</th><th class="mobile-hide">Staff</th><th class="mobile-hide">QBO</th><th>Order</th><th class="text-right">Total</th></tr></thead>
             <tbody>
               ${refunds.map(r => `<tr>
                 <td class="text-sm">${formatDate(r.RefundDate)}</td>
-                <td>${esc(r.Method)}</td>
-                <td>${esc(r.Reason)}</td>
+                <td class="mobile-hide">${esc(r.Method)}</td>
+                <td class="mobile-hide">${esc(r.Reason)}</td>
                 <td class="mobile-hide text-sm">${esc(r.Reference || '—')}</td>
                 <td class="mobile-hide text-sm">${esc(r.StaffName || '—')}</td>
                 <td class="mobile-hide">${typeof _refundQboBadgeHtml === 'function' ? _refundQboBadgeHtml(r) : ''}</td>
