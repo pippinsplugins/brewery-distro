@@ -186,16 +186,16 @@ function _renderSalesChart(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Period</th><th>Orders</th><th>Paid Revenue</th><th>Pending Revenue</th><th>Total Revenue</th><th>Tax</th><th>Deposits</th><th>Refunds</th></tr></thead>
+            <thead><tr><th>Period</th><th class="mobile-hide">Orders</th><th class="mobile-hide">Paid Revenue</th><th class="mobile-hide">Pending Revenue</th><th>Total Revenue</th><th class="mobile-hide">Tax</th><th class="mobile-hide">Deposits</th><th class="mobile-hide">Refunds</th></tr></thead>
             <tbody>
               ${buckets.map(b => `<tr>
                 <td>${esc(b.bucket)}</td>
-                <td>${b.orderCount} <span class="text-muted text-sm">(${b.paidOrderCount || 0}/${b.pendingOrderCount || 0})</span></td>
-                <td class="text-success">${fmtMoney(b.paidAmount || 0)}</td>
-                <td>${fmtMoney(b.pendingAmount || 0)}</td>
+                <td class="mobile-hide">${b.orderCount} <span class="text-muted text-sm">(${b.paidOrderCount || 0}/${b.pendingOrderCount || 0})</span></td>
+                <td class="text-success mobile-hide">${fmtMoney(b.paidAmount || 0)}</td>
+                <td class="mobile-hide">${fmtMoney(b.pendingAmount || 0)}</td>
                 <td class="fw-600">${fmtMoney(b.orderAmount)}</td>
-                <td>${fmtMoney(b.taxAmount)}</td><td>${fmtMoney(b.depositAmount)}</td>
-                <td class="${(b.refundedAmount || 0) > 0 ? 'text-danger' : 'text-muted'}">${(b.refundedAmount || 0) > 0 ? fmtMoney(-(b.refundedAmount || 0)) : '—'}</td>
+                <td class="mobile-hide">${fmtMoney(b.taxAmount)}</td><td class="mobile-hide">${fmtMoney(b.depositAmount)}</td>
+                <td class="mobile-hide ${(b.refundedAmount || 0) > 0 ? 'text-danger' : 'text-muted'}">${(b.refundedAmount || 0) > 0 ? fmtMoney(-(b.refundedAmount || 0)) : '—'}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -244,14 +244,14 @@ function _renderTopProducts(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Product</th><th>Format</th><th>Qty Sold</th><th>Revenue</th><th>Avg Price</th><th>Orders</th></tr></thead>
+            <thead><tr><th>Product</th><th class="mobile-hide">Format</th><th>Qty</th><th>Revenue</th><th class="mobile-hide">Avg Price</th><th class="mobile-hide">Orders</th></tr></thead>
             <tbody>
               ${products.map(p => {
                 const fmtParts = [p.format];
                 if (p.priceTier) fmtParts.push(`(${p.priceTier})`);
                 return `<tr>
-                <td>${esc(p.productName)}</td><td>${esc(fmtParts.join(' '))}</td><td>${p.quantitySold}</td>
-                <td>${fmtMoney(p.revenue)}</td><td>${fmtMoney(p.avgPrice)}</td><td>${p.orderCount}</td>
+                <td>${esc(p.productName)}</td><td class="mobile-hide">${esc(fmtParts.join(' '))}</td><td>${p.quantitySold}</td>
+                <td>${fmtMoney(p.revenue)}</td><td class="mobile-hide">${fmtMoney(p.avgPrice)}</td><td class="mobile-hide">${p.orderCount}</td>
               </tr>`;
               }).join('')}
             </tbody>
@@ -297,13 +297,13 @@ function _renderAccountActivity(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Account</th><th>Type</th><th>Orders</th><th>Paid</th><th>Pending</th><th>Total Spent</th><th>Avg Order</th><th>Last Order</th></tr></thead>
+            <thead><tr><th>Account</th><th class="mobile-hide">Type</th><th class="mobile-hide">Orders</th><th class="mobile-hide">Paid</th><th class="mobile-hide">Pending</th><th>Total Spent</th><th class="mobile-hide">Avg Order</th><th class="mobile-hide">Last Order</th></tr></thead>
             <tbody>
               ${accounts.map(a => `<tr>
-                <td>${esc(a.name)}</td><td>${esc(a.type)}</td><td>${a.orderCount}</td>
-                <td class="text-success">${fmtMoney(a.paidSpent || 0)}</td>
-                <td>${fmtMoney(a.pendingSpent || 0)}</td>
-                <td class="fw-600">${fmtMoney(a.totalSpent)}</td><td>${fmtMoney(a.avgOrder)}</td><td>${formatDate(a.lastOrderDate)}</td>
+                <td>${esc(a.name)}</td><td class="mobile-hide">${esc(a.type)}</td><td class="mobile-hide">${a.orderCount}</td>
+                <td class="text-success mobile-hide">${fmtMoney(a.paidSpent || 0)}</td>
+                <td class="mobile-hide">${fmtMoney(a.pendingSpent || 0)}</td>
+                <td class="fw-600">${fmtMoney(a.totalSpent)}</td><td class="mobile-hide">${fmtMoney(a.avgOrder)}</td><td class="mobile-hide">${formatDate(a.lastOrderDate)}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -344,11 +344,11 @@ function _renderStockMovements(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Product</th><th>Received</th><th>Sold</th><th>Write-Off</th><th>Adjustment</th><th>Net</th></tr></thead>
+            <thead><tr><th>Product</th><th class="mobile-hide">Received</th><th class="mobile-hide">Sold</th><th class="mobile-hide">Write-Off</th><th class="mobile-hide">Adjustment</th><th>Net</th></tr></thead>
             <tbody>
               ${sm.products.map(p => `<tr>
-                <td>${esc(p.name)}</td><td>${p.received}</td><td>${p.sold}</td>
-                <td>${p.writeOff}</td><td>${p.adjustment}</td>
+                <td>${esc(p.name)}</td><td class="mobile-hide">${p.received}</td><td class="mobile-hide">${p.sold}</td>
+                <td class="mobile-hide">${p.writeOff}</td><td class="mobile-hide">${p.adjustment}</td>
                 <td class="${p.netChange >= 0 ? 'text-success' : 'text-danger'}">${p.netChange > 0 ? '+' : ''}${p.netChange}</td>
               </tr>`).join('')}
             </tbody>
@@ -395,14 +395,14 @@ function _renderSalesByRep(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Rep</th><th>Orders</th><th>Paid Revenue</th><th>Pending Revenue</th><th>Total Revenue</th><th>Avg Order</th><th>Accounts</th></tr></thead>
+            <thead><tr><th>Rep</th><th class="mobile-hide">Orders</th><th class="mobile-hide">Paid Revenue</th><th class="mobile-hide">Pending Revenue</th><th>Total Revenue</th><th class="mobile-hide">Avg Order</th><th class="mobile-hide">Accounts</th></tr></thead>
             <tbody>
               ${reps.map(r => `<tr>
-                <td>${esc(r.name)}</td><td>${r.orderCount}</td>
-                <td class="text-success">${fmtMoney(r.paidRevenue || 0)}</td>
-                <td>${fmtMoney(r.pendingRevenue || 0)}</td>
+                <td>${esc(r.name)}</td><td class="mobile-hide">${r.orderCount}</td>
+                <td class="text-success mobile-hide">${fmtMoney(r.paidRevenue || 0)}</td>
+                <td class="mobile-hide">${fmtMoney(r.pendingRevenue || 0)}</td>
                 <td class="fw-600">${fmtMoney(r.totalRevenue)}</td>
-                <td>${fmtMoney(r.avgOrder)}</td><td>${r.accountsServed}</td>
+                <td class="mobile-hide">${fmtMoney(r.avgOrder)}</td><td class="mobile-hide">${r.accountsServed}</td>
               </tr>`).join('')}
             </tbody>
           </table>
