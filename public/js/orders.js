@@ -1451,7 +1451,7 @@ function renderOrders() {
       <input type="date" class="form-control" id="orders-date-to" value="${esc(dateTo)}" onchange="_paginationReset('orders'); renderOrders()" />
     </div>` : ''}
     <div class="table-wrap">
-      <table>
+      <table class="orders-table">
         <thead>
           <tr>
             ${ordTh('Order Date','OrderDate')}${ordTh('Account','Account')}<th class="mobile-hide">Invoice #</th>
