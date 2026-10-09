@@ -16,6 +16,7 @@ const VIEW_LOADERS = {
   'sales-export': loadSalesExport,
   forecast:       loadForecast,
   'presale-demand': loadPresaleDemand,
+  'product-buyers': loadProductBuyers,
   settings:      loadSettings,
   map:           loadMap,
 };
@@ -31,6 +32,7 @@ const SUBMENU_VIEWS = {
   'sales-export': 'reports',
   forecast: 'reports',
   'presale-demand': 'reports',
+  'product-buyers': 'reports',
 };
 
 function navigate(view, filters = {}, preservePage = false) {

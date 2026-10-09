@@ -44,6 +44,7 @@ const _pagination = {
   salesExport: { page: 1, perPage: 25 },
   forecast:    { page: 1, perPage: 25 },
   presaleDemand: { page: 1, perPage: 25 },
+  productBuyers: { page: 1, perPage: 25 },
   profileOutreach: { page: 1, perPage: 10 },
   profileTodos:    { page: 1, perPage: 10 },
   profileOrders:   { page: 1, perPage: 10 },
