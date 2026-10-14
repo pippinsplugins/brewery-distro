@@ -122,23 +122,20 @@ router.get('/', async (req, res) => {
     }
     const acctList = Object.values(acctAgg).sort((a, b) => b.gallons - a.gallons);
 
-    // Subtract refunded volume. Only refunds whose original order passes
-    // the same slice filters (location/type/tag/accountIds) contribute —
-    // matches the sales side so the report stays internally consistent.
+    // Subtract refunded volume. Only subtract when the parent order's
+    // account is already in acctAgg — i.e. that account passes every slice
+    // filter the sales side applied (location, accountType, tag,
+    // accountIds). The previous version only sanity-checked location +
+    // accountType, which leaked refunds from untagged accounts into the
+    // format aggregate whenever a tag filter was active (bug #490 report):
+    // Total Gallons shrank even though the account breakdown was intact.
     for (const r of refundsInWindow) {
       const parentOrder = orderById[r.OrderID];
       if (!parentOrder) continue;
-      if (!orderIdSet.has(r.OrderID)) {
-        // Original order isn't in the filtered slice; still attribute the
-        // refund if we can — but only when the account itself matches the
-        // slice filters. Cheap sanity check: skip if location was set and
-        // the parent's location differs.
-        if (location && parentOrder.Location !== location) continue;
-        const acct = accountMap[parentOrder.AccountID];
-        if (accountType && (!acct || acct.Type !== accountType)) continue;
-      }
-      const rItems = refundItemsByRefund[r.ID] || [];
-      for (const ri of rItems) {
+      const aid = parentOrder.AccountID;
+      if (!aid || !acctAgg[aid]) continue;
+
+      for (const ri of (refundItemsByRefund[r.ID] || [])) {
         const fmt = ri.Format || 'Unknown';
         const qty = parseInt(ri.Quantity || '0');
         const galsPerUnit = GALLON_MAP[fmt] || 0;
@@ -147,12 +144,9 @@ router.get('/', async (req, res) => {
           formatAgg[fmt].gallons   -= qty * galsPerUnit;
           formatAgg[fmt].bbls      -= (qty * galsPerUnit) / 31;
         }
-        const aid = parentOrder.AccountID;
-        if (aid && acctAgg[aid]) {
-          acctAgg[aid].unitsSold -= qty;
-          acctAgg[aid].gallons   -= qty * galsPerUnit;
-          acctAgg[aid].bbls      -= (qty * galsPerUnit) / 31;
-        }
+        acctAgg[aid].unitsSold -= qty;
+        acctAgg[aid].gallons   -= qty * galsPerUnit;
+        acctAgg[aid].bbls      -= (qty * galsPerUnit) / 31;
       }
     }
 
