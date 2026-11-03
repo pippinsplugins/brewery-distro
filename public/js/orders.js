@@ -1926,12 +1926,22 @@ async function convertPreSale(id) {
   if (ps.Notes) noteParts.push(ps.Notes);
   const combinedNotes = noteParts.join('\n');
 
+  // Carry the pre-sale's Expected Date forward only when it's still in
+  // the future — a pre-sale's "expected" date often becomes stale by the
+  // time it's converted, and if we fed a past DeliveryDate into QBO
+  // without the operator noticing it would set the invoice DueDate in
+  // the past (via _computeInvoiceDueDate). Operator can type a real
+  // delivery date in the convert modal.
+  const psDeliveryDate = dateOnly(ps.DeliveryDate) || '';
+  const todayStr = today();
+  const carryDelivery = psDeliveryDate && psDeliveryDate >= todayStr ? psDeliveryDate : '';
+
   const prefilledOrder = {
     AccountID: ps.AccountID,
     Location: ps.Location,
     StaffID: ps.StaffID,
     OrderDate: today(),
-    DeliveryDate: ps.DeliveryDate || '',
+    DeliveryDate: carryDelivery,
     InvoiceNumber: '',
     Status: 'Pending',
     OrderAmount: ps.OrderAmount && parseFloat(ps.OrderAmount) > 0 ? ps.OrderAmount : '',
