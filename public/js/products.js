@@ -127,7 +127,12 @@ function collectVariations() {
   const variations = [];
   rows.forEach(row => {
     const select = row.querySelector('select');
-    const format = select ? select.value : '';
+    const format = (select ? select.value : '').trim();
+    // Skip blank-format rows entirely. A blank variation is meaningless
+    // (every inventory row carries its own Format), and letting them
+    // through produced un-deletable legacy rows the user had to work
+    // around.
+    if (!format) return;
     const tierRows = row.querySelectorAll('.price-tier-row');
     const prices = [];
     tierRows.forEach(tr => {
@@ -353,13 +358,19 @@ async function openEditProduct(id) {
       }
     }
 
-    // Remove deleted variations
+    // Remove deleted variations. Blank-format variations use a dedicated
+    // endpoint (`/variations` with no trailing segment) because Express
+    // doesn't match an empty :format path param — the request would 404
+    // before hitting the handler.
     for (const v of existingVars) {
       if (!newFormats.has(v.format)) {
         try {
-          await api.del(`/api/products/${id}/variations/${encodeURIComponent(v.format)}`);
+          const url = v.format
+            ? `/api/products/${id}/variations/${encodeURIComponent(v.format)}`
+            : `/api/products/${id}/variations`;
+          await api.del(url);
         } catch (err) {
-          toast(`Could not remove format "${v.format}": ${err.message}`, 'error');
+          toast(`Could not remove format "${v.format || '(blank)'}": ${err.message}`, 'error');
         }
       }
     }

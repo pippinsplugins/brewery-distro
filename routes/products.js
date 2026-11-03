@@ -188,6 +188,12 @@ router.get('/:id/variations', async (req, res) => {
 router.post('/:id/variations', async (req, res) => {
   try {
     const { format, pricePerUnit, prices } = req.body;
+    // A blank format row was previously creatable, leaving an unselectable
+    // and un-deletable inventory variation. Reject here so legacy garbage
+    // can't be re-added accidentally. The frontend also filters blanks.
+    if (!format || !String(format).trim()) {
+      return res.status(400).json({ error: 'Format is required for a variation' });
+    }
     const products = await getAllRows('PRODUCTS');
     const product = products.find(p => p.ID === req.params.id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
@@ -246,25 +252,40 @@ router.post('/:id/variations', async (req, res) => {
  * Refused with 400 if any of those rows have stock > 0.
  * The format value must be URL-encoded (e.g. "1%2F6+Keg" for "1/6 Keg").
  */
+// Shared delete helper so the blank-format route (below) can reuse the
+// same stock/validation logic without a second copy.
+async function _deleteVariation(productId, format, res) {
+  const inventory = await getAllRows('INVENTORY');
+  const related = inventory.filter(i => i.ProductID === productId && (i.Format || '') === format);
+  if (related.length === 0) return res.status(404).json({ error: 'Variation not found' });
+  const hasStock = related.some(i => parseInt(i.Units || '0') > 0);
+  if (hasStock) {
+    return res.status(400).json({ error: 'Cannot delete variation with stock remaining. Adjust inventory to zero first.' });
+  }
+  for (const inv of related) {
+    await deleteRow('INVENTORY', inv.ID);
+  }
+  res.json({ success: true });
+}
+
 router.delete('/:id/variations/:format', async (req, res) => {
   try {
-    const format = decodeURIComponent(req.params.format);
-    const inventory = await getAllRows('INVENTORY');
-    const related = inventory.filter(i => i.ProductID === req.params.id && (i.Format || '') === format);
+    await _deleteVariation(req.params.id, decodeURIComponent(req.params.format), res);
+  } catch (err) {
+    const status = err.message.includes('not found') ? 404 : 500;
+    console.error(`[products] ${err.message}`);
+    res.status(status).json({ error: status === 404 ? 'Not found' : 'Internal server error' });
+  }
+});
 
-    if (related.length === 0) return res.status(404).json({ error: 'Variation not found' });
-
-    // Refuse if any have stock > 0
-    const hasStock = related.some(i => parseInt(i.Units || '0') > 0);
-    if (hasStock) {
-      return res.status(400).json({ error: 'Cannot delete variation with stock remaining. Adjust inventory to zero first.' });
-    }
-
-    for (const inv of related) {
-      await deleteRow('INVENTORY', inv.ID);
-    }
-
-    res.json({ success: true });
+// Blank-format delete. Express doesn't match `/:format` against an empty
+// segment, so a legacy product with a blank-format variation (created
+// when the empty row slipped through earlier) couldn't be cleaned up —
+// the request became `/variations/` and 404'd before reaching the handler.
+// Dedicated route cleans up those legacy rows.
+router.delete('/:id/variations', async (req, res) => {
+  try {
+    await _deleteVariation(req.params.id, '', res);
   } catch (err) {
     const status = err.message.includes('not found') ? 404 : 500;
     console.error(`[products] ${err.message}`);
