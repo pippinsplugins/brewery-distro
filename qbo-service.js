@@ -38,14 +38,27 @@ function _termDays(billingTerm) {
 
 /**
  * Compute the invoice DueDate (YYYY-MM-DD) for an order using the account's
- * billing term. Base date is DeliveryDate, falling back to OrderDate. Returns
- * undefined when neither date is present so the QBO API call omits the field.
+ * billing term. Base date is DeliveryDate, falling back to OrderDate.
+ *
+ * Safety floor: when the base date is in the past (e.g. a converted pre-sale
+ * whose Expected Date was already stale), fall back to OrderDate — and if
+ * that is also in the past, to today — before applying terms. Prevents QBO
+ * invoices from being created with a DueDate already in arrears, which the
+ * user hits on legacy pre-sale conversions.
  */
 function _computeInvoiceDueDate(order, account) {
-  const base = order.DeliveryDate || order.OrderDate;
+  const todayStr = new Date().toISOString().split('T')[0];
+  let base = (order.DeliveryDate || order.OrderDate || '').split('T')[0];
   if (!base) return undefined;
+
+  // Promote base forward if it's stale.
+  if (base < todayStr) {
+    const orderDate = (order.OrderDate || '').split('T')[0];
+    base = (orderDate && orderDate >= todayStr) ? orderDate : todayStr;
+  }
+
   const days = _termDays(account?.BillingTerm);
-  const d = new Date(base.split('T')[0] + 'T00:00:00Z');
+  const d = new Date(base + 'T00:00:00Z');
   if (Number.isNaN(d.getTime())) return undefined;
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().split('T')[0];
