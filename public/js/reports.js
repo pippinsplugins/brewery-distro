@@ -104,7 +104,7 @@ function renderReports() {
       </div>
       <div class="stat-card">
         <div class="stat-value">${fmtMoney(s.taxAmount)}</div>
-        <div class="stat-label">Tax Collected</div>
+        <div class="stat-label">Tax Collected${(s.refundedTax || 0) > 0 ? `<br><span class="text-sm text-muted">&minus;${fmtMoney(s.refundedTax)} refunded · <strong>remit ${fmtMoney(s.netTax || 0)}</strong></span>` : ''}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">${fmtMoney(s.depositAmount)}</div>
@@ -186,17 +186,24 @@ function _renderSalesChart(data) {
         <summary>View Table</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Period</th><th class="mobile-hide">Orders</th><th class="mobile-hide">Paid Revenue</th><th class="mobile-hide">Pending Revenue</th><th>Total Revenue</th><th class="mobile-hide">Tax</th><th class="mobile-hide">Deposits</th><th class="mobile-hide">Refunds</th></tr></thead>
+            <thead><tr><th>Period</th><th class="mobile-hide">Orders</th><th class="mobile-hide">Paid Revenue</th><th class="mobile-hide">Pending Revenue</th><th>Total Revenue</th><th class="mobile-hide">Tax</th><th class="mobile-hide">Tax Refunded</th><th class="mobile-hide">Tax to Remit</th><th class="mobile-hide">Deposits</th><th class="mobile-hide">Refunds</th></tr></thead>
             <tbody>
-              ${buckets.map(b => `<tr>
+              ${buckets.map(b => {
+                const refundedTax = b.refundedTax || 0;
+                const taxToRemit = (b.taxAmount || 0) - refundedTax;
+                return `<tr>
                 <td>${esc(b.bucket)}</td>
                 <td class="mobile-hide">${b.orderCount} <span class="text-muted text-sm">(${b.paidOrderCount || 0}/${b.pendingOrderCount || 0})</span></td>
                 <td class="text-success mobile-hide">${fmtMoney(b.paidAmount || 0)}</td>
                 <td class="mobile-hide">${fmtMoney(b.pendingAmount || 0)}</td>
                 <td class="fw-600">${fmtMoney(b.orderAmount)}</td>
-                <td class="mobile-hide">${fmtMoney(b.taxAmount)}</td><td class="mobile-hide">${fmtMoney(b.depositAmount)}</td>
+                <td class="mobile-hide">${fmtMoney(b.taxAmount)}</td>
+                <td class="mobile-hide ${refundedTax > 0 ? 'text-danger' : 'text-muted'}">${refundedTax > 0 ? fmtMoney(-refundedTax) : '—'}</td>
+                <td class="mobile-hide fw-600">${fmtMoney(taxToRemit)}</td>
+                <td class="mobile-hide">${fmtMoney(b.depositAmount)}</td>
                 <td class="mobile-hide ${(b.refundedAmount || 0) > 0 ? 'text-danger' : 'text-muted'}">${(b.refundedAmount || 0) > 0 ? fmtMoney(-(b.refundedAmount || 0)) : '—'}</td>
-              </tr>`).join('')}
+              </tr>`;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -454,9 +461,11 @@ function _reportsExportCsv() {
 
   // Sales Summary
   lines.push('--- Sales Summary ---');
-  lines.push('Period,Orders,Paid Orders,Pending Orders,Paid Revenue,Pending Revenue,Total Revenue,Tax,Deposits,Refund Count,Refunded Amount,Refunded Tax');
+  lines.push('Period,Orders,Paid Orders,Pending Orders,Paid Revenue,Pending Revenue,Total Revenue,Tax,Tax Refunded,Tax to Remit,Deposits,Refund Count,Refunded Amount,Refunded Tax');
   for (const b of d.salesSummary.buckets) {
-    lines.push(`${b.bucket},${b.orderCount},${b.paidOrderCount || 0},${b.pendingOrderCount || 0},${(b.paidAmount || 0).toFixed(2)},${(b.pendingAmount || 0).toFixed(2)},${b.orderAmount.toFixed(2)},${b.taxAmount.toFixed(2)},${b.depositAmount.toFixed(2)},${b.refundCount || 0},${(b.refundedAmount || 0).toFixed(2)},${(b.refundedTax || 0).toFixed(2)}`);
+    const refundedTax = b.refundedTax || 0;
+    const taxToRemit  = (b.taxAmount || 0) - refundedTax;
+    lines.push(`${b.bucket},${b.orderCount},${b.paidOrderCount || 0},${b.pendingOrderCount || 0},${(b.paidAmount || 0).toFixed(2)},${(b.pendingAmount || 0).toFixed(2)},${b.orderAmount.toFixed(2)},${b.taxAmount.toFixed(2)},${refundedTax.toFixed(2)},${taxToRemit.toFixed(2)},${b.depositAmount.toFixed(2)},${b.refundCount || 0},${(b.refundedAmount || 0).toFixed(2)},${refundedTax.toFixed(2)}`);
   }
   lines.push('');
 
